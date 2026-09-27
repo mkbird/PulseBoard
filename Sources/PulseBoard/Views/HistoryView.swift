@@ -23,13 +23,41 @@ struct HistoryView: View {
                         .buttonStyle(.borderedProminent)
                 }
 
-                HStack(spacing: 14) {
-                    DatePicker("开始", selection: $store.customFrom)
-                    DatePicker("结束", selection: $store.customTo)
-                    Button("应用") { store.applyCustomRange() }
-                    Spacer()
-                    Text("当前显示 \(store.samples.count) 个采样点")
-                        .font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Label("时间范围", systemImage: "calendar")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        StatusPill(
+                            text: store.selectedRange == .custom ? "固定区间" : "实时滚动",
+                            color: store.selectedRange == .custom ? .orange : .green
+                        )
+                        Text("\(store.samples.count) 个采样点")
+                            .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    }
+
+                    Picker("时间范围", selection: Binding(
+                        get: { store.selectedRange },
+                        set: { store.selectHistoryRange($0) }
+                    )) {
+                        ForEach(HistoryRange.allCases) { range in
+                            Text(range.title).tag(range)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+
+                    if store.selectedRange == .custom {
+                        Divider()
+                        HStack(spacing: 14) {
+                            DatePicker("开始", selection: $store.customFrom, displayedComponents: [.date, .hourAndMinute])
+                            DatePicker("结束", selection: $store.customTo, displayedComponents: [.date, .hourAndMinute])
+                            Button("结束设为现在") { store.customTo = Date() }
+                            Spacer()
+                            Button("应用") { store.applyCustomRange() }
+                                .buttonStyle(.borderedProminent)
+                        }
+                    }
                 }
                 .padding(16)
                 .glassPanel()

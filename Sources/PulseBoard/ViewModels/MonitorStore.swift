@@ -9,8 +9,8 @@ final class MonitorStore: ObservableObject {
     @Published var selectedRange: HistoryRange = .fifteenMinutes {
         didSet { reloadHistory() }
     }
-    @Published var customFrom = Date().addingTimeInterval(-3_600)
-    @Published var customTo = Date()
+    @Published var customFrom: Date
+    @Published var customTo: Date
     @Published var samplingInterval: TimeInterval = 1 {
         didSet { restartTimer() }
     }
@@ -24,8 +24,15 @@ final class MonitorStore: ObservableObject {
     private let history: HistoryStore?
     private var samplingTask: Task<Void, Never>?
     private var lastPrune = Date.distantPast
+    private var appliedCustomFrom: Date
+    private var appliedCustomTo: Date
 
     init() {
+        let now = Date()
+        customFrom = now.addingTimeInterval(-3_600)
+        customTo = now
+        appliedCustomFrom = now.addingTimeInterval(-3_600)
+        appliedCustomTo = now
         do {
             history = try HistoryStore()
         } catch {
@@ -43,8 +50,8 @@ final class MonitorStore: ObservableObject {
 
     var chartWindow: ClosedRange<Date> {
         if selectedRange == .custom {
-            let end = max(customFrom.addingTimeInterval(1), customTo)
-            return customFrom...end
+            let end = max(appliedCustomFrom.addingTimeInterval(1), appliedCustomTo)
+            return appliedCustomFrom...end
         }
         let end = latest?.timestamp ?? Date()
         return end.addingTimeInterval(-(selectedRange.duration ?? 900))...end
@@ -73,8 +80,24 @@ final class MonitorStore: ObservableObject {
     }
 
     func applyCustomRange() {
-        selectedRange = .custom
-        reloadHistory()
+        if customTo <= customFrom {
+            customTo = customFrom.addingTimeInterval(60)
+        }
+        appliedCustomFrom = customFrom
+        appliedCustomTo = customTo
+        if selectedRange == .custom { reloadHistory() }
+        else { selectedRange = .custom }
+    }
+
+    func selectHistoryRange(_ range: HistoryRange) {
+        if range == .custom, selectedRange != .custom {
+            let end = Date()
+            customTo = end
+            customFrom = end.addingTimeInterval(-3_600)
+            appliedCustomFrom = customFrom
+            appliedCustomTo = customTo
+        }
+        selectedRange = range
     }
 
     func resumeLiveRange() {

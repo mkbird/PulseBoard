@@ -110,7 +110,7 @@ struct SettingsView: View {
             content()
         }
         .padding(20)
-        .glassPanel(tint: PulseTheme.cyan)
+        .glassPanel()
     }
 
     private func sourceRow(_ title: String, detail: String, state: String) -> some View {
