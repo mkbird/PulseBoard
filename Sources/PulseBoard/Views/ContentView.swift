@@ -51,13 +51,6 @@ struct ContentView: View {
                     HStack(spacing: 7) {
                         Circle().fill(.green).frame(width: 6, height: 6)
                         Text("实时采样中").font(.caption.weight(.semibold))
-                        Spacer()
-                        Text(store.latest?.timestamp.formatted(date: .omitted, time: .shortened) ?? "—")
-                            .font(.caption2.monospacedDigit()).foregroundStyle(.tertiary)
-                    }
-                    HStack(spacing: 12) {
-                        sidebarMetric("CPU", value: MetricFormat.percent(store.latest?.cpuUsage), color: .cyan)
-                        sidebarMetric("GPU", value: MetricFormat.percent(store.latest?.gpuUsage), color: .purple)
                     }
                 }
                 .padding(12)
@@ -81,12 +74,5 @@ struct ContentView: View {
             get: { store.errorMessage != nil },
             set: { if !$0 { store.dismissError() } }
         )) { Button("好", role: .cancel) {} } message: { Text(store.errorMessage ?? "") }
-    }
-
-    private func sidebarMetric(_ name: String, value: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(name).font(.caption2).foregroundStyle(.tertiary)
-            Text(value).font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(color)
-        }
     }
 }

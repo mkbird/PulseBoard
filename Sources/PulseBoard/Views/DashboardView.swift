@@ -13,8 +13,8 @@ struct DashboardView: View {
                     MetricCard(title: "CPU", icon: "cpu", value: MetricFormat.percent(store.latest?.cpuUsage), subtitle: store.latest?.thermalState ?? "采样中", tint: .cyan, samples: store.samples, timeDomain: store.chartWindow) { $0.cpuUsage }
                     MetricCard(title: "GPU", icon: "rectangle.3.group", value: MetricFormat.percent(store.latest?.gpuUsage), subtitle: "设备利用率", tint: .purple, samples: store.samples, timeDomain: store.chartWindow) { $0.gpuUsage }
                     MetricCard(title: "内存", icon: "memorychip", value: MetricFormat.percent(store.latest?.memoryUsage), subtitle: memorySubtitle, tint: .orange, samples: store.samples, timeDomain: store.chartWindow) { $0.memoryUsage }
-                    MetricCard(title: "ANE", icon: "brain.head.profile", value: MetricFormat.watts(store.latest?.anePowerWatts), subtitle: store.enhancedMetricsAvailable ? "IOReport 神经引擎功耗" : "需要增强采样", tint: .pink, samples: store.samples, timeDomain: store.chartWindow) { $0.anePowerWatts }
-                    MetricCard(title: "整机功耗", icon: "bolt.fill", value: MetricFormat.watts(store.latest?.systemPowerWatts), subtitle: "SMC 整机功耗", tint: .yellow, samples: store.samples, timeDomain: store.chartWindow) { $0.systemPowerWatts }
+                    MetricCard(title: "ANE 功耗", icon: "brain.head.profile", value: MetricFormat.watts(store.latest?.anePowerWatts), subtitle: "", tint: .pink, samples: store.samples, timeDomain: store.chartWindow) { $0.anePowerWatts }
+                    MetricCard(title: "整机功耗", icon: "bolt.fill", value: MetricFormat.watts(store.latest?.systemPowerWatts), subtitle: "", tint: .yellow, samples: store.samples, timeDomain: store.chartWindow) { $0.systemPowerWatts }
                     MetricCard(title: "磁盘空间", icon: "internaldrive", value: diskFree, subtitle: "可用 / \(diskTotal)", tint: .green, samples: store.samples, timeDomain: store.chartWindow) { sample in
                         sample.diskTotalBytes > 0 ? (1 - sample.diskFreeBytes / sample.diskTotalBytes) * 100 : nil
                     }
