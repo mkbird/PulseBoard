@@ -76,10 +76,6 @@ struct DashboardView: View {
                 }
             }
             Spacer()
-            if let count = store.latest?.cliptoProcessCount {
-                StatusPill(text: "Clipto · \(count) 个进程", color: .cyan)
-            }
-            StatusPill(text: store.enhancedMetricsAvailable ? "增强指标在线" : "标准采样", color: store.enhancedMetricsAvailable ? .green : .orange)
             Picker("时间范围", selection: $store.selectedRange) {
                 ForEach(HistoryRange.allCases.filter { $0 != .custom }) { range in Text(range.title).tag(range) }
             }
