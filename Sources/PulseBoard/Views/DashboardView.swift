@@ -96,8 +96,8 @@ struct DashboardView: View {
 
     private var cpuSubtitle: String {
         guard let latest = store.latest else { return "采样中" }
-        guard let clipto = latest.cliptoCPUPercent else { return latest.thermalState }
-        return "Clipto \(MetricFormat.percent(clipto))"
+        guard let clipto = cliptoCPUShare(latest) else { return latest.thermalState }
+        return "Clipto \(MetricFormat.percent(clipto)) 整机"
     }
 
     private var gpuSubtitle: String {
