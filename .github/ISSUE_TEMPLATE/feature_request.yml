@@ -1,0 +1,24 @@
+name: 功能建议
+description: 建议新的指标、交互或平台能力
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 使用场景
+      description: 你希望解决什么问题？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 描述期望的行为、数据来源或交互方式。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案
+      description: 你目前如何解决这个问题？

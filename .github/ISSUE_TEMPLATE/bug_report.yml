@@ -1,0 +1,53 @@
+name: 缺陷报告
+description: 报告可复现的问题或异常指标
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 感谢反馈。请勿在公开 Issue 中提交密码、令牌或完整的私人监控数据。
+  - type: input
+    id: version
+    attributes:
+      label: PulseBoard 版本
+      placeholder: 例如 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Mac 与 macOS
+      placeholder: 例如 MacBook Pro M3 Max / macOS 15.1
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么？你预期看到什么？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开……
+        2. 选择……
+        3. 观察……
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图或日志
+      description: 请先移除用户名、路径和业务数据等敏感信息。
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我使用的是最新发布版本。
+          required: true
+        - label: 我没有在报告中包含凭据或私人数据。
+          required: true
