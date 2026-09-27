@@ -15,6 +15,7 @@ let package = Package(
             dependencies: ["PulseHardware"],
             linkerSettings: [
                 .linkedFramework("IOKit"),
+                .linkedFramework("Security"),
                 .linkedLibrary("sqlite3")
             ]
         ),
