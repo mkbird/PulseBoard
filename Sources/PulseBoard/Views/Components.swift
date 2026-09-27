@@ -2,13 +2,13 @@ import Charts
 import SwiftUI
 
 enum PulseTheme {
-    static let canvasTop = Color(red: 0.045, green: 0.065, blue: 0.12)
-    static let canvasBottom = Color(red: 0.018, green: 0.025, blue: 0.055)
-    static let sidebar = Color(red: 0.025, green: 0.038, blue: 0.078)
-    static let panel = Color.white.opacity(0.055)
-    static let stroke = Color.white.opacity(0.10)
-    static let cyan = Color(red: 0.15, green: 0.82, blue: 1.0)
-    static let violet = Color(red: 0.60, green: 0.32, blue: 1.0)
+    static let canvasTop = Color(red: 0.040, green: 0.050, blue: 0.067)
+    static let canvasBottom = Color(red: 0.025, green: 0.030, blue: 0.040)
+    static let sidebar = Color(red: 0.030, green: 0.036, blue: 0.047)
+    static let panel = Color(red: 0.063, green: 0.075, blue: 0.094)
+    static let stroke = Color.white.opacity(0.085)
+    static let cyan = Color(red: 0.28, green: 0.72, blue: 0.87)
+    static let violet = Color(red: 0.58, green: 0.48, blue: 0.80)
 }
 
 struct AppBackground: View {
@@ -18,18 +18,6 @@ struct AppBackground: View {
                 colors: [PulseTheme.canvasTop, PulseTheme.canvasBottom],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
-            )
-            RadialGradient(
-                colors: [PulseTheme.cyan.opacity(0.13), .clear],
-                center: .topLeading,
-                startRadius: 0,
-                endRadius: 720
-            )
-            RadialGradient(
-                colors: [PulseTheme.violet.opacity(0.10), .clear],
-                center: .bottomTrailing,
-                startRadius: 0,
-                endRadius: 640
             )
         }
         .ignoresSafeArea()
@@ -42,26 +30,23 @@ struct GlassPanel: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [tint?.opacity(0.12) ?? PulseTheme.panel, PulseTheme.panel],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(PulseTheme.panel)
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [.white.opacity(0.16), tint?.opacity(0.20) ?? .white.opacity(0.04)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(PulseTheme.stroke)
             }
-            .shadow(color: .black.opacity(0.22), radius: 22, y: 12)
+            .overlay(alignment: .top) {
+                if let tint {
+                    Rectangle()
+                        .fill(tint.opacity(0.72))
+                        .frame(height: 2)
+                        .padding(.horizontal, 12)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: .black.opacity(0.16), radius: 10, y: 4)
     }
 }
 
@@ -93,18 +78,18 @@ struct MetricCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(tint)
-                    .frame(width: 30, height: 30)
-                    .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .frame(width: 26, height: 26)
+                    .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Circle().fill(tint).frame(width: 7, height: 7).shadow(color: tint, radius: 6)
+                Rectangle().fill(tint.opacity(0.85)).frame(width: 14, height: 2)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(value).font(.system(size: 31, weight: .semibold, design: .rounded)).monospacedDigit()
+                Text(value).font(.system(size: 30, weight: .medium, design: .default)).monospacedDigit()
                 Text(subtitle).font(.caption).foregroundStyle(.tertiary).lineLimit(1)
             }
             Chart(points) { sample in
@@ -113,21 +98,21 @@ struct MetricCard: View {
                     y: .value(title, sample.value),
                     series: .value("连续区间", sample.seriesID)
                 )
-                .foregroundStyle(LinearGradient(colors: [tint.opacity(0.28), tint.opacity(0.01)], startPoint: .top, endPoint: .bottom))
+                .foregroundStyle(LinearGradient(colors: [tint.opacity(0.18), tint.opacity(0.005)], startPoint: .top, endPoint: .bottom))
                 LineMark(
                     x: .value("时间", sample.timestamp),
                     y: .value(title, sample.value),
                     series: .value("连续区间", sample.seriesID)
                 )
                 .foregroundStyle(tint)
-                .lineStyle(.init(lineWidth: 2))
+                .lineStyle(.init(lineWidth: 1.6))
             }
             .chartXAxis(.hidden)
             .chartYAxis(.hidden)
             .chartXScale(domain: resolvedTimeDomain)
             .frame(height: 52)
         }
-        .padding(17)
+        .padding(16)
         .glassPanel(tint: tint)
     }
 
@@ -157,22 +142,19 @@ struct TelemetryChart: View {
             HStack(alignment: .top) {
                 HStack(spacing: 10) {
                     Image(systemName: icon)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(PulseTheme.cyan)
-                        .frame(width: 30, height: 30)
-                        .background(PulseTheme.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .frame(width: 26, height: 26)
+                        .background(PulseTheme.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                     Text(title).font(.headline)
                 }
                 Spacer()
-                HStack(spacing: 12) {
+                HStack(spacing: 14) {
                     ForEach(series) { item in
                         HStack(spacing: 5) {
                             Circle().fill(item.color).frame(width: 7, height: 7)
                             Text(item.name).font(.caption).foregroundStyle(.secondary)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(.white.opacity(0.04), in: Capsule())
                     }
                 }
             }
@@ -186,7 +168,7 @@ struct TelemetryChart: View {
                             series: .value("指标与连续区间", point.seriesID)
                         )
                         .foregroundStyle(item.color)
-                        .lineStyle(.init(lineWidth: 2))
+                        .lineStyle(.init(lineWidth: 1.6))
                     }
                 }
             }
@@ -209,8 +191,8 @@ struct TelemetryChart: View {
             .chartXScale(domain: resolvedTimeDomain)
             .chartPlotStyle { plot in
                 plot
-                    .background(.black.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(.black.opacity(0.07))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .frame(minHeight: 210)
         }
@@ -302,9 +284,9 @@ struct StatusPill: View {
             Text(text).font(.caption.weight(.medium))
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.14), in: Capsule())
-        .overlay { Capsule().strokeBorder(color.opacity(0.22)) }
+        .padding(.vertical, 5)
+        .background(color.opacity(0.09), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(color.opacity(0.16)) }
         .foregroundStyle(color)
     }
 }

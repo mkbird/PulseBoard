@@ -9,12 +9,12 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 22) {
                 HStack(spacing: 13) {
                     Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 19, weight: .semibold))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(PulseTheme.cyan)
-                        .frame(width: 44, height: 44)
-                        .background(PulseTheme.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        .frame(width: 34, height: 34)
+                        .background(PulseTheme.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("设置").font(.system(size: 29, weight: .bold, design: .rounded))
+                        Text("设置").font(.system(size: 28, weight: .semibold, design: .default))
                         Text("采样、历史记录与数据源").font(.callout).foregroundStyle(.secondary)
                     }
                 }

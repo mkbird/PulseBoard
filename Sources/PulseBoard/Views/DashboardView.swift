@@ -76,13 +76,12 @@ struct DashboardView: View {
         HStack(alignment: .center) {
             HStack(spacing: 13) {
                 Image(systemName: "waveform.path.ecg.rectangle")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(PulseTheme.cyan)
-                    .frame(width: 44, height: 44)
-                    .background(PulseTheme.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                    .overlay { RoundedRectangle(cornerRadius: 13).strokeBorder(PulseTheme.cyan.opacity(0.20)) }
+                    .frame(width: 34, height: 34)
+                    .background(PulseTheme.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("资源总览").font(.system(size: 29, weight: .bold, design: .rounded))
+                    Text("资源总览").font(.system(size: 28, weight: .semibold, design: .default))
                     Text("性能、带宽与能耗，一览无余").font(.callout).foregroundStyle(.secondary)
                 }
             }
@@ -95,7 +94,6 @@ struct DashboardView: View {
             .frame(width: 390)
             Button { store.exportCurrentRange() } label: { Label("导出", systemImage: "square.and.arrow.up") }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
         }
     }
 

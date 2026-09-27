@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 private enum AppSection: String, CaseIterable, Identifiable {
@@ -23,11 +22,12 @@ struct ContentView: View {
         NavigationSplitView {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
-                    Image(nsImage: NSApplication.shared.applicationIconImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 42, height: 42)
-                        .shadow(color: PulseTheme.cyan.opacity(0.22), radius: 10)
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(PulseTheme.cyan)
+                        .frame(width: 30, height: 30)
+                        .background(PulseTheme.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(PulseTheme.stroke) }
                     VStack(alignment: .leading, spacing: 2) {
                         Text("PulseBoard").font(.headline)
                         Text("Mac 性能中心").font(.caption2).foregroundStyle(.tertiary)
@@ -35,8 +35,8 @@ struct ContentView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 17)
-                .padding(.top, 18)
-                .padding(.bottom, 14)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
 
                 List(AppSection.allCases, selection: $selection) { section in
                     Label(section.rawValue, systemImage: section.icon)
@@ -49,7 +49,7 @@ struct ContentView: View {
 
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(spacing: 7) {
-                        Circle().fill(.green).frame(width: 7, height: 7).shadow(color: .green, radius: 4)
+                        Circle().fill(.green).frame(width: 6, height: 6)
                         Text("实时采样中").font(.caption.weight(.semibold))
                         Spacer()
                         Text(store.latest?.timestamp.formatted(date: .omitted, time: .shortened) ?? "—")
@@ -61,8 +61,8 @@ struct ContentView: View {
                     }
                 }
                 .padding(12)
-                .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                .overlay { RoundedRectangle(cornerRadius: 13).strokeBorder(.white.opacity(0.08)) }
+                .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(.white.opacity(0.07)) }
                 .padding(12)
             }
             .background(PulseTheme.sidebar)

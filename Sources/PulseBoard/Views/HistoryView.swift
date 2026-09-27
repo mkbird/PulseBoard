@@ -9,19 +9,18 @@ struct HistoryView: View {
                 HStack {
                     HStack(spacing: 13) {
                         Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                            .font(.system(size: 19, weight: .semibold))
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundStyle(PulseTheme.violet)
-                            .frame(width: 44, height: 44)
-                            .background(PulseTheme.violet.opacity(0.13), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                            .frame(width: 34, height: 34)
+                            .background(PulseTheme.violet.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("历史与导出").font(.system(size: 29, weight: .bold, design: .rounded))
+                            Text("历史与导出").font(.system(size: 28, weight: .semibold, design: .default))
                             Text("探索任意时间窗口，导出始终保留原始记录").font(.callout).foregroundStyle(.secondary)
                         }
                     }
                     Spacer()
                     Button { store.exportCurrentRange() } label: { Label("导出 CSV", systemImage: "square.and.arrow.up") }
                         .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
                 }
 
                 HStack(spacing: 14) {
