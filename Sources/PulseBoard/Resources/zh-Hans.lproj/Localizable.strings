@@ -8,6 +8,10 @@
 "common.apply" = "应用";
 "common.export" = "导出";
 
+"language.system" = "跟随系统";
+"language.zh_hans" = "简体中文";
+"language.english" = "English";
+
 "menu.export_range" = "导出当前时间范围…";
 "menu.memory" = "内存  %@";
 "menu.quit" = "退出";
@@ -66,12 +70,16 @@
 
 "settings.title" = "设置";
 "settings.subtitle" = "采样、历史记录与数据源";
+"settings.language" = "语言";
+"settings.app_language" = "应用语言";
+"settings.language_hint" = "“跟随系统”会使用 macOS 的语言设置，切换后立即生效。";
 "settings.sampling_history" = "采样与历史";
 "settings.sampling_interval" = "采样间隔";
 "settings.history_retention" = "历史保留";
 "settings.database" = "数据库";
 "settings.seconds" = "%d 秒";
 "settings.days" = "%d 天";
+"settings.days_max" = "%d 天（最长）";
 "settings.enhanced_metrics" = "增强指标";
 "settings.enhanced_title" = "ANE、分项功耗与应用级 GPU";
 "settings.enhanced_detail" = "IOReport、SMC 与 IOKit 在本机直接采样，无需管理员权限。";

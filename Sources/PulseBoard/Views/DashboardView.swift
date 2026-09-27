@@ -2,8 +2,9 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject private var store: MonitorStore
+    @EnvironmentObject private var localization: LocalizationManager
 
-    private let grid = [GridItem(.adaptive(minimum: 245), spacing: 16)]
+    private let grid = Array(repeating: GridItem(.flexible(minimum: 245), spacing: 16), count: 3)
 
     var body: some View {
         ScrollView {
@@ -65,6 +66,7 @@ struct DashboardView: View {
             .padding(.bottom, 32)
         }
         .background(AppBackground())
+        .environment(\.locale, localization.locale)
     }
 
     private var header: some View {

@@ -8,6 +8,10 @@
 "common.apply" = "Apply";
 "common.export" = "Export";
 
+"language.system" = "System Default";
+"language.zh_hans" = "Simplified Chinese";
+"language.english" = "English";
+
 "menu.export_range" = "Export Current Range…";
 "menu.memory" = "Memory  %@";
 "menu.quit" = "Quit";
@@ -66,12 +70,16 @@
 
 "settings.title" = "Settings";
 "settings.subtitle" = "Sampling, history, and data sources";
+"settings.language" = "Language";
+"settings.app_language" = "App Language";
+"settings.language_hint" = "System Default follows the macOS language setting. Changes apply immediately.";
 "settings.sampling_history" = "Sampling & History";
 "settings.sampling_interval" = "Sampling Interval";
 "settings.history_retention" = "History Retention";
 "settings.database" = "Database";
 "settings.seconds" = "%d sec";
 "settings.days" = "%d days";
+"settings.days_max" = "%d days (maximum)";
 "settings.enhanced_metrics" = "Enhanced Metrics";
 "settings.enhanced_title" = "ANE, component power, and per-app GPU";
 "settings.enhanced_detail" = "IOReport, SMC, and IOKit are sampled locally without administrator access.";

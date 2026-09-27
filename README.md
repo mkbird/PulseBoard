@@ -13,7 +13,7 @@
 
 ## 简体中文
 
-PulseBoard 是一个原生 SwiftUI macOS 资源监控应用。它将系统负载、带宽、功耗、历史记录和 Clipto 进程指标集中在一个界面中，并且不依赖 Homebrew、`powermetrics` 或常驻特权辅助进程。应用界面支持简体中文和英文，并跟随 macOS 的应用语言设置。
+PulseBoard 是一个原生 SwiftUI macOS 资源监控应用。它将系统负载、带宽、功耗、历史记录和 Clipto 进程指标集中在一个界面中，并且不依赖 Homebrew、`powermetrics` 或常驻特权辅助进程。应用界面支持简体中文和英文，默认跟随 macOS，也可以在“设置 → 语言”中即时切换。
 
 ### 功能
 
@@ -72,7 +72,7 @@ PulseBoard 不包含遥测、分析 SDK 或云端上传逻辑。监控数据保�
 - 历史数据库：`~/Library/Application Support/PulseBoard/history.sqlite`
 - CSV：仅在用户主动导出时写入用户选择的位置
 
-历史数据默认保留 30 天，可在设置中调整为 7 天或 90 天。
+历史数据默认保留 120 天。可以在设置中缩短为 7、30 或 90 天；无论设置如何，超过 120 天的记录都会自动删除。
 
 ### 签名与公证
 
@@ -98,7 +98,7 @@ PulseBoard 使用 [MIT License](LICENSE)。
 
 ## English
 
-PulseBoard is a native SwiftUI system monitor for macOS. It brings system load, bandwidth, power, history, and Clipto process metrics into one interface without requiring Homebrew, `powermetrics`, or a persistent privileged helper. The app supports Simplified Chinese and English and follows the macOS per-app language setting.
+PulseBoard is a native SwiftUI system monitor for macOS. It brings system load, bandwidth, power, history, and Clipto process metrics into one interface without requiring Homebrew, `powermetrics`, or a persistent privileged helper. The app supports Simplified Chinese and English, follows macOS by default, and can be switched instantly in Settings → Language.
 
 ### Features
 
@@ -157,7 +157,7 @@ PulseBoard contains no telemetry, analytics SDK, or cloud upload logic. Monitori
 - History database: `~/Library/Application Support/PulseBoard/history.sqlite`
 - CSV files: written only when the user explicitly exports to a chosen location
 
-History is retained for 30 days by default and can be changed to 7 or 90 days in Settings.
+History is retained for 120 days by default. You can shorten retention to 7, 30, or 90 days in Settings; records older than 120 days are always deleted automatically.
 
 ### Signing and Notarization
 

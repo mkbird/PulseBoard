@@ -20,6 +20,7 @@ private enum AppSection: CaseIterable, Identifiable {
 
 struct ContentView: View {
     @EnvironmentObject private var store: MonitorStore
+    @EnvironmentObject private var localization: LocalizationManager
     @State private var selection: AppSection? = .overview
 
     var body: some View {
@@ -73,6 +74,7 @@ struct ContentView: View {
         .frame(minWidth: 1120, minHeight: 760)
         .preferredColorScheme(.dark)
         .tint(PulseTheme.cyan)
+        .environment(\.locale, localization.locale)
         .alert("PulseBoard", isPresented: Binding(
             get: { store.errorMessage != nil },
             set: { if !$0 { store.dismissError() } }

@@ -3,10 +3,14 @@ import SwiftUI
 @main
 struct PulseBoardApp: App {
     @StateObject private var store = MonitorStore()
+    @StateObject private var localization = LocalizationManager()
 
     var body: some Scene {
         WindowGroup {
-            ContentView().environmentObject(store)
+            ContentView()
+                .environmentObject(store)
+                .environmentObject(localization)
+                .environment(\.locale, localization.locale)
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -28,6 +32,8 @@ struct PulseBoardApp: App {
                 Button(L10n.text("menu.quit")) { NSApplication.shared.terminate(nil) }
             }
             .padding(8)
+            .environmentObject(localization)
+            .environment(\.locale, localization.locale)
         } label: {
             Label("\(Int(store.latest?.cpuUsage ?? 0))%", systemImage: "waveform.path.ecg")
         }

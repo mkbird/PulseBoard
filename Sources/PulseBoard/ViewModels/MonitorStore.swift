@@ -3,6 +3,9 @@ import Foundation
 
 @MainActor
 final class MonitorStore: ObservableObject {
+    static let maximumRetentionDays = 120
+    private static let retentionDefaultsKey = "PulseBoard.retentionDays"
+
     @Published private(set) var samples: [MetricSample] = []
     @Published private(set) var latest: MetricSample?
     @Published var selectedRange: HistoryRange = .fifteenMinutes {
@@ -13,7 +16,16 @@ final class MonitorStore: ObservableObject {
     @Published var samplingInterval: TimeInterval = 1 {
         didSet { restartTimer() }
     }
-    @Published var retentionDays = 30
+    @Published var retentionDays = maximumRetentionDays {
+        didSet {
+            let clamped = min(max(1, retentionDays), Self.maximumRetentionDays)
+            if retentionDays != clamped {
+                retentionDays = clamped
+            } else {
+                UserDefaults.standard.set(clamped, forKey: Self.retentionDefaultsKey)
+            }
+        }
+    }
     @Published private(set) var enhancedMetricsAvailable = false
     @Published private(set) var errorMessage: String?
 
@@ -30,6 +42,10 @@ final class MonitorStore: ObservableObject {
         customTo = now
         appliedCustomFrom = now.addingTimeInterval(-3_600)
         appliedCustomTo = now
+        let savedRetention = UserDefaults.standard.integer(forKey: Self.retentionDefaultsKey)
+        if savedRetention > 0 {
+            retentionDays = min(savedRetention, Self.maximumRetentionDays)
+        }
         do {
             history = try HistoryStore()
         } catch {
@@ -63,7 +79,8 @@ final class MonitorStore: ObservableObject {
         do {
             try history?.append(sample)
             if Date().timeIntervalSince(lastPrune) > 3_600 {
-                try history?.prune(olderThan: Calendar.current.date(byAdding: .day, value: -retentionDays, to: Date()) ?? .distantPast)
+                let effectiveRetentionDays = min(max(1, retentionDays), Self.maximumRetentionDays)
+                try history?.prune(olderThan: Calendar.current.date(byAdding: .day, value: -effectiveRetentionDays, to: Date()) ?? .distantPast)
                 lastPrune = Date()
             }
             reloadHistory()

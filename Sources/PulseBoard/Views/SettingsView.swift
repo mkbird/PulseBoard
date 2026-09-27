@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var store: MonitorStore
+    @EnvironmentObject private var localization: LocalizationManager
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -15,6 +16,20 @@ struct SettingsView: View {
                         Text(L10n.text("settings.title")).font(.system(size: 28, weight: .semibold, design: .default))
                         Text(L10n.text("settings.subtitle")).font(.callout).foregroundStyle(.secondary)
                     }
+                }
+
+                settingsSection(L10n.text("settings.language"), icon: "globe") {
+                    LabeledContent(L10n.text("settings.app_language")) {
+                        Picker(L10n.text("settings.app_language"), selection: $localization.language) {
+                            ForEach(AppLanguage.allCases) { language in
+                                Text(language.title).tag(language)
+                            }
+                        }
+                        .frame(width: 190)
+                    }
+                    Text(L10n.text("settings.language_hint"))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
 
                 settingsSection(L10n.text("settings.sampling_history"), icon: "clock.arrow.circlepath") {
@@ -31,6 +46,7 @@ struct SettingsView: View {
                             Text(L10n.format("settings.days", 7)).tag(7)
                             Text(L10n.format("settings.days", 30)).tag(30)
                             Text(L10n.format("settings.days", 90)).tag(90)
+                            Text(L10n.format("settings.days_max", MonitorStore.maximumRetentionDays)).tag(MonitorStore.maximumRetentionDays)
                         }.frame(width: 140)
                     }
                     LabeledContent(L10n.text("settings.database")) { Text("~/Library/Application Support/PulseBoard/history.sqlite").font(.caption).foregroundStyle(.secondary) }
