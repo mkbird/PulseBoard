@@ -7,6 +7,7 @@
 #include <limits.h>
 #include <mach/mach_time.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/proc_info.h>
@@ -52,6 +53,7 @@ typedef struct {
     uint64_t cpu_time;
     uint64_t disk_read;
     uint64_t disk_write;
+    uint64_t gpu_time;
 } PBPreviousProcess;
 
 static PBPreviousProcess *g_previous_clipto_processes = NULL;
@@ -412,6 +414,73 @@ static const PBPreviousProcess *previous_clipto_process(pid_t pid, uint64_t star
     return NULL;
 }
 
+static PBPreviousProcess *current_clipto_process(PBPreviousProcess *processes, size_t count, pid_t pid) {
+    for (size_t index = 0; index < count; index++) {
+        if (processes[index].pid == pid) return &processes[index];
+    }
+    return NULL;
+}
+
+static void collect_clipto_gpu_time(PBPreviousProcess *processes, size_t count) {
+    if (!processes || count == 0) return;
+    CFMutableDictionaryRef matching = IOServiceMatching("IOAccelerator");
+    if (!matching) return;
+    io_iterator_t accelerators = 0;
+    if (IOServiceGetMatchingServices(kIOMainPortDefault, matching, &accelerators) != kIOReturnSuccess) return;
+
+    io_object_t accelerator = IOIteratorNext(accelerators);
+    while (accelerator != 0) {
+        io_iterator_t clients = 0;
+        if (IORegistryEntryGetChildIterator(accelerator, kIOServicePlane, &clients) == kIOReturnSuccess) {
+            io_object_t client = IOIteratorNext(clients);
+            while (client != 0) {
+                CFTypeRef creator_value = IORegistryEntryCreateCFProperty(
+                    client, CFSTR("IOUserClientCreator"), kCFAllocatorDefault, 0
+                );
+                char creator[128] = {0};
+                pid_t pid = 0;
+                if (creator_value && CFGetTypeID(creator_value) == CFStringGetTypeID() &&
+                    cf_string((CFStringRef)creator_value, creator, sizeof(creator))) {
+                    int parsed_pid = 0;
+                    if (sscanf(creator, "pid %d,", &parsed_pid) == 1) pid = (pid_t)parsed_pid;
+                }
+                if (creator_value) CFRelease(creator_value);
+
+                PBPreviousProcess *process = current_clipto_process(processes, count, pid);
+                if (process) {
+                    CFTypeRef usage_value = IORegistryEntryCreateCFProperty(
+                        client, CFSTR("AppUsage"), kCFAllocatorDefault, 0
+                    );
+                    if (usage_value && CFGetTypeID(usage_value) == CFArrayGetTypeID()) {
+                        CFArrayRef usages = (CFArrayRef)usage_value;
+                        CFIndex usage_count = CFArrayGetCount(usages);
+                        for (CFIndex usage_index = 0; usage_index < usage_count; usage_index++) {
+                            CFTypeRef item = CFArrayGetValueAtIndex(usages, usage_index);
+                            if (!item || CFGetTypeID(item) != CFDictionaryGetTypeID()) continue;
+                            CFTypeRef time_value = CFDictionaryGetValue(
+                                (CFDictionaryRef)item, CFSTR("accumulatedGPUTime")
+                            );
+                            int64_t gpu_time = 0;
+                            if (time_value && CFGetTypeID(time_value) == CFNumberGetTypeID() &&
+                                CFNumberGetValue((CFNumberRef)time_value, kCFNumberSInt64Type, &gpu_time) &&
+                                gpu_time > 0) {
+                                process->gpu_time += (uint64_t)gpu_time;
+                            }
+                        }
+                    }
+                    if (usage_value) CFRelease(usage_value);
+                }
+                IOObjectRelease(client);
+                client = IOIteratorNext(clients);
+            }
+            IOObjectRelease(clients);
+        }
+        IOObjectRelease(accelerator);
+        accelerator = IOIteratorNext(accelerators);
+    }
+    IOObjectRelease(accelerators);
+}
+
 PBAppMetrics pb_clipto_sample(void) {
     PBAppMetrics metrics = {0};
     int buffer_size = proc_listpids(PROC_ALL_PIDS, 0, NULL, 0);
@@ -478,6 +547,7 @@ PBAppMetrics pb_clipto_sample(void) {
     uint64_t cpu_delta = 0;
     uint64_t read_delta = 0;
     uint64_t write_delta = 0;
+    uint64_t gpu_delta = 0;
     uint64_t now = mach_absolute_time();
 
     for (size_t index = 0; index < process_count; index++) {
@@ -493,7 +563,8 @@ PBAppMetrics pb_clipto_sample(void) {
             .start_time = usage.ri_proc_start_abstime,
             .cpu_time = usage.ri_user_time + usage.ri_system_time,
             .disk_read = usage.ri_diskio_bytesread,
-            .disk_write = usage.ri_diskio_byteswritten
+            .disk_write = usage.ri_diskio_byteswritten,
+            .gpu_time = 0
         };
         if (current && current_count < matched_count) current[current_count++] = snapshot;
 
@@ -502,6 +573,13 @@ PBAppMetrics pb_clipto_sample(void) {
         if (snapshot.cpu_time >= previous->cpu_time) cpu_delta += snapshot.cpu_time - previous->cpu_time;
         if (snapshot.disk_read >= previous->disk_read) read_delta += snapshot.disk_read - previous->disk_read;
         if (snapshot.disk_write >= previous->disk_write) write_delta += snapshot.disk_write - previous->disk_write;
+    }
+    collect_clipto_gpu_time(current, current_count);
+    for (size_t index = 0; index < current_count; index++) {
+        const PBPreviousProcess *previous = previous_clipto_process(current[index].pid, current[index].start_time);
+        if (previous && current[index].gpu_time >= previous->gpu_time) {
+            gpu_delta += current[index].gpu_time - previous->gpu_time;
+        }
     }
     free(processes);
 
@@ -519,6 +597,8 @@ PBAppMetrics pb_clipto_sample(void) {
         metrics.cpu_percent = cpu_seconds / seconds * 100.0;
         metrics.disk_read_bytes_per_second = (double)read_delta / seconds;
         metrics.disk_write_bytes_per_second = (double)write_delta / seconds;
+        metrics.gpu_percent = (double)gpu_delta / seconds / 1e9 * 100.0;
+        if (metrics.gpu_percent > 100.0) metrics.gpu_percent = 100.0;
         metrics.rates_valid = 1;
     }
     metrics.running = metrics.process_count > 0;

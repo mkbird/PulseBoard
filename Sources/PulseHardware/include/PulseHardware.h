@@ -21,6 +21,7 @@ typedef struct {
     double memory_bytes;
     double disk_read_bytes_per_second;
     double disk_write_bytes_per_second;
+    double gpu_percent;
     unsigned int process_count;
     int running;
     int rates_valid;

@@ -7,6 +7,7 @@ struct CliptoProcessMetrics {
     let memoryBytes: Double?
     let diskReadBytesPerSecond: Double?
     let diskWriteBytesPerSecond: Double?
+    let gpuPercent: Double?
     let processCount: Int?
 }
 
@@ -20,6 +21,7 @@ final class CliptoProcessBridge {
             memoryBytes: running ? value.memory_bytes : nil,
             diskReadBytesPerSecond: running && value.rates_valid != 0 ? value.disk_read_bytes_per_second : nil,
             diskWriteBytesPerSecond: running && value.rates_valid != 0 ? value.disk_write_bytes_per_second : nil,
+            gpuPercent: running && value.rates_valid != 0 ? value.gpu_percent : nil,
             processCount: running ? Int(value.process_count) : nil
         )
     }

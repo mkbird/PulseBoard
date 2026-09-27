@@ -56,7 +56,7 @@ final class SystemSampler {
             cliptoDiskReadBytesPerSecond: cliptoMetrics.diskReadBytesPerSecond,
             cliptoDiskWriteBytesPerSecond: cliptoMetrics.diskWriteBytesPerSecond,
             cliptoProcessCount: cliptoMetrics.processCount,
-            cliptoGPUPercent: cliptoMetrics.running ? extra.cliptoGPUPercent : nil,
+            cliptoGPUPercent: cliptoMetrics.gpuPercent ?? (cliptoMetrics.running ? extra.cliptoGPUPercent : nil),
             cliptoNetworkDownBytesPerSecond: cliptoMetrics.running ? extra.cliptoNetworkDownBytesPerSecond : nil,
             cliptoNetworkUpBytesPerSecond: cliptoMetrics.running ? extra.cliptoNetworkUpBytesPerSecond : nil,
             cliptoEnergyImpact: cliptoMetrics.running ? extra.cliptoEnergyImpact : nil
