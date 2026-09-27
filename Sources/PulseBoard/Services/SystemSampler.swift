@@ -8,6 +8,7 @@ final class SystemSampler {
     private var previousNetwork: (read: UInt64, write: UInt64)?
     private var previousDate = Date()
     private let enhanced = PowerMetricsBridge()
+    private let clipto = CliptoProcessBridge()
 
     var enhancedMetricsAvailable: Bool { enhanced.isFresh }
     var enhancedMetricsFile: URL { enhanced.fileURL }
@@ -26,6 +27,7 @@ final class SystemSampler {
         let capacity = diskCapacity()
         let extra = enhanced.latest()
         let gpu = gpuUsage() ?? extra.gpuUsage
+        let cliptoMetrics = clipto.sample()
 
         return MetricSample(
             timestamp: now,
@@ -48,7 +50,12 @@ final class SystemSampler {
             diskTotalBytes: capacity.total,
             networkDownBytesPerSecond: networkRate.read,
             networkUpBytesPerSecond: networkRate.write,
-            thermalState: thermalState()
+            thermalState: thermalState(),
+            cliptoCPUPercent: cliptoMetrics.cpuPercent,
+            cliptoMemoryBytes: cliptoMetrics.memoryBytes,
+            cliptoDiskReadBytesPerSecond: cliptoMetrics.diskReadBytesPerSecond,
+            cliptoDiskWriteBytesPerSecond: cliptoMetrics.diskWriteBytesPerSecond,
+            cliptoProcessCount: cliptoMetrics.processCount
         )
     }
 

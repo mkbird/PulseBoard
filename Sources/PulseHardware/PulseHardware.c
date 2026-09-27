@@ -3,11 +3,14 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 #include <dlfcn.h>
+#include <libproc.h>
 #include <limits.h>
 #include <mach/mach_time.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/proc_info.h>
+#include <sys/resource.h>
 
 typedef void *PBSubscriptionRef;
 typedef CFDictionaryRef (*CopyChannelsFn)(CFStringRef, CFStringRef, uint64_t, uint64_t, uint64_t);
@@ -36,6 +39,24 @@ static uint64_t g_previous_time = 0;
 static mach_timebase_info_data_t g_timebase = {0, 0};
 static io_connect_t g_smc = 0;
 static double g_max_ane_bandwidth = 4.0;
+
+typedef struct {
+    pid_t pid;
+    uint32_t parent_pid;
+    int belongs_to_clipto;
+} PBProcessEntry;
+
+typedef struct {
+    pid_t pid;
+    uint64_t start_time;
+    uint64_t cpu_time;
+    uint64_t disk_read;
+    uint64_t disk_write;
+} PBPreviousProcess;
+
+static PBPreviousProcess *g_previous_clipto_processes = NULL;
+static size_t g_previous_clipto_count = 0;
+static uint64_t g_previous_clipto_time = 0;
 
 typedef struct {
     char major;
@@ -376,10 +397,143 @@ PBHardwareMetrics pb_hardware_sample(void) {
     return metrics;
 }
 
+static int path_belongs_to_clipto(pid_t pid) {
+    char path[PROC_PIDPATHINFO_MAXSIZE] = {0};
+    int length = proc_pidpath(pid, path, sizeof(path));
+    if (length <= 0) return 0;
+    return strstr(path, "/Clipto.app/") != NULL;
+}
+
+static const PBPreviousProcess *previous_clipto_process(pid_t pid, uint64_t start_time) {
+    for (size_t index = 0; index < g_previous_clipto_count; index++) {
+        const PBPreviousProcess *entry = &g_previous_clipto_processes[index];
+        if (entry->pid == pid && entry->start_time == start_time) return entry;
+    }
+    return NULL;
+}
+
+PBAppMetrics pb_clipto_sample(void) {
+    PBAppMetrics metrics = {0};
+    int buffer_size = proc_listpids(PROC_ALL_PIDS, 0, NULL, 0);
+    if (buffer_size <= 0) return metrics;
+
+    buffer_size += (int)(64 * sizeof(pid_t));
+    pid_t *pids = calloc(1, (size_t)buffer_size);
+    if (!pids) return metrics;
+    int bytes = proc_listpids(PROC_ALL_PIDS, 0, pids, buffer_size);
+    if (bytes <= 0) {
+        free(pids);
+        return metrics;
+    }
+
+    size_t pid_count = (size_t)bytes / sizeof(pid_t);
+    PBProcessEntry *processes = calloc(pid_count, sizeof(PBProcessEntry));
+    if (!processes) {
+        free(pids);
+        return metrics;
+    }
+
+    size_t process_count = 0;
+    for (size_t index = 0; index < pid_count; index++) {
+        if (pids[index] <= 0) continue;
+        struct proc_bsdinfo info = {0};
+        int size = proc_pidinfo(pids[index], PROC_PIDTBSDINFO, 0, &info, sizeof(info));
+        if (size != sizeof(info)) continue;
+        PBProcessEntry entry = {
+            .pid = pids[index],
+            .parent_pid = info.pbi_ppid,
+            .belongs_to_clipto = path_belongs_to_clipto(pids[index])
+        };
+        processes[process_count++] = entry;
+    }
+    free(pids);
+
+    // Some bundled tools can re-exec outside the app bundle. Include descendants
+    // of an already identified Clipto process so the app group remains complete.
+    int changed;
+    do {
+        changed = 0;
+        for (size_t index = 0; index < process_count; index++) {
+            if (processes[index].belongs_to_clipto) continue;
+            for (size_t parent = 0; parent < process_count; parent++) {
+                if (processes[parent].belongs_to_clipto &&
+                    processes[parent].pid == (pid_t)processes[index].parent_pid) {
+                    processes[index].belongs_to_clipto = 1;
+                    changed = 1;
+                    break;
+                }
+            }
+        }
+    } while (changed);
+
+    size_t matched_count = 0;
+    for (size_t index = 0; index < process_count; index++) {
+        if (processes[index].belongs_to_clipto) matched_count++;
+    }
+
+    PBPreviousProcess *current = matched_count > 0
+        ? calloc(matched_count, sizeof(PBPreviousProcess))
+        : NULL;
+    size_t current_count = 0;
+    uint64_t cpu_delta = 0;
+    uint64_t read_delta = 0;
+    uint64_t write_delta = 0;
+    uint64_t now = mach_absolute_time();
+
+    for (size_t index = 0; index < process_count; index++) {
+        if (!processes[index].belongs_to_clipto) continue;
+        metrics.process_count++;
+
+        struct rusage_info_v2 usage = {0};
+        if (proc_pid_rusage(processes[index].pid, RUSAGE_INFO_V2, (rusage_info_t *)&usage) != 0) continue;
+        metrics.memory_bytes += (double)usage.ri_phys_footprint;
+
+        PBPreviousProcess snapshot = {
+            .pid = processes[index].pid,
+            .start_time = usage.ri_proc_start_abstime,
+            .cpu_time = usage.ri_user_time + usage.ri_system_time,
+            .disk_read = usage.ri_diskio_bytesread,
+            .disk_write = usage.ri_diskio_byteswritten
+        };
+        if (current && current_count < matched_count) current[current_count++] = snapshot;
+
+        const PBPreviousProcess *previous = previous_clipto_process(snapshot.pid, snapshot.start_time);
+        if (!previous) continue;
+        if (snapshot.cpu_time >= previous->cpu_time) cpu_delta += snapshot.cpu_time - previous->cpu_time;
+        if (snapshot.disk_read >= previous->disk_read) read_delta += snapshot.disk_read - previous->disk_read;
+        if (snapshot.disk_write >= previous->disk_write) write_delta += snapshot.disk_write - previous->disk_write;
+    }
+    free(processes);
+
+    double seconds = 0;
+    if (g_timebase.denom == 0) mach_timebase_info(&g_timebase);
+    if (g_timebase.denom != 0 && now > g_previous_clipto_time) {
+        seconds = (double)(now - g_previous_clipto_time) *
+                  (double)g_timebase.numer / (double)g_timebase.denom / 1e9;
+    }
+    if (seconds >= 0.05 && g_previous_clipto_time != 0) {
+        metrics.cpu_percent = (double)cpu_delta / seconds / 1e9 * 100.0;
+        metrics.disk_read_bytes_per_second = (double)read_delta / seconds;
+        metrics.disk_write_bytes_per_second = (double)write_delta / seconds;
+        metrics.rates_valid = 1;
+    }
+    metrics.running = metrics.process_count > 0;
+
+    free(g_previous_clipto_processes);
+    g_previous_clipto_processes = current;
+    g_previous_clipto_count = current_count;
+    g_previous_clipto_time = now;
+    return metrics;
+}
+
 void pb_hardware_shutdown(void) {
     if (g_previous_sample) { CFRelease(g_previous_sample); g_previous_sample = NULL; }
     if (g_channels) { CFRelease(g_channels); g_channels = NULL; }
     if (g_subscription) { CFRelease(g_subscription); g_subscription = NULL; }
     if (g_smc) { IOServiceClose(g_smc); g_smc = 0; }
     if (g_io_report) { dlclose(g_io_report); g_io_report = NULL; }
+    free(g_previous_clipto_processes);
+    g_previous_clipto_processes = NULL;
+    g_previous_clipto_count = 0;
+    g_previous_clipto_time = 0;
 }

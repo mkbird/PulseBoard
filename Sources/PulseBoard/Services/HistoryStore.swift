@@ -22,8 +22,16 @@ final class HistoryStore {
         try execute("PRAGMA journal_mode=WAL;")
         try execute("PRAGMA synchronous=NORMAL;")
         try execute(Self.schema)
-        if !hasColumn("ane_usage", in: "samples") {
-            try execute("ALTER TABLE samples ADD COLUMN ane_usage REAL;")
+        let migrations = [
+            ("ane_usage", "REAL"),
+            ("clipto_cpu", "REAL"),
+            ("clipto_memory", "REAL"),
+            ("clipto_disk_read", "REAL"),
+            ("clipto_disk_write", "REAL"),
+            ("clipto_process_count", "INTEGER")
+        ]
+        for (column, type) in migrations where !hasColumn(column, in: "samples") {
+            try execute("ALTER TABLE samples ADD COLUMN \(column) \(type);")
         }
         try execute("CREATE INDEX IF NOT EXISTS samples_timestamp ON samples(timestamp);")
     }
@@ -35,9 +43,10 @@ final class HistoryStore {
         INSERT INTO samples (
           timestamp,cpu,gpu,memory,memory_used,memory_total,memory_pressure,
           ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,
-          disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,ane_usage
+          disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,ane_usage,
+          clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count
         ) VALUES (
-          ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+          ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         );
         """
         var statement: OpaquePointer?
@@ -67,6 +76,15 @@ final class HistoryStore {
         sqlite3_bind_double(statement, 19, sample.networkUpBytesPerSecond)
         _ = sample.thermalState.withCString { sqlite3_bind_text(statement, 20, $0, -1, sqliteTransient) }
         bind(sample.aneUsage, to: statement, at: 21)
+        bind(sample.cliptoCPUPercent, to: statement, at: 22)
+        bind(sample.cliptoMemoryBytes, to: statement, at: 23)
+        bind(sample.cliptoDiskReadBytesPerSecond, to: statement, at: 24)
+        bind(sample.cliptoDiskWriteBytesPerSecond, to: statement, at: 25)
+        if let processCount = sample.cliptoProcessCount {
+            sqlite3_bind_int(statement, 26, Int32(processCount))
+        } else {
+            sqlite3_bind_null(statement, 26)
+        }
 
         guard sqlite3_step(statement) == SQLITE_DONE else { throw StoreError.queryFailed(message) }
     }
@@ -83,7 +101,8 @@ final class HistoryStore {
             SELECT AVG(timestamp),AVG(cpu),AVG(gpu),AVG(ane_usage),AVG(memory),AVG(memory_used),AVG(memory_total),
                    AVG(memory_pressure),AVG(ane_power),AVG(cpu_power),AVG(gpu_power),AVG(system_power),
                    AVG(memory_read),AVG(memory_write),AVG(disk_read),AVG(disk_write),AVG(disk_free),
-                   AVG(disk_total),AVG(net_down),AVG(net_up),MAX(thermal)
+                   AVG(disk_total),AVG(net_down),AVG(net_up),MAX(thermal),AVG(clipto_cpu),
+                   AVG(clipto_memory),AVG(clipto_disk_read),AVG(clipto_disk_write),MAX(clipto_process_count)
             FROM samples WHERE timestamp BETWEEN ? AND ?
             GROUP BY CAST(timestamp / \(bucket) AS INTEGER)
             ORDER BY timestamp;
@@ -141,7 +160,12 @@ final class HistoryStore {
                 diskTotalBytes: sqlite3_column_double(statement, 17),
                 networkDownBytesPerSecond: sqlite3_column_double(statement, 18),
                 networkUpBytesPerSecond: sqlite3_column_double(statement, 19),
-                thermalState: sqlite3_column_text(statement, 20).map { String(cString: $0) } ?? "未知"
+                thermalState: sqlite3_column_text(statement, 20).map { String(cString: $0) } ?? "未知",
+                cliptoCPUPercent: optionalDouble(statement, 21),
+                cliptoMemoryBytes: optionalDouble(statement, 22),
+                cliptoDiskReadBytesPerSecond: optionalDouble(statement, 23),
+                cliptoDiskWriteBytesPerSecond: optionalDouble(statement, 24),
+                cliptoProcessCount: optionalInt(statement, 25)
             ))
         }
         return samples
@@ -154,6 +178,10 @@ final class HistoryStore {
 
     private func optionalDouble(_ statement: OpaquePointer, _ index: Int32) -> Double? {
         sqlite3_column_type(statement, index) == SQLITE_NULL ? nil : sqlite3_column_double(statement, index)
+    }
+
+    private func optionalInt(_ statement: OpaquePointer, _ index: Int32) -> Int? {
+        sqlite3_column_type(statement, index) == SQLITE_NULL ? nil : Int(sqlite3_column_int(statement, index))
     }
 
     private func execute(_ sql: String) throws {
@@ -173,7 +201,7 @@ final class HistoryStore {
 
     private var message: String { database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error" }
 
-    private static let columns = "timestamp,cpu,gpu,ane_usage,memory,memory_used,memory_total,memory_pressure,ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal"
+    private static let columns = "timestamp,cpu,gpu,ane_usage,memory,memory_used,memory_total,memory_pressure,ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count"
     private static let schema = """
     CREATE TABLE IF NOT EXISTS samples (
       timestamp REAL PRIMARY KEY,
@@ -196,7 +224,12 @@ final class HistoryStore {
       net_down REAL NOT NULL,
       net_up REAL NOT NULL,
       thermal TEXT NOT NULL,
-      ane_usage REAL
+      ane_usage REAL,
+      clipto_cpu REAL,
+      clipto_memory REAL,
+      clipto_disk_read REAL,
+      clipto_disk_write REAL,
+      clipto_process_count INTEGER
     );
     """
 }

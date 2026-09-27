@@ -24,6 +24,13 @@ struct MetricSample: Codable, Identifiable, Hashable, Sendable {
     let networkDownBytesPerSecond: Double
     let networkUpBytesPerSecond: Double
     let thermalState: String
+    let cliptoCPUPercent: Double?
+    let cliptoMemoryBytes: Double?
+    let cliptoDiskReadBytesPerSecond: Double?
+    let cliptoDiskWriteBytesPerSecond: Double?
+    let cliptoProcessCount: Int?
+
+    var cliptoRunning: Bool { (cliptoProcessCount ?? 0) > 0 }
 }
 
 enum HistoryRange: String, CaseIterable, Identifiable {

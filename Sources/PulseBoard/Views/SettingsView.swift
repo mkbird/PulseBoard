@@ -85,6 +85,11 @@ struct SettingsView: View {
                     sourceRow("GPU", detail: "IOKit PerformanceStatistics", state: "公开系统数据")
                     sourceRow("磁盘、网络", detail: "IOKit / getifaddrs 累计计数器", state: "公开 API")
                     sourceRow("ANE、功耗、内存带宽", detail: "内置 IOReport / SMC", state: "实时增强")
+                    sourceRow(
+                        "Clipto 应用资源",
+                        detail: "libproc 进程组累计计数器",
+                        state: store.latest?.cliptoRunning == true ? "正在跟踪" : "自动检测"
+                    )
                 }
             }
             .padding(.horizontal, 26)

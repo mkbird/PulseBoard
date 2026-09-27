@@ -34,12 +34,16 @@ import Testing
         anePowerWatts: 0.2, cpuPowerWatts: 2, gpuPowerWatts: 1, systemPowerWatts: 3.2,
         memoryReadGBps: 4, memoryWriteGBps: 2, diskReadBytesPerSecond: 10,
         diskWriteBytesPerSecond: 20, diskFreeBytes: 100, diskTotalBytes: 200,
-        networkDownBytesPerSecond: 30, networkUpBytesPerSecond: 40, thermalState: "正常"
+        networkDownBytesPerSecond: 30, networkUpBytesPerSecond: 40, thermalState: "正常",
+        cliptoCPUPercent: 150, cliptoMemoryBytes: 500, cliptoDiskReadBytesPerSecond: 60,
+        cliptoDiskWriteBytesPerSecond: 70, cliptoProcessCount: 8
     )
     try store.append(sample)
     let values = try store.fetchRaw(from: now.addingTimeInterval(-1), to: now.addingTimeInterval(1))
     #expect(values.count == 1)
     #expect(values.first?.cpuUsage == 32)
     #expect(values.first?.aneUsage == 4)
+    #expect(values.first?.cliptoCPUPercent == 150)
+    #expect(values.first?.cliptoProcessCount == 8)
     #expect(values.first?.thermalState == "正常")
 }

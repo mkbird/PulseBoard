@@ -16,8 +16,19 @@ typedef struct {
     int valid;
 } PBHardwareMetrics;
 
+typedef struct {
+    double cpu_percent;
+    double memory_bytes;
+    double disk_read_bytes_per_second;
+    double disk_write_bytes_per_second;
+    unsigned int process_count;
+    int running;
+    int rates_valid;
+} PBAppMetrics;
+
 int pb_hardware_init(void);
 PBHardwareMetrics pb_hardware_sample(void);
+PBAppMetrics pb_clipto_sample(void);
 void pb_hardware_shutdown(void);
 
 #ifdef __cplusplus

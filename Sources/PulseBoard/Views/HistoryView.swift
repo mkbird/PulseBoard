@@ -85,6 +85,31 @@ struct HistoryView: View {
                         .init(name: "ANE", color: .pink, value: { $0.aneUsage })
                     ], suffix: "%", timeDomain: store.chartWindow
                 )
+
+                if store.samples.contains(where: \.cliptoRunning) {
+                    HStack(alignment: .top, spacing: 16) {
+                        TelemetryChart(
+                            title: "Clipto CPU", subtitle: "Clipto 进程组；多核时可能超过 100%", icon: "app.badge", samples: store.samples,
+                            series: [
+                                .init(name: "CPU", color: .cyan, value: { $0.cliptoCPUPercent })
+                            ], suffix: "%", timeDomain: store.chartWindow
+                        )
+                        TelemetryChart(
+                            title: "Clipto 内存", subtitle: "主进程、Helper 与分析服务的物理占用估算", icon: "memorychip", samples: store.samples,
+                            series: [
+                                .init(name: "内存", color: .orange, value: { $0.cliptoMemoryBytes.map { $0 / 1_073_741_824 } })
+                            ], suffix: " GB", timeDomain: store.chartWindow
+                        )
+                    }
+                    TelemetryChart(
+                        title: "Clipto 磁盘 I/O", subtitle: "Clipto 进程组读取与写入历史", icon: "internaldrive", samples: store.samples,
+                        series: [
+                            .init(name: "读取", color: .green, value: { $0.cliptoDiskReadBytesPerSecond.map { $0 / 1_000_000 } }),
+                            .init(name: "写入", color: .teal, value: { $0.cliptoDiskWriteBytesPerSecond.map { $0 / 1_000_000 } })
+                        ], suffix: " MB/s", timeDomain: store.chartWindow
+                    )
+                }
+
                 HStack(alignment: .top, spacing: 16) {
                     TelemetryChart(
                         title: "内存带宽", subtitle: "DRAM 读取与写入历史", icon: "memorychip", samples: store.samples,
