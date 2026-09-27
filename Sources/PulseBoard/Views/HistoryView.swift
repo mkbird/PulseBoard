@@ -54,17 +54,21 @@ struct HistoryView: View {
                             Image(systemName: "arrow.right")
                                 .foregroundStyle(.tertiary)
                             DateTimeField(title: "结束", icon: "calendar.badge.checkmark", tint: PulseTheme.violet, date: $store.customTo)
-                            VStack(alignment: .trailing, spacing: 8) {
-                                Button("结束设为现在") { store.customTo = Date() }
-                                Button("应用时间范围") { store.applyCustomRange() }
-                                    .buttonStyle(.borderedProminent)
-                            }
-                            .frame(minWidth: 112)
                         }
-                        if store.customTo <= store.customFrom {
-                            Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.triangle")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
+                        HStack {
+                            if store.customTo <= store.customFrom {
+                                Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.triangle")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            } else {
+                                Text(customRangeSummary)
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Button("结束设为现在") { store.customTo = Date() }
+                            Button("应用时间范围") { store.applyCustomRange() }
+                                .buttonStyle(.borderedProminent)
                         }
                     }
                 }
@@ -72,12 +76,11 @@ struct HistoryView: View {
                 .glassPanel()
 
                 TelemetryChart(
-                    title: "CPU / GPU / ANE / 内存", subtitle: "跨指标查看负载变化与相关性", icon: "chart.xyaxis.line", samples: store.samples,
+                    title: "CPU / GPU / ANE", subtitle: "查看处理器负载变化与相关性", icon: "chart.xyaxis.line", samples: store.samples,
                     series: [
                         .init(name: "CPU", color: .cyan, value: { $0.cpuUsage }),
                         .init(name: "GPU", color: .purple, value: { $0.gpuUsage }),
-                        .init(name: "ANE", color: .pink, value: { $0.aneUsage }),
-                        .init(name: "内存", color: .orange, value: { $0.memoryUsage })
+                        .init(name: "ANE", color: .pink, value: { $0.aneUsage })
                     ], suffix: "%", timeDomain: store.chartWindow
                 )
                 HStack(alignment: .top, spacing: 16) {
@@ -121,6 +124,15 @@ struct HistoryView: View {
         }
         .background(AppBackground())
     }
+
+    private var customRangeSummary: String {
+        let interval = max(0, store.customTo.timeIntervalSince(store.customFrom))
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = interval >= 86_400 ? [.day, .hour] : [.hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        return "跨度 \(formatter.string(from: interval) ?? "—")"
+    }
 }
 
 private struct DateTimeField: View {
@@ -141,7 +153,7 @@ private struct DateTimeField: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.caption).foregroundStyle(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(date.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)))
+                        Text(dateLabel)
                         Text(date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)))
                             .font(.body.monospacedDigit().weight(.medium))
                     }
@@ -175,6 +187,7 @@ private struct DateTimeField: View {
             DatePicker("日期", selection: $date, displayedComponents: .date)
                 .datePickerStyle(.graphical)
                 .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .center)
 
             Divider()
 
@@ -186,13 +199,15 @@ private struct DateTimeField: View {
                         Text(String(format: "%02d 时", value)).tag(value)
                     }
                 }
-                .frame(width: 92)
+                .labelsHidden()
+                .frame(width: 88)
                 Picker("分钟", selection: minute) {
                     ForEach(0..<60, id: \.self) { value in
                         Text(String(format: "%02d 分", value)).tag(value)
                     }
                 }
-                .frame(width: 92)
+                .labelsHidden()
+                .frame(width: 88)
             }
 
             HStack(spacing: 8) {
@@ -204,6 +219,11 @@ private struct DateTimeField: View {
         }
         .padding(18)
         .frame(width: 360)
+    }
+
+    private var dateLabel: String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
     }
 
     private var hour: Binding<Int> {
