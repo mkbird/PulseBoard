@@ -41,6 +41,7 @@
 "metric.system_power" = "整机功耗";
 "metric.swap_used_total" = "已用 / 共 %@";
 "metric.processor_load" = "处理器负载";
+"metric.memory_usage" = "内存占用";
 "metric.memory_bandwidth" = "内存带宽";
 "metric.network_bandwidth" = "网络带宽";
 "metric.disk_throughput" = "磁盘吞吐";
@@ -55,7 +56,11 @@
 "series.upload" = "上传";
 "series.clipto_read" = "Clipto 读取";
 "series.clipto_write" = "Clipto 写入";
+"series.system_memory" = "系统内存";
+"series.clipto_memory" = "Clipto 内存";
 
+"subtitle.memory_usage" = "系统内存占用变化";
+"subtitle.memory_usage_clipto" = "系统与 Clipto 内存占物理内存的比例";
 "subtitle.memory_io" = "IOReport AMC 的 DRAM 读写计数器";
 "subtitle.network" = "所有活跃网络接口的实时吞吐";
 "subtitle.chip_power" = "IOReport 能耗模型，适合趋势观察";

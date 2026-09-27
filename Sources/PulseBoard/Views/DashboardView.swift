@@ -29,6 +29,11 @@ struct DashboardView: View {
                     series: processorSeries, suffix: "%", timeDomain: store.chartWindow
                 )
 
+                TelemetryChart(
+                    title: L10n.text("metric.memory_usage"), subtitle: memoryUsageSubtitle, icon: "memorychip", samples: store.samples,
+                    series: memoryUsageSeries, suffix: "%", timeDomain: store.chartWindow
+                )
+
                 HStack(alignment: .top, spacing: 16) {
                     TelemetryChart(
                         title: L10n.text("metric.memory_bandwidth"), subtitle: L10n.text("subtitle.memory_io"), icon: "memorychip", samples: store.samples,
@@ -186,6 +191,10 @@ struct DashboardView: View {
         store.samples.contains { $0.cliptoGPUPercent != nil }
     }
 
+    private var hasCliptoMemorySamples: Bool {
+        store.samples.contains { cliptoMemoryShare($0) != nil }
+    }
+
     private var processorSeries: [TelemetrySeries] {
         var result: [TelemetrySeries] = [
             .init(name: "CPU", color: .cyan, value: { $0.cpuUsage }),
@@ -212,11 +221,24 @@ struct DashboardView: View {
     }
 
     private var cliptoMemoryComparison: TelemetrySeries? {
-        guard hasCliptoSamples else { return nil }
-        return .init(name: "Clipto", color: .yellow, value: { sample in
-            guard let bytes = sample.cliptoMemoryBytes, sample.memoryTotalBytes > 0 else { return nil }
-            return bytes / sample.memoryTotalBytes * 100
-        })
+        guard hasCliptoMemorySamples else { return nil }
+        return .init(name: "Clipto", color: .yellow, value: cliptoMemoryShare)
+    }
+
+    private var memoryUsageSubtitle: String {
+        hasCliptoMemorySamples
+            ? L10n.text("subtitle.memory_usage_clipto")
+            : L10n.text("subtitle.memory_usage")
+    }
+
+    private var memoryUsageSeries: [TelemetrySeries] {
+        var result: [TelemetrySeries] = [
+            .init(name: L10n.text("series.system_memory"), color: .orange, value: { $0.memoryUsage })
+        ]
+        if hasCliptoMemorySamples {
+            result.append(.init(name: L10n.text("series.clipto_memory"), color: .yellow, value: cliptoMemoryShare))
+        }
+        return result
     }
 
     private var diskSeries: [TelemetrySeries] {
@@ -233,6 +255,11 @@ struct DashboardView: View {
 
     private func cliptoCPUShare(_ sample: MetricSample) -> Double? {
         sample.cliptoCPUPercent.map { $0 / Double(max(1, ProcessInfo.processInfo.activeProcessorCount)) }
+    }
+
+    private func cliptoMemoryShare(_ sample: MetricSample) -> Double? {
+        guard let bytes = sample.cliptoMemoryBytes, sample.memoryTotalBytes > 0 else { return nil }
+        return bytes / sample.memoryTotalBytes * 100
     }
 
     private var swapUsed: String { store.latest.map { MetricFormat.bytes($0.swapUsedBytes) } ?? "—" }

@@ -41,6 +41,7 @@
 "metric.system_power" = "System Power";
 "metric.swap_used_total" = "Used / %@ total";
 "metric.processor_load" = "Processor Load";
+"metric.memory_usage" = "Memory Usage";
 "metric.memory_bandwidth" = "Memory Bandwidth";
 "metric.network_bandwidth" = "Network Bandwidth";
 "metric.disk_throughput" = "Disk Throughput";
@@ -55,7 +56,11 @@
 "series.upload" = "Upload";
 "series.clipto_read" = "Clipto Read";
 "series.clipto_write" = "Clipto Write";
+"series.system_memory" = "System Memory";
+"series.clipto_memory" = "Clipto Memory";
 
+"subtitle.memory_usage" = "System memory usage over time";
+"subtitle.memory_usage_clipto" = "System and Clipto usage as a share of physical memory";
 "subtitle.memory_io" = "IOReport AMC DRAM read and write counters";
 "subtitle.network" = "Live throughput across all active network interfaces";
 "subtitle.chip_power" = "IOReport energy model for trend analysis";
