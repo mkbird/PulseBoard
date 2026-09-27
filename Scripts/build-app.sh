@@ -14,6 +14,9 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 cp "$BUILD_DIR/PulseBoard" "$APP_BUNDLE/Contents/MacOS/PulseBoard"
 cp "$PROJECT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 cp "$PROJECT_DIR/Resources/PulseBoard.icns" "$APP_BUNDLE/Contents/Resources/PulseBoard.icns"
+if [[ -d "$BUILD_DIR/PulseBoard_PulseBoard.bundle" ]]; then
+    cp -R "$BUILD_DIR/PulseBoard_PulseBoard.bundle" "$APP_BUNDLE/Contents/Resources/"
+fi
 
 if [[ "$CODESIGN_IDENTITY" == "-" ]]; then
     codesign --force --sign - "$APP_BUNDLE"

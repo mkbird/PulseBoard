@@ -12,56 +12,56 @@ struct SettingsView: View {
                         .frame(width: 34, height: 34)
                         .background(PulseTheme.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("设置").font(.system(size: 28, weight: .semibold, design: .default))
-                        Text("采样、历史记录与数据源").font(.callout).foregroundStyle(.secondary)
+                        Text(L10n.text("settings.title")).font(.system(size: 28, weight: .semibold, design: .default))
+                        Text(L10n.text("settings.subtitle")).font(.callout).foregroundStyle(.secondary)
                     }
                 }
 
-                settingsSection("采样与历史", icon: "clock.arrow.circlepath") {
-                    LabeledContent("采样间隔") {
-                        Picker("采样间隔", selection: $store.samplingInterval) {
-                            Text("1 秒").tag(TimeInterval(1))
-                            Text("2 秒").tag(TimeInterval(2))
-                            Text("5 秒").tag(TimeInterval(5))
-                            Text("10 秒").tag(TimeInterval(10))
+                settingsSection(L10n.text("settings.sampling_history"), icon: "clock.arrow.circlepath") {
+                    LabeledContent(L10n.text("settings.sampling_interval")) {
+                        Picker(L10n.text("settings.sampling_interval"), selection: $store.samplingInterval) {
+                            Text(L10n.format("settings.seconds", 1)).tag(TimeInterval(1))
+                            Text(L10n.format("settings.seconds", 2)).tag(TimeInterval(2))
+                            Text(L10n.format("settings.seconds", 5)).tag(TimeInterval(5))
+                            Text(L10n.format("settings.seconds", 10)).tag(TimeInterval(10))
                         }.frame(width: 140)
                     }
-                    LabeledContent("历史保留") {
-                        Picker("历史保留", selection: $store.retentionDays) {
-                            Text("7 天").tag(7)
-                            Text("30 天").tag(30)
-                            Text("90 天").tag(90)
+                    LabeledContent(L10n.text("settings.history_retention")) {
+                        Picker(L10n.text("settings.history_retention"), selection: $store.retentionDays) {
+                            Text(L10n.format("settings.days", 7)).tag(7)
+                            Text(L10n.format("settings.days", 30)).tag(30)
+                            Text(L10n.format("settings.days", 90)).tag(90)
                         }.frame(width: 140)
                     }
-                    LabeledContent("数据库") { Text("~/Library/Application Support/PulseBoard/history.sqlite").font(.caption).foregroundStyle(.secondary) }
+                    LabeledContent(L10n.text("settings.database")) { Text("~/Library/Application Support/PulseBoard/history.sqlite").font(.caption).foregroundStyle(.secondary) }
                 }
 
-                settingsSection("增强指标", icon: "gauge.with.dots.needle.67percent") {
+                settingsSection(L10n.text("settings.enhanced_metrics"), icon: "gauge.with.dots.needle.67percent") {
                     HStack {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("ANE、分项功耗与应用级 GPU").font(.headline)
-                            Text("IOReport、SMC 与 IOKit 在本机直接采样，无需管理员权限。")
+                            Text(L10n.text("settings.enhanced_title")).font(.headline)
+                            Text(L10n.text("settings.enhanced_detail"))
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                         Spacer()
                         StatusPill(
-                            text: store.enhancedMetricsAvailable ? "正在采样" : "暂不可用",
+                            text: store.enhancedMetricsAvailable ? L10n.text("settings.sampling_active") : L10n.text("settings.temporarily_unavailable"),
                             color: store.enhancedMetricsAvailable ? .green : .secondary
                         )
                     }
-                    Text("IOReport 与 SMC 的功耗属于系统估算值，适合观察同一设备的变化趋势，不适合跨设备比较。")
+                    Text(L10n.text("settings.power_note"))
                         .font(.caption).foregroundStyle(.tertiary)
                 }
 
-                settingsSection("数据来源", icon: "checkmark.shield") {
-                    sourceRow("CPU、内存", detail: "Mach host statistics", state: "公开 API")
-                    sourceRow("GPU", detail: "IOReport GPU Performance States", state: "实时活跃率")
-                    sourceRow("磁盘、网络", detail: "IOKit / getifaddrs 累计计数器", state: "公开 API")
-                    sourceRow("ANE、功耗、内存带宽", detail: "内置 IOReport / SMC", state: "实时增强")
+                settingsSection(L10n.text("settings.data_sources"), icon: "checkmark.shield") {
+                    sourceRow(L10n.text("settings.cpu_memory"), detail: "Mach host statistics", state: L10n.text("settings.public_api"))
+                    sourceRow("GPU", detail: "IOReport GPU Performance States", state: L10n.text("settings.gpu_activity"))
+                    sourceRow(L10n.text("settings.disk_network"), detail: L10n.text("settings.cumulative_counters"), state: L10n.text("settings.public_api"))
+                    sourceRow(L10n.text("settings.ane_power_memory"), detail: L10n.text("settings.built_in_sources"), state: L10n.text("settings.live_enhanced"))
                     sourceRow(
-                        "Clipto 应用资源",
-                        detail: "libproc / IOKit GPU 客户端计数器",
-                        state: store.latest?.cliptoRunning == true ? "正在跟踪" : "自动检测"
+                        L10n.text("settings.clipto_resources"),
+                        detail: L10n.text("settings.clipto_sources"),
+                        state: store.latest?.cliptoRunning == true ? L10n.text("settings.tracking") : L10n.text("settings.auto_detect")
                     )
                 }
             }

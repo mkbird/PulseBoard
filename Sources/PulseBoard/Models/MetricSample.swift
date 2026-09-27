@@ -34,6 +34,16 @@ struct MetricSample: Codable, Identifiable, Hashable, Sendable {
     let swapTotalBytes: Double
 
     var cliptoRunning: Bool { (cliptoProcessCount ?? 0) > 0 }
+
+    var thermalStateLabel: String {
+        switch thermalState {
+        case "nominal", "正常", "Normal": L10n.text("thermal.nominal")
+        case "fair", "温热", "Warm": L10n.text("thermal.fair")
+        case "serious", "较高", "High": L10n.text("thermal.serious")
+        case "critical", "严重", "Critical": L10n.text("thermal.critical")
+        default: L10n.text("thermal.unknown")
+        }
+    }
 }
 
 enum HistoryRange: String, CaseIterable, Identifiable {
@@ -48,12 +58,12 @@ enum HistoryRange: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .fifteenMinutes: "15 分钟"
-        case .oneHour: "1 小时"
-        case .sixHours: "6 小时"
-        case .oneDay: "24 小时"
-        case .sevenDays: "7 天"
-        case .custom: "自定义"
+        case .fifteenMinutes: L10n.text("range.15_minutes")
+        case .oneHour: L10n.text("range.1_hour")
+        case .sixHours: L10n.text("range.6_hours")
+        case .oneDay: L10n.text("range.24_hours")
+        case .sevenDays: L10n.text("range.7_days")
+        case .custom: L10n.text("range.custom")
         }
     }
 

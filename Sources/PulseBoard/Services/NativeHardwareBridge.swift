@@ -10,7 +10,7 @@ final class NativeHardwareBridge {
         let status = pb_hardware_init()
         initialized = status == 0
         if status != 0 {
-            FileHandle.standardError.write(Data("PulseBoard: IOReport 初始化失败（\(status)）\n".utf8))
+            FileHandle.standardError.write(Data(L10n.format("hardware.init_failed", status).utf8))
         }
     }
 

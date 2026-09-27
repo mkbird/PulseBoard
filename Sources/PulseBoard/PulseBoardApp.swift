@@ -11,7 +11,7 @@ struct PulseBoardApp: App {
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(after: .saveItem) {
-                Button("导出当前时间范围…") { store.exportCurrentRange() }
+                Button(L10n.text("menu.export_range")) { store.exportCurrentRange() }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
             }
         }
@@ -22,10 +22,10 @@ struct PulseBoardApp: App {
                 Divider()
                 Text("CPU  \(MetricFormat.percent(store.latest?.cpuUsage))")
                 Text("GPU  \(MetricFormat.percent(store.latest?.gpuUsage))")
-                Text("内存  \(MetricFormat.percent(store.latest?.memoryUsage))")
+                Text(L10n.format("menu.memory", MetricFormat.percent(store.latest?.memoryUsage)))
                 Divider()
-                Button("导出当前范围") { store.exportCurrentRange() }
-                Button("退出") { NSApplication.shared.terminate(nil) }
+                Button(L10n.text("menu.export_range")) { store.exportCurrentRange() }
+                Button(L10n.text("menu.quit")) { NSApplication.shared.terminate(nil) }
             }
             .padding(8)
         } label: {

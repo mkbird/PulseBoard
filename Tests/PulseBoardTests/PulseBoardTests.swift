@@ -2,6 +2,13 @@ import Foundation
 import Testing
 @testable import PulseBoard
 
+@Test func localizedResourcesAreAvailable() {
+    #expect(L10n.text("dashboard.title", language: "en") == "Resource Overview")
+    #expect(L10n.text("dashboard.title", language: "zh-Hans") == "资源总览")
+    #expect(L10n.text("settings.title", language: "en") == "Settings")
+    #expect(L10n.text("settings.title", language: "zh-Hans") == "设置")
+}
+
 @Test func historyRoundTrip() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

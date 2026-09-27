@@ -168,7 +168,7 @@ final class HistoryStore {
                 diskTotalBytes: sqlite3_column_double(statement, 17),
                 networkDownBytesPerSecond: sqlite3_column_double(statement, 18),
                 networkUpBytesPerSecond: sqlite3_column_double(statement, 19),
-                thermalState: sqlite3_column_text(statement, 20).map { String(cString: $0) } ?? "未知",
+                thermalState: sqlite3_column_text(statement, 20).map { String(cString: $0) } ?? "unknown",
                 cliptoCPUPercent: optionalDouble(statement, 21),
                 cliptoMemoryBytes: optionalDouble(statement, 22),
                 cliptoDiskReadBytesPerSecond: optionalDouble(statement, 23),
@@ -254,8 +254,8 @@ enum StoreError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .openFailed: "无法打开历史数据库"
-        case .queryFailed(let message): "历史数据库错误：\(message)"
+        case .openFailed: L10n.text("error.history_open")
+        case .queryFailed(let message): L10n.format("error.history_query", message)
         }
     }
 }

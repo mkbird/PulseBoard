@@ -15,43 +15,43 @@ struct DashboardView: View {
                 LazyVGrid(columns: grid, spacing: 16) {
                     MetricCard(title: "CPU", icon: "cpu", value: MetricFormat.percent(store.latest?.cpuUsage), subtitle: cpuSubtitle, tint: .cyan, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoCPUComparison, barMaximum: 100) { $0.cpuUsage }
                     MetricCard(title: "GPU", icon: "rectangle.3.group", value: MetricFormat.percent(store.latest?.gpuUsage), subtitle: gpuSubtitle, tint: .purple, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoGPUComparison, barMaximum: 100) { $0.gpuUsage }
-                    MetricCard(title: "内存", icon: "memorychip", value: MetricFormat.percent(store.latest?.memoryUsage), subtitle: memorySubtitle, tint: .orange, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoMemoryComparison, barMaximum: 100) { $0.memoryUsage }
-                    MetricCard(title: "ANE 功耗", icon: "brain.head.profile", value: MetricFormat.watts(store.latest?.anePowerWatts), subtitle: "", tint: .pink, samples: store.samples, timeDomain: store.chartWindow) { $0.anePowerWatts }
-                    MetricCard(title: "整机功耗", icon: "bolt.fill", value: MetricFormat.watts(store.latest?.systemPowerWatts), subtitle: "", tint: .yellow, samples: store.samples, timeDomain: store.chartWindow) { $0.systemPowerWatts }
-                    MetricCard(title: "Swap", icon: "arrow.left.arrow.right.square", value: swapUsed, subtitle: "已用 / 共 \(swapTotal)", tint: .green, samples: store.samples, timeDomain: store.chartWindow, barMaximum: 100) { sample in
+                    MetricCard(title: L10n.text("metric.memory"), icon: "memorychip", value: MetricFormat.percent(store.latest?.memoryUsage), subtitle: memorySubtitle, tint: .orange, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoMemoryComparison, barMaximum: 100) { $0.memoryUsage }
+                    MetricCard(title: L10n.text("metric.ane_power"), icon: "brain.head.profile", value: MetricFormat.watts(store.latest?.anePowerWatts), subtitle: "", tint: .pink, samples: store.samples, timeDomain: store.chartWindow) { $0.anePowerWatts }
+                    MetricCard(title: L10n.text("metric.system_power"), icon: "bolt.fill", value: MetricFormat.watts(store.latest?.systemPowerWatts), subtitle: "", tint: .yellow, samples: store.samples, timeDomain: store.chartWindow) { $0.systemPowerWatts }
+                    MetricCard(title: "Swap", icon: "arrow.left.arrow.right.square", value: swapUsed, subtitle: L10n.format("metric.swap_used_total", swapTotal), tint: .green, samples: store.samples, timeDomain: store.chartWindow, barMaximum: 100) { sample in
                         sample.swapTotalBytes > 0 ? sample.swapUsedBytes / sample.swapTotalBytes * 100 : nil
                     }
                 }
 
                 TelemetryChart(
-                    title: "处理器负载", subtitle: processorSubtitle, icon: "waveform.path.ecg", samples: store.samples,
+                    title: L10n.text("metric.processor_load"), subtitle: processorSubtitle, icon: "waveform.path.ecg", samples: store.samples,
                     series: processorSeries, suffix: "%", timeDomain: store.chartWindow
                 )
 
                 HStack(alignment: .top, spacing: 16) {
                     TelemetryChart(
-                        title: "内存带宽", subtitle: "IOReport AMC 的 DRAM 读写计数器", icon: "memorychip", samples: store.samples,
+                        title: L10n.text("metric.memory_bandwidth"), subtitle: L10n.text("subtitle.memory_io"), icon: "memorychip", samples: store.samples,
                         series: [
-                            .init(name: "读取", color: .orange, value: { $0.memoryReadGBps }),
-                            .init(name: "写入", color: .red, value: { $0.memoryWriteGBps })
+                            .init(name: L10n.text("series.read"), color: .orange, value: { $0.memoryReadGBps }),
+                            .init(name: L10n.text("series.write"), color: .red, value: { $0.memoryWriteGBps })
                         ], suffix: " GB/s", timeDomain: store.chartWindow
                     )
                     TelemetryChart(
-                        title: "网络带宽", subtitle: "所有活跃网络接口的实时吞吐", icon: "network", samples: store.samples,
+                        title: L10n.text("metric.network_bandwidth"), subtitle: L10n.text("subtitle.network"), icon: "network", samples: store.samples,
                         series: [
-                            .init(name: "下载", color: .blue, value: { $0.networkDownBytesPerSecond / 1_000_000 }),
-                            .init(name: "上传", color: .mint, value: { $0.networkUpBytesPerSecond / 1_000_000 })
+                            .init(name: L10n.text("series.download"), color: .blue, value: { $0.networkDownBytesPerSecond / 1_000_000 }),
+                            .init(name: L10n.text("series.upload"), color: .mint, value: { $0.networkUpBytesPerSecond / 1_000_000 })
                         ], suffix: " MB/s", timeDomain: store.chartWindow
                     )
                 }
 
                 HStack(alignment: .top, spacing: 16) {
                     TelemetryChart(
-                        title: "磁盘吞吐", subtitle: diskSubtitle, icon: "internaldrive", samples: store.samples,
+                        title: L10n.text("metric.disk_throughput"), subtitle: diskSubtitle, icon: "internaldrive", samples: store.samples,
                         series: diskSeries, suffix: " MB/s", timeDomain: store.chartWindow
                     )
                     TelemetryChart(
-                        title: "芯片功耗", subtitle: "IOReport 能耗模型，适合趋势观察", icon: "bolt.fill", samples: store.samples,
+                        title: L10n.text("metric.chip_power"), subtitle: L10n.text("subtitle.chip_power"), icon: "bolt.fill", samples: store.samples,
                         series: [
                             .init(name: "CPU", color: .cyan, value: { $0.cpuPowerWatts }),
                             .init(name: "GPU", color: .purple, value: { $0.gpuPowerWatts }),
@@ -76,12 +76,12 @@ struct DashboardView: View {
                     .frame(width: 34, height: 34)
                     .background(PulseTheme.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("资源总览").font(.system(size: 28, weight: .semibold, design: .default))
-                    Text("性能、带宽与能耗，一览无余").font(.callout).foregroundStyle(.secondary)
+                    Text(L10n.text("dashboard.title")).font(.system(size: 28, weight: .semibold, design: .default))
+                    Text(L10n.text("dashboard.subtitle")).font(.callout).foregroundStyle(.secondary)
                 }
             }
             Spacer()
-            Picker("时间范围", selection: Binding(
+            Picker(L10n.text("dashboard.time_range"), selection: Binding(
                 get: { store.selectedRange },
                 set: { store.selectHistoryRange($0) }
             )) {
@@ -89,7 +89,7 @@ struct DashboardView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 460)
-            Button { store.exportCurrentRange() } label: { Label("导出", systemImage: "square.and.arrow.up") }
+            Button { store.exportCurrentRange() } label: { Label(L10n.text("common.export"), systemImage: "square.and.arrow.up") }
                 .buttonStyle(.borderedProminent)
         }
     }
@@ -97,25 +97,25 @@ struct DashboardView: View {
     private var customRangePanel: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("自定义时间范围", systemImage: "calendar")
+                Label(L10n.text("dashboard.custom_range"), systemImage: "calendar")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                StatusPill(text: "固定区间", color: .orange)
-                Text("\(store.samples.count) 个采样点")
+                StatusPill(text: L10n.text("dashboard.fixed_range"), color: .orange)
+                Text(L10n.format("dashboard.sample_count", store.samples.count))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
 
             HStack(alignment: .center, spacing: 12) {
-                DateTimeField(title: "开始", icon: "calendar.badge.clock", tint: PulseTheme.cyan, date: $store.customFrom)
+                DateTimeField(title: L10n.text("dashboard.start"), icon: "calendar.badge.clock", tint: PulseTheme.cyan, date: $store.customFrom)
                 Image(systemName: "arrow.right")
                     .foregroundStyle(.tertiary)
-                DateTimeField(title: "结束", icon: "calendar.badge.checkmark", tint: PulseTheme.violet, date: $store.customTo)
+                DateTimeField(title: L10n.text("dashboard.end"), icon: "calendar.badge.checkmark", tint: PulseTheme.violet, date: $store.customTo)
             }
 
             HStack {
                 if store.customTo <= store.customFrom {
-                    Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.triangle")
+                    Label(L10n.text("dashboard.invalid_range"), systemImage: "exclamationmark.triangle")
                         .font(.caption)
                         .foregroundStyle(.orange)
                 } else {
@@ -124,11 +124,11 @@ struct DashboardView: View {
                         .foregroundStyle(.tertiary)
                 }
                 Spacer()
-                Button("现在") { store.customTo = Date() }
-                    .help("将结束时间设为当前时间")
-                Button("应用") { store.applyCustomRange() }
+                Button(L10n.text("common.now")) { store.customTo = Date() }
+                    .help(L10n.text("dashboard.set_end_now_help"))
+                Button(L10n.text("common.apply")) { store.applyCustomRange() }
                     .buttonStyle(.borderedProminent)
-                    .help("应用自定义时间范围")
+                    .help(L10n.text("dashboard.apply_range_help"))
             }
         }
         .padding(16)
@@ -141,11 +141,14 @@ struct DashboardView: View {
         formatter.allowedUnits = interval >= 86_400 ? [.day, .hour] : [.hour, .minute]
         formatter.unitsStyle = .abbreviated
         formatter.maximumUnitCount = 2
-        return "跨度 \(formatter.string(from: interval) ?? "—")"
+        var calendar = Calendar.current
+        calendar.locale = L10n.locale
+        formatter.calendar = calendar
+        return L10n.format("dashboard.range_span", formatter.string(from: interval) ?? "—")
     }
 
     private var memorySubtitle: String {
-        guard let latest = store.latest else { return "采样中" }
+        guard let latest = store.latest else { return L10n.text("metric.sampling") }
         if let cliptoMemory = latest.cliptoMemoryBytes {
             return "Clipto \(MetricFormat.bytes(cliptoMemory))"
         }
@@ -153,24 +156,24 @@ struct DashboardView: View {
     }
 
     private var cpuSubtitle: String {
-        guard let latest = store.latest else { return "采样中" }
-        guard let clipto = cliptoCPUShare(latest) else { return latest.thermalState }
-        return "Clipto \(MetricFormat.percent(clipto)) 整机"
+        guard let latest = store.latest else { return L10n.text("metric.sampling") }
+        guard let clipto = cliptoCPUShare(latest) else { return latest.thermalStateLabel }
+        return L10n.format("subtitle.clipto_cpu", MetricFormat.percent(clipto))
     }
 
     private var gpuSubtitle: String {
-        guard let value = store.latest?.cliptoGPUPercent else { return "设备利用率" }
+        guard let value = store.latest?.cliptoGPUPercent else { return L10n.text("metric.device_utilization") }
         return "Clipto \(MetricFormat.percent(value))"
     }
 
     private var processorSubtitle: String {
         hasCliptoSamples
-            ? "CPU/GPU 为系统计数器；Clipto 为整机 CPU 占比；ANE 为活跃度估算"
-            : "CPU/GPU 为系统计数器；ANE 为活跃度估算"
+            ? L10n.text("subtitle.processor_clipto")
+            : L10n.text("subtitle.processor")
     }
 
     private var diskSubtitle: String {
-        hasCliptoSamples ? "内部存储总吞吐与 Clipto 进程组吞吐" : "内部存储实时读写速率"
+        hasCliptoSamples ? L10n.text("subtitle.disk_clipto") : L10n.text("subtitle.disk")
     }
 
     private var hasCliptoSamples: Bool {
@@ -216,12 +219,12 @@ struct DashboardView: View {
 
     private var diskSeries: [TelemetrySeries] {
         var result: [TelemetrySeries] = [
-            .init(name: "读取", color: .green, value: { $0.diskReadBytesPerSecond / 1_000_000 }),
-            .init(name: "写入", color: .teal, value: { $0.diskWriteBytesPerSecond / 1_000_000 })
+            .init(name: L10n.text("series.read"), color: .green, value: { $0.diskReadBytesPerSecond / 1_000_000 }),
+            .init(name: L10n.text("series.write"), color: .teal, value: { $0.diskWriteBytesPerSecond / 1_000_000 })
         ]
         if hasCliptoSamples {
-            result.append(.init(name: "Clipto 读取", color: .orange, value: { $0.cliptoDiskReadBytesPerSecond.map { $0 / 1_000_000 } }))
-            result.append(.init(name: "Clipto 写入", color: .pink, value: { $0.cliptoDiskWriteBytesPerSecond.map { $0 / 1_000_000 } }))
+            result.append(.init(name: L10n.text("series.clipto_read"), color: .orange, value: { $0.cliptoDiskReadBytesPerSecond.map { $0 / 1_000_000 } }))
+            result.append(.init(name: L10n.text("series.clipto_write"), color: .pink, value: { $0.cliptoDiskWriteBytesPerSecond.map { $0 / 1_000_000 } }))
         }
         return result
     }

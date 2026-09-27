@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "PulseBoard",
+    defaultLocalization: "en",
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "PulseBoard", targets: ["PulseBoard"])
@@ -12,6 +13,7 @@ let package = Package(
         .executableTarget(
             name: "PulseBoard",
             dependencies: ["PulseHardware"],
+            resources: [.process("Resources")],
             linkerSettings: [
                 .linkedFramework("IOKit"),
                 .linkedLibrary("sqlite3")

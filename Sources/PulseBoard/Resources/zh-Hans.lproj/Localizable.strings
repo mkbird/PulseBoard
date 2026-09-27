@@ -1,0 +1,115 @@
+"app.subtitle" = "Mac 性能中心";
+"nav.overview" = "总览";
+"nav.settings" = "设置";
+"status.live" = "实时采样中";
+"common.ok" = "好";
+"common.done" = "完成";
+"common.now" = "现在";
+"common.apply" = "应用";
+"common.export" = "导出";
+
+"menu.export_range" = "导出当前时间范围…";
+"menu.memory" = "内存  %@";
+"menu.quit" = "退出";
+
+"dashboard.title" = "资源总览";
+"dashboard.subtitle" = "性能、带宽与能耗，一览无余";
+"dashboard.time_range" = "时间范围";
+"dashboard.custom_range" = "自定义时间范围";
+"dashboard.fixed_range" = "固定区间";
+"dashboard.sample_count" = "%d 个采样点";
+"dashboard.start" = "开始";
+"dashboard.end" = "结束";
+"dashboard.invalid_range" = "结束时间需要晚于开始时间";
+"dashboard.set_end_now_help" = "将结束时间设为当前时间";
+"dashboard.apply_range_help" = "应用自定义时间范围";
+"dashboard.range_span" = "跨度 %@";
+
+"range.15_minutes" = "15 分钟";
+"range.1_hour" = "1 小时";
+"range.6_hours" = "6 小时";
+"range.24_hours" = "24 小时";
+"range.7_days" = "7 天";
+"range.custom" = "自定义";
+
+"metric.memory" = "内存";
+"metric.ane_power" = "ANE 功耗";
+"metric.system_power" = "整机功耗";
+"metric.swap_used_total" = "已用 / 共 %@";
+"metric.processor_load" = "处理器负载";
+"metric.memory_bandwidth" = "内存带宽";
+"metric.network_bandwidth" = "网络带宽";
+"metric.disk_throughput" = "磁盘吞吐";
+"metric.chip_power" = "芯片功耗";
+"metric.recent_peak" = "近期峰值 %@";
+"metric.sampling" = "采样中";
+"metric.device_utilization" = "设备利用率";
+
+"series.read" = "读取";
+"series.write" = "写入";
+"series.download" = "下载";
+"series.upload" = "上传";
+"series.clipto_read" = "Clipto 读取";
+"series.clipto_write" = "Clipto 写入";
+
+"subtitle.memory_io" = "IOReport AMC 的 DRAM 读写计数器";
+"subtitle.network" = "所有活跃网络接口的实时吞吐";
+"subtitle.chip_power" = "IOReport 能耗模型，适合趋势观察";
+"subtitle.processor_clipto" = "CPU/GPU 为系统计数器；Clipto 为整机 CPU 占比；ANE 为活跃度估算";
+"subtitle.processor" = "CPU/GPU 为系统计数器；ANE 为活跃度估算";
+"subtitle.disk_clipto" = "内部存储总吞吐与 Clipto 进程组吞吐";
+"subtitle.disk" = "内部存储实时读写速率";
+"subtitle.clipto_cpu" = "Clipto %@ 整机";
+
+"chart.time" = "时间";
+"chart.metric_segment" = "指标与连续区间";
+
+"settings.title" = "设置";
+"settings.subtitle" = "采样、历史记录与数据源";
+"settings.sampling_history" = "采样与历史";
+"settings.sampling_interval" = "采样间隔";
+"settings.history_retention" = "历史保留";
+"settings.database" = "数据库";
+"settings.seconds" = "%d 秒";
+"settings.days" = "%d 天";
+"settings.enhanced_metrics" = "增强指标";
+"settings.enhanced_title" = "ANE、分项功耗与应用级 GPU";
+"settings.enhanced_detail" = "IOReport、SMC 与 IOKit 在本机直接采样，无需管理员权限。";
+"settings.sampling_active" = "正在采样";
+"settings.temporarily_unavailable" = "暂不可用";
+"settings.power_note" = "IOReport 与 SMC 的功耗属于系统估算值，适合观察同一设备的变化趋势，不适合跨设备比较。";
+"settings.data_sources" = "数据来源";
+"settings.cpu_memory" = "CPU、内存";
+"settings.public_api" = "公开 API";
+"settings.gpu_activity" = "实时活跃率";
+"settings.disk_network" = "磁盘、网络";
+"settings.cumulative_counters" = "IOKit / getifaddrs 累计计数器";
+"settings.ane_power_memory" = "ANE、功耗、内存带宽";
+"settings.built_in_sources" = "内置 IOReport / SMC";
+"settings.live_enhanced" = "实时增强";
+"settings.clipto_resources" = "Clipto 应用资源";
+"settings.clipto_sources" = "libproc / IOKit GPU 客户端计数器";
+"settings.tracking" = "正在跟踪";
+"settings.auto_detect" = "自动检测";
+
+"datetime.choose" = "选择%@时间";
+"datetime.date" = "日期";
+"datetime.time" = "时间";
+"datetime.quick_adjust" = "快速调整";
+"datetime.hour_unit" = "时";
+"datetime.minute_unit" = "分";
+"datetime.minus_hour" = "−1 小时";
+"datetime.plus_hour" = "+1 小时";
+"datetime.minus_minutes" = "−15 分";
+"datetime.plus_minutes" = "+15 分";
+
+"thermal.nominal" = "正常";
+"thermal.fair" = "温热";
+"thermal.serious" = "较高";
+"thermal.critical" = "严重";
+"thermal.unknown" = "未知";
+
+"export.panel_title" = "导出监控数据";
+"error.history_open" = "无法打开历史数据库";
+"error.history_query" = "历史数据库错误：%@";
+"hardware.init_failed" = "PulseBoard：IOReport 初始化失败（%d）\n";

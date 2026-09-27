@@ -1,9 +1,15 @@
 import SwiftUI
 
-private enum AppSection: String, CaseIterable, Identifiable {
-    case overview = "总览"
-    case settings = "设置"
-    var id: String { rawValue }
+private enum AppSection: CaseIterable, Identifiable {
+    case overview
+    case settings
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .overview: L10n.text("nav.overview")
+        case .settings: L10n.text("nav.settings")
+        }
+    }
     var icon: String {
         switch self {
         case .overview: "square.grid.2x2"
@@ -28,7 +34,7 @@ struct ContentView: View {
                         .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(PulseTheme.stroke) }
                     VStack(alignment: .leading, spacing: 2) {
                         Text("PulseBoard").font(.headline)
-                        Text("Mac 性能中心").font(.caption2).foregroundStyle(.tertiary)
+                        Text(L10n.text("app.subtitle")).font(.caption2).foregroundStyle(.tertiary)
                     }
                     Spacer()
                 }
@@ -37,7 +43,7 @@ struct ContentView: View {
                 .padding(.bottom, 12)
 
                 List(AppSection.allCases, selection: $selection) { section in
-                    Label(section.rawValue, systemImage: section.icon)
+                    Label(section.title, systemImage: section.icon)
                         .font(.system(size: 14, weight: .medium))
                         .padding(.vertical, 5)
                         .tag(section)
@@ -48,7 +54,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(spacing: 7) {
                         Circle().fill(.green).frame(width: 6, height: 6)
-                        Text("实时采样中").font(.caption.weight(.semibold))
+                        Text(L10n.text("status.live")).font(.caption.weight(.semibold))
                     }
                 }
                 .padding(12)
@@ -70,6 +76,6 @@ struct ContentView: View {
         .alert("PulseBoard", isPresented: Binding(
             get: { store.errorMessage != nil },
             set: { if !$0 { store.dismissError() } }
-        )) { Button("好", role: .cancel) {} } message: { Text(store.errorMessage ?? "") }
+        )) { Button(L10n.text("common.ok"), role: .cancel) {} } message: { Text(store.errorMessage ?? "") }
     }
 }

@@ -1,0 +1,115 @@
+"app.subtitle" = "Mac Performance Center";
+"nav.overview" = "Overview";
+"nav.settings" = "Settings";
+"status.live" = "Live sampling";
+"common.ok" = "OK";
+"common.done" = "Done";
+"common.now" = "Now";
+"common.apply" = "Apply";
+"common.export" = "Export";
+
+"menu.export_range" = "Export Current Range…";
+"menu.memory" = "Memory  %@";
+"menu.quit" = "Quit";
+
+"dashboard.title" = "Resource Overview";
+"dashboard.subtitle" = "Performance, bandwidth, and energy at a glance";
+"dashboard.time_range" = "Time Range";
+"dashboard.custom_range" = "Custom Time Range";
+"dashboard.fixed_range" = "Fixed range";
+"dashboard.sample_count" = "%d samples";
+"dashboard.start" = "Start";
+"dashboard.end" = "End";
+"dashboard.invalid_range" = "End time must be later than start time";
+"dashboard.set_end_now_help" = "Set the end time to now";
+"dashboard.apply_range_help" = "Apply the custom time range";
+"dashboard.range_span" = "Span %@";
+
+"range.15_minutes" = "15 min";
+"range.1_hour" = "1 hour";
+"range.6_hours" = "6 hours";
+"range.24_hours" = "24 hours";
+"range.7_days" = "7 days";
+"range.custom" = "Custom";
+
+"metric.memory" = "Memory";
+"metric.ane_power" = "ANE Power";
+"metric.system_power" = "System Power";
+"metric.swap_used_total" = "Used / %@ total";
+"metric.processor_load" = "Processor Load";
+"metric.memory_bandwidth" = "Memory Bandwidth";
+"metric.network_bandwidth" = "Network Bandwidth";
+"metric.disk_throughput" = "Disk Throughput";
+"metric.chip_power" = "Chip Power";
+"metric.recent_peak" = "Recent peak %@";
+"metric.sampling" = "Sampling";
+"metric.device_utilization" = "Device utilization";
+
+"series.read" = "Read";
+"series.write" = "Write";
+"series.download" = "Download";
+"series.upload" = "Upload";
+"series.clipto_read" = "Clipto Read";
+"series.clipto_write" = "Clipto Write";
+
+"subtitle.memory_io" = "IOReport AMC DRAM read and write counters";
+"subtitle.network" = "Live throughput across all active network interfaces";
+"subtitle.chip_power" = "IOReport energy model for trend analysis";
+"subtitle.processor_clipto" = "CPU/GPU use system counters; Clipto is whole-system CPU share; ANE is estimated activity";
+"subtitle.processor" = "CPU/GPU use system counters; ANE is estimated activity";
+"subtitle.disk_clipto" = "Internal storage throughput with Clipto process-group throughput";
+"subtitle.disk" = "Live internal storage read and write rates";
+"subtitle.clipto_cpu" = "Clipto %@ whole system";
+
+"chart.time" = "Time";
+"chart.metric_segment" = "Metric and continuous segment";
+
+"settings.title" = "Settings";
+"settings.subtitle" = "Sampling, history, and data sources";
+"settings.sampling_history" = "Sampling & History";
+"settings.sampling_interval" = "Sampling Interval";
+"settings.history_retention" = "History Retention";
+"settings.database" = "Database";
+"settings.seconds" = "%d sec";
+"settings.days" = "%d days";
+"settings.enhanced_metrics" = "Enhanced Metrics";
+"settings.enhanced_title" = "ANE, component power, and per-app GPU";
+"settings.enhanced_detail" = "IOReport, SMC, and IOKit are sampled locally without administrator access.";
+"settings.sampling_active" = "Sampling";
+"settings.temporarily_unavailable" = "Unavailable";
+"settings.power_note" = "IOReport and SMC power readings are system estimates. They are useful for trends on one device, not comparisons across devices.";
+"settings.data_sources" = "Data Sources";
+"settings.cpu_memory" = "CPU & Memory";
+"settings.public_api" = "Public API";
+"settings.gpu_activity" = "Live activity";
+"settings.disk_network" = "Disk & Network";
+"settings.cumulative_counters" = "IOKit / getifaddrs cumulative counters";
+"settings.ane_power_memory" = "ANE, Power & Memory Bandwidth";
+"settings.built_in_sources" = "Built-in IOReport / SMC";
+"settings.live_enhanced" = "Live enhanced";
+"settings.clipto_resources" = "Clipto App Resources";
+"settings.clipto_sources" = "libproc / IOKit GPU client counters";
+"settings.tracking" = "Tracking";
+"settings.auto_detect" = "Auto detect";
+
+"datetime.choose" = "Choose %@ Time";
+"datetime.date" = "Date";
+"datetime.time" = "Time";
+"datetime.quick_adjust" = "Quick Adjust";
+"datetime.hour_unit" = "h";
+"datetime.minute_unit" = "min";
+"datetime.minus_hour" = "−1 hour";
+"datetime.plus_hour" = "+1 hour";
+"datetime.minus_minutes" = "−15 min";
+"datetime.plus_minutes" = "+15 min";
+
+"thermal.nominal" = "Normal";
+"thermal.fair" = "Warm";
+"thermal.serious" = "High";
+"thermal.critical" = "Critical";
+"thermal.unknown" = "Unknown";
+
+"export.panel_title" = "Export Monitoring Data";
+"error.history_open" = "Unable to open the history database";
+"error.history_query" = "History database error: %@";
+"hardware.init_failed" = "PulseBoard: IOReport initialization failed (%d)\n";

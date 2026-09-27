@@ -196,11 +196,11 @@ final class SystemSampler {
 
     private func thermalState() -> String {
         switch ProcessInfo.processInfo.thermalState {
-        case .nominal: "正常"
-        case .fair: "温热"
-        case .serious: "较高"
-        case .critical: "严重"
-        @unknown default: "未知"
+        case .nominal: "nominal"
+        case .fair: "fair"
+        case .serious: "serious"
+        case .critical: "critical"
+        @unknown default: "unknown"
         }
     }
 }

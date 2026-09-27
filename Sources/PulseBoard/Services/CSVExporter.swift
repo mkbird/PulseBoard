@@ -8,7 +8,7 @@ enum CSVExporter {
         panel.allowedContentTypes = [.commaSeparatedText]
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = "PulseBoard-\(fileDate.string(from: Date())).csv"
-        panel.title = "导出监控数据"
+        panel.title = L10n.text("export.panel_title")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         try csv(samples: samples).write(to: url, atomically: true, encoding: .utf8)
     }

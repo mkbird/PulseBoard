@@ -92,7 +92,7 @@ struct MetricCard: View {
 
     private var scaleLabel: String {
         if let barMaximum, abs(barMaximum - 100) < 0.001 { return "100%" }
-        return "近期峰值 \(MetricFormat.watts(observedMaximum))"
+        return L10n.format("metric.recent_peak", MetricFormat.watts(observedMaximum))
     }
 
     var body: some View {
@@ -195,9 +195,9 @@ struct TelemetryChart: View {
                 ForEach(series) { item in
                     ForEach(points(for: item)) { point in
                         LineMark(
-                            x: .value("时间", point.timestamp),
+                            x: .value(L10n.text("chart.time"), point.timestamp),
                             y: .value(item.name, point.value),
-                            series: .value("指标与连续区间", point.seriesID)
+                            series: .value(L10n.text("chart.metric_segment"), point.seriesID)
                         )
                         .foregroundStyle(item.color)
                         .lineStyle(.init(lineWidth: 1.6))
