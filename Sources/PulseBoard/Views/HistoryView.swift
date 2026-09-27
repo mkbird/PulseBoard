@@ -66,9 +66,11 @@ struct HistoryView: View {
                                     .foregroundStyle(.tertiary)
                             }
                             Spacer()
-                            Button("结束设为现在") { store.customTo = Date() }
-                            Button("应用时间范围") { store.applyCustomRange() }
+                            Button("现在") { store.customTo = Date() }
+                                .help("将结束时间设为当前时间")
+                            Button("应用") { store.applyCustomRange() }
                                 .buttonStyle(.borderedProminent)
+                                .help("应用自定义时间范围")
                         }
                     }
                 }
