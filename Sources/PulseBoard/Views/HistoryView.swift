@@ -184,41 +184,43 @@ private struct DateTimeField: View {
                     .keyboardShortcut(.defaultAction)
             }
 
-            DatePicker("日期", selection: $date, displayedComponents: .date)
-                .datePickerStyle(.graphical)
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .center)
-
             Divider()
 
-            HStack(spacing: 10) {
-                Text("时间").font(.subheadline.weight(.medium))
-                Spacer()
-                Picker("小时", selection: hour) {
-                    ForEach(0..<24, id: \.self) { value in
-                        Text(String(format: "%02d 时", value)).tag(value)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 88)
-                Picker("分钟", selection: minute) {
-                    ForEach(0..<60, id: \.self) { value in
-                        Text(String(format: "%02d 分", value)).tag(value)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 88)
-            }
+            HStack(alignment: .top, spacing: 18) {
+                DatePicker("日期", selection: $date, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .controlSize(.large)
+                    .frame(width: 180, alignment: .center)
 
-            HStack(spacing: 8) {
-                adjustmentButton("−1 小时", seconds: -3_600)
-                adjustmentButton("−15 分", seconds: -900)
-                adjustmentButton("+15 分", seconds: 900)
-                adjustmentButton("+1 小时", seconds: 3_600)
+                Divider()
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("时间").font(.subheadline.weight(.medium))
+
+                    HStack(spacing: 8) {
+                        timeMenu(unit: "时", selection: hour, values: 0..<24)
+
+                        Text(":").foregroundStyle(.secondary)
+
+                        timeMenu(unit: "分", selection: minute, values: 0..<60)
+                    }
+
+                    Divider()
+
+                    Text("快速调整").font(.caption).foregroundStyle(.secondary)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                        adjustmentButton("−1 小时", seconds: -3_600)
+                        adjustmentButton("+1 小时", seconds: 3_600)
+                        adjustmentButton("−15 分", seconds: -900)
+                        adjustmentButton("+15 分", seconds: 900)
+                    }
+                }
+                .frame(width: 190)
             }
         }
         .padding(18)
-        .frame(width: 360)
+        .frame(width: 430)
     }
 
     private var dateLabel: String {
@@ -250,5 +252,31 @@ private struct DateTimeField: View {
         Button(label) { date = date.addingTimeInterval(seconds) }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .frame(maxWidth: .infinity)
+    }
+
+    private func timeMenu(unit: String, selection: Binding<Int>, values: Range<Int>) -> some View {
+        Menu {
+            ForEach(values, id: \.self) { value in
+                Button(String(format: "%02d %@", value, unit)) {
+                    selection.wrappedValue = value
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(String(format: "%02d %@", selection.wrappedValue, unit))
+                    .font(.body.monospacedDigit())
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 9)
+            .frame(width: 82, height: 30)
+            .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(PulseTheme.stroke) }
+        }
+        .menuStyle(.borderlessButton)
     }
 }
