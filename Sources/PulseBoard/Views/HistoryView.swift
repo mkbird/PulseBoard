@@ -32,7 +32,7 @@ struct HistoryView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(16)
-                .glassPanel(tint: PulseTheme.violet)
+                .glassPanel()
 
                 TelemetryChart(
                     title: "CPU / GPU / ANE / 内存", subtitle: "跨指标查看负载变化与相关性", icon: "chart.xyaxis.line", samples: store.samples,
@@ -43,14 +43,41 @@ struct HistoryView: View {
                         .init(name: "内存", color: .orange, value: { $0.memoryUsage })
                     ], suffix: "%", timeDomain: store.chartWindow
                 )
-                TelemetryChart(
-                    title: "系统功耗", subtitle: "CPU、GPU、ANE 分项历史", icon: "bolt", samples: store.samples,
-                    series: [
-                        .init(name: "CPU", color: .cyan, value: { $0.cpuPowerWatts }),
-                        .init(name: "GPU", color: .purple, value: { $0.gpuPowerWatts }),
-                        .init(name: "ANE", color: .pink, value: { $0.anePowerWatts })
-                    ], suffix: " W", timeDomain: store.chartWindow
-                )
+                HStack(alignment: .top, spacing: 16) {
+                    TelemetryChart(
+                        title: "内存带宽", subtitle: "DRAM 读取与写入历史", icon: "memorychip", samples: store.samples,
+                        series: [
+                            .init(name: "读取", color: .orange, value: { $0.memoryReadGBps }),
+                            .init(name: "写入", color: .red, value: { $0.memoryWriteGBps })
+                        ], suffix: " GB/s", timeDomain: store.chartWindow
+                    )
+                    TelemetryChart(
+                        title: "网络带宽", subtitle: "所有活跃网络接口的吞吐历史", icon: "network", samples: store.samples,
+                        series: [
+                            .init(name: "下载", color: .blue, value: { $0.networkDownBytesPerSecond / 1_000_000 }),
+                            .init(name: "上传", color: .mint, value: { $0.networkUpBytesPerSecond / 1_000_000 })
+                        ], suffix: " MB/s", timeDomain: store.chartWindow
+                    )
+                }
+
+                HStack(alignment: .top, spacing: 16) {
+                    TelemetryChart(
+                        title: "磁盘吞吐", subtitle: "内部存储读取与写入历史", icon: "internaldrive", samples: store.samples,
+                        series: [
+                            .init(name: "读取", color: .green, value: { $0.diskReadBytesPerSecond / 1_000_000 }),
+                            .init(name: "写入", color: .teal, value: { $0.diskWriteBytesPerSecond / 1_000_000 })
+                        ], suffix: " MB/s", timeDomain: store.chartWindow
+                    )
+                    TelemetryChart(
+                        title: "系统功耗", subtitle: "整机与 CPU、GPU、ANE 分项历史", icon: "bolt", samples: store.samples,
+                        series: [
+                            .init(name: "整机", color: .yellow, value: { $0.systemPowerWatts }),
+                            .init(name: "CPU", color: .cyan, value: { $0.cpuPowerWatts }),
+                            .init(name: "GPU", color: .purple, value: { $0.gpuPowerWatts }),
+                            .init(name: "ANE", color: .pink, value: { $0.anePowerWatts })
+                        ], suffix: " W", timeDomain: store.chartWindow
+                    )
+                }
             }
             .padding(.horizontal, 26)
             .padding(.vertical, 22)

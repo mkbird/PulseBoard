@@ -74,6 +74,17 @@ struct DashboardView: View {
 
     private var header: some View {
         HStack(alignment: .center) {
+            HStack(spacing: 13) {
+                Image(systemName: "waveform.path.ecg.rectangle")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(PulseTheme.cyan)
+                    .frame(width: 34, height: 34)
+                    .background(PulseTheme.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("资源总览").font(.system(size: 28, weight: .semibold, design: .default))
+                    Text("性能、带宽与能耗，一览无余").font(.callout).foregroundStyle(.secondary)
+                }
+            }
             Spacer()
             StatusPill(text: store.enhancedMetricsAvailable ? "增强指标在线" : "标准采样", color: store.enhancedMetricsAvailable ? .green : .orange)
             Picker("时间范围", selection: $store.selectedRange) {
