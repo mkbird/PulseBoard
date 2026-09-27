@@ -49,13 +49,22 @@ struct HistoryView: View {
 
                     if store.selectedRange == .custom {
                         Divider()
-                        HStack(spacing: 14) {
-                            DatePicker("开始", selection: $store.customFrom, displayedComponents: [.date, .hourAndMinute])
-                            DatePicker("结束", selection: $store.customTo, displayedComponents: [.date, .hourAndMinute])
-                            Button("结束设为现在") { store.customTo = Date() }
-                            Spacer()
-                            Button("应用") { store.applyCustomRange() }
-                                .buttonStyle(.borderedProminent)
+                        HStack(alignment: .center, spacing: 12) {
+                            DateTimeField(title: "开始", icon: "calendar.badge.clock", tint: PulseTheme.cyan, date: $store.customFrom)
+                            Image(systemName: "arrow.right")
+                                .foregroundStyle(.tertiary)
+                            DateTimeField(title: "结束", icon: "calendar.badge.checkmark", tint: PulseTheme.violet, date: $store.customTo)
+                            VStack(alignment: .trailing, spacing: 8) {
+                                Button("结束设为现在") { store.customTo = Date() }
+                                Button("应用时间范围") { store.applyCustomRange() }
+                                    .buttonStyle(.borderedProminent)
+                            }
+                            .frame(minWidth: 112)
+                        }
+                        if store.customTo <= store.customFrom {
+                            Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
                         }
                     }
                 }
@@ -111,5 +120,115 @@ struct HistoryView: View {
             .padding(.vertical, 22)
         }
         .background(AppBackground())
+    }
+}
+
+private struct DateTimeField: View {
+    let title: String
+    let icon: String
+    let tint: Color
+    @Binding var date: Date
+    @State private var isPresented = false
+
+    var body: some View {
+        Button { isPresented.toggle() } label: {
+            HStack(spacing: 11) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(tint)
+                    .frame(width: 28, height: 28)
+                    .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.caption).foregroundStyle(.secondary)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(date.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)))
+                        Text(date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)))
+                            .font(.body.monospacedDigit().weight(.medium))
+                    }
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.black.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(PulseTheme.stroke) }
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            editor
+        }
+    }
+
+    private var editor: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("选择\(title)时间").font(.headline)
+                Spacer()
+                Button("完成") { isPresented = false }
+                    .keyboardShortcut(.defaultAction)
+            }
+
+            DatePicker("日期", selection: $date, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+
+            Divider()
+
+            HStack(spacing: 10) {
+                Text("时间").font(.subheadline.weight(.medium))
+                Spacer()
+                Picker("小时", selection: hour) {
+                    ForEach(0..<24, id: \.self) { value in
+                        Text(String(format: "%02d 时", value)).tag(value)
+                    }
+                }
+                .frame(width: 92)
+                Picker("分钟", selection: minute) {
+                    ForEach(0..<60, id: \.self) { value in
+                        Text(String(format: "%02d 分", value)).tag(value)
+                    }
+                }
+                .frame(width: 92)
+            }
+
+            HStack(spacing: 8) {
+                adjustmentButton("−1 小时", seconds: -3_600)
+                adjustmentButton("−15 分", seconds: -900)
+                adjustmentButton("+15 分", seconds: 900)
+                adjustmentButton("+1 小时", seconds: 3_600)
+            }
+        }
+        .padding(18)
+        .frame(width: 360)
+    }
+
+    private var hour: Binding<Int> {
+        Binding(
+            get: { Calendar.current.component(.hour, from: date) },
+            set: { update(hour: $0, minute: Calendar.current.component(.minute, from: date)) }
+        )
+    }
+
+    private var minute: Binding<Int> {
+        Binding(
+            get: { Calendar.current.component(.minute, from: date) },
+            set: { update(hour: Calendar.current.component(.hour, from: date), minute: $0) }
+        )
+    }
+
+    private func update(hour: Int, minute: Int) {
+        if let value = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: date) {
+            date = value
+        }
+    }
+
+    private func adjustmentButton(_ label: String, seconds: TimeInterval) -> some View {
+        Button(label) { date = date.addingTimeInterval(seconds) }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
     }
 }
