@@ -1,20 +1,72 @@
 import Charts
 import SwiftUI
 
+enum PulseTheme {
+    static let canvasTop = Color(red: 0.045, green: 0.065, blue: 0.12)
+    static let canvasBottom = Color(red: 0.018, green: 0.025, blue: 0.055)
+    static let sidebar = Color(red: 0.025, green: 0.038, blue: 0.078)
+    static let panel = Color.white.opacity(0.055)
+    static let stroke = Color.white.opacity(0.10)
+    static let cyan = Color(red: 0.15, green: 0.82, blue: 1.0)
+    static let violet = Color(red: 0.60, green: 0.32, blue: 1.0)
+}
+
+struct AppBackground: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [PulseTheme.canvasTop, PulseTheme.canvasBottom],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            RadialGradient(
+                colors: [PulseTheme.cyan.opacity(0.13), .clear],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 720
+            )
+            RadialGradient(
+                colors: [PulseTheme.violet.opacity(0.10), .clear],
+                center: .bottomTrailing,
+                startRadius: 0,
+                endRadius: 640
+            )
+        }
+        .ignoresSafeArea()
+    }
+}
+
 struct GlassPanel: ViewModifier {
+    var tint: Color?
+
     func body(content: Content) -> some View {
         content
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(.white.opacity(0.08))
+            .background {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [tint?.opacity(0.12) ?? PulseTheme.panel, PulseTheme.panel],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
             }
-            .shadow(color: .black.opacity(0.08), radius: 16, y: 6)
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [.white.opacity(0.16), tint?.opacity(0.20) ?? .white.opacity(0.04)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            .shadow(color: .black.opacity(0.22), radius: 22, y: 12)
     }
 }
 
 extension View {
-    func glassPanel() -> some View { modifier(GlassPanel()) }
+    func glassPanel(tint: Color? = nil) -> some View { modifier(GlassPanel(tint: tint)) }
 }
 
 struct MetricCard: View {
@@ -40,15 +92,20 @@ struct MetricCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label(title, systemImage: icon)
-                    .font(.headline)
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 30, height: 30)
+                    .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Circle().fill(tint).frame(width: 8, height: 8).shadow(color: tint, radius: 5)
+                Circle().fill(tint).frame(width: 7, height: 7).shadow(color: tint, radius: 6)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(value).font(.system(size: 30, weight: .semibold, design: .rounded)).monospacedDigit()
-                Text(subtitle).font(.caption).foregroundStyle(.tertiary)
+                Text(value).font(.system(size: 31, weight: .semibold, design: .rounded)).monospacedDigit()
+                Text(subtitle).font(.caption).foregroundStyle(.tertiary).lineLimit(1)
             }
             Chart(points) { sample in
                 AreaMark(
@@ -70,8 +127,8 @@ struct MetricCard: View {
             .chartXScale(domain: resolvedTimeDomain)
             .frame(height: 52)
         }
-        .padding(18)
-        .glassPanel()
+        .padding(17)
+        .glassPanel(tint: tint)
     }
 
     private var resolvedTimeDomain: ClosedRange<Date> {
@@ -98,7 +155,14 @@ struct TelemetryChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
-                Label(title, systemImage: icon).font(.headline)
+                HStack(spacing: 10) {
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(PulseTheme.cyan)
+                        .frame(width: 30, height: 30)
+                        .background(PulseTheme.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    Text(title).font(.headline)
+                }
                 Spacer()
                 HStack(spacing: 12) {
                     ForEach(series) { item in
@@ -106,6 +170,9 @@ struct TelemetryChart: View {
                             Circle().fill(item.color).frame(width: 7, height: 7)
                             Text(item.name).font(.caption).foregroundStyle(.secondary)
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(.white.opacity(0.04), in: Capsule())
                     }
                 }
             }
@@ -140,6 +207,11 @@ struct TelemetryChart: View {
                 }
             }
             .chartXScale(domain: resolvedTimeDomain)
+            .chartPlotStyle { plot in
+                plot
+                    .background(.black.opacity(0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
             .frame(minHeight: 210)
         }
         .padding(20)
@@ -231,7 +303,8 @@ struct StatusPill: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(color.opacity(0.12), in: Capsule())
+        .background(color.opacity(0.14), in: Capsule())
+        .overlay { Capsule().strokeBorder(color.opacity(0.22)) }
         .foregroundStyle(color)
     }
 }

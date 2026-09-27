@@ -6,8 +6,10 @@
     <string>zh_CN</string>
     <key>CFBundleDisplayName</key>
     <string>PulseBoard</string>
-    <key>CFBundleExecutable</key>
-    <string>PulseBoard</string>
+	<key>CFBundleExecutable</key>
+	<string>PulseBoard</string>
+	<key>CFBundleIconFile</key>
+	<string>PulseBoard</string>
     <key>CFBundleIdentifier</key>
     <string>com.madongpeng.PulseBoard</string>
     <key>CFBundleInfoDictionaryVersion</key>

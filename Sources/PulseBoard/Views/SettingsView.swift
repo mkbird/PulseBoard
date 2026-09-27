@@ -7,7 +7,17 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Text("设置").font(.system(size: 28, weight: .bold, design: .rounded))
+                HStack(spacing: 13) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(PulseTheme.cyan)
+                        .frame(width: 44, height: 44)
+                        .background(PulseTheme.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("设置").font(.system(size: 29, weight: .bold, design: .rounded))
+                        Text("采样、历史记录与数据源").font(.callout).foregroundStyle(.secondary)
+                    }
+                }
 
                 settingsSection("采样与历史", icon: "clock.arrow.circlepath") {
                     LabeledContent("采样间隔") {
@@ -66,7 +76,7 @@ struct SettingsView: View {
                             }
                         }.padding(.top, 8)
                     }
-                    Text("powermetrics 的功耗是估算值，适合观察同一设备的变化趋势，不适合跨设备比较。")
+                    Text("IOReport 与 SMC 的功耗属于系统估算值，适合观察同一设备的变化趋势，不适合跨设备比较。")
                         .font(.caption).foregroundStyle(.tertiary)
                 }
 
@@ -77,9 +87,12 @@ struct SettingsView: View {
                     sourceRow("ANE、功耗、内存带宽", detail: "内置 IOReport / SMC", state: "实时增强")
                 }
             }
-            .padding(24)
-            .frame(maxWidth: 900, alignment: .leading)
+            .padding(.horizontal, 26)
+            .padding(.vertical, 22)
+            .frame(maxWidth: 960, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
+        .background(AppBackground())
     }
 
     private var helperColor: Color {
@@ -97,7 +110,7 @@ struct SettingsView: View {
             content()
         }
         .padding(20)
-        .glassPanel()
+        .glassPanel(tint: PulseTheme.cyan)
     }
 
     private func sourceRow(_ title: String, detail: String, state: String) -> some View {
@@ -105,7 +118,12 @@ struct SettingsView: View {
             Text(title).frame(width: 170, alignment: .leading)
             Text(detail).foregroundStyle(.secondary)
             Spacer()
-            Text(state).font(.caption).padding(.horizontal, 8).padding(.vertical, 4).background(.quaternary, in: Capsule())
+            Text(state)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(PulseTheme.cyan)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(PulseTheme.cyan.opacity(0.10), in: Capsule())
         }
     }
 }

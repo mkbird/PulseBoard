@@ -64,17 +64,27 @@ struct DashboardView: View {
                     )
                 }
             }
-            .padding(24)
+            .padding(.horizontal, 26)
+            .padding(.top, 22)
+            .padding(.bottom, 32)
         }
-        .background(background)
+        .background(AppBackground())
         .onAppear { store.resumeLiveRange() }
     }
 
     private var header: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("资源总览").font(.system(size: 28, weight: .bold, design: .rounded))
-                Text("持续记录这台 Mac 的性能、带宽与能耗趋势").foregroundStyle(.secondary)
+            HStack(spacing: 13) {
+                Image(systemName: "waveform.path.ecg.rectangle")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(PulseTheme.cyan)
+                    .frame(width: 44, height: 44)
+                    .background(PulseTheme.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .overlay { RoundedRectangle(cornerRadius: 13).strokeBorder(PulseTheme.cyan.opacity(0.20)) }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("资源总览").font(.system(size: 29, weight: .bold, design: .rounded))
+                    Text("性能、带宽与能耗，一览无余").font(.callout).foregroundStyle(.secondary)
+                }
             }
             Spacer()
             StatusPill(text: store.enhancedMetricsAvailable ? "增强指标在线" : "标准采样", color: store.enhancedMetricsAvailable ? .green : .orange)
@@ -82,9 +92,10 @@ struct DashboardView: View {
                 ForEach(HistoryRange.allCases.filter { $0 != .custom }) { range in Text(range.title).tag(range) }
             }
             .pickerStyle(.segmented)
-            .frame(width: 410)
+            .frame(width: 390)
             Button { store.exportCurrentRange() } label: { Label("导出", systemImage: "square.and.arrow.up") }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
         }
     }
 
@@ -94,10 +105,4 @@ struct DashboardView: View {
     }
     private var diskFree: String { store.latest.map { MetricFormat.bytes($0.diskFreeBytes) } ?? "—" }
     private var diskTotal: String { store.latest.map { MetricFormat.bytes($0.diskTotalBytes) } ?? "—" }
-    private var background: some View {
-        ZStack {
-            Color(nsColor: .windowBackgroundColor)
-            RadialGradient(colors: [.cyan.opacity(0.08), .clear], center: .topLeading, startRadius: 0, endRadius: 700)
-        }.ignoresSafeArea()
-    }
 }

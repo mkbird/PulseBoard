@@ -5,16 +5,23 @@ struct HistoryView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            LazyVStack(alignment: .leading, spacing: 20) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("历史与导出").font(.system(size: 28, weight: .bold, design: .rounded))
-                        Text("选择任意时间窗口；长时间范围会自动降采样，导出仍保留原始记录。")
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 13) {
+                        Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                            .font(.system(size: 19, weight: .semibold))
+                            .foregroundStyle(PulseTheme.violet)
+                            .frame(width: 44, height: 44)
+                            .background(PulseTheme.violet.opacity(0.13), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("历史与导出").font(.system(size: 29, weight: .bold, design: .rounded))
+                            Text("探索任意时间窗口，导出始终保留原始记录").font(.callout).foregroundStyle(.secondary)
+                        }
                     }
                     Spacer()
                     Button { store.exportCurrentRange() } label: { Label("导出 CSV", systemImage: "square.and.arrow.up") }
                         .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
                 }
 
                 HStack(spacing: 14) {
@@ -26,7 +33,7 @@ struct HistoryView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(16)
-                .glassPanel()
+                .glassPanel(tint: PulseTheme.violet)
 
                 TelemetryChart(
                     title: "CPU / GPU / ANE / 内存", subtitle: "跨指标查看负载变化与相关性", icon: "chart.xyaxis.line", samples: store.samples,
@@ -46,7 +53,9 @@ struct HistoryView: View {
                     ], suffix: " W", timeDomain: store.chartWindow
                 )
             }
-            .padding(24)
+            .padding(.horizontal, 26)
+            .padding(.vertical, 22)
         }
+        .background(AppBackground())
     }
 }

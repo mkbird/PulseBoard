@@ -26,6 +26,14 @@ open dist/PulseBoard.app
 
 最低系统版本为 macOS 14。
 
+重新生成 macOS 图标资源：
+
+```bash
+./Scripts/build-icon.sh
+```
+
+母版位于 `Resources/AppIcon-master.png`，脚本会生成构建应用所需的 `Resources/PulseBoard.icns`。
+
 ## 增强指标
 
 macOS 没有为普通应用公开 ANE、分项功耗和 DRAM 带宽的完整 API。PulseBoard 使用内置的轻量采样层直接读取 IOReport/SMC，不依赖 Homebrew 或外部监控程序；`powermetrics` 特权辅助进程作为降级路径保留。
