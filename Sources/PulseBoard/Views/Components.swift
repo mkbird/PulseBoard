@@ -132,7 +132,7 @@ struct MetricCard: View {
                             }
                     }
                 }
-                .frame(height: 18)
+                .frame(height: 28)
 
                 HStack {
                     Text("0")
@@ -142,7 +142,7 @@ struct MetricCard: View {
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.tertiary)
             }
-            .frame(height: 52)
+            .frame(height: 62)
         }
         .padding(16)
         .glassPanel()

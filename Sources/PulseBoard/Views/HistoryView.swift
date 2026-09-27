@@ -179,7 +179,7 @@ struct HistoryView: View {
     }
 }
 
-private struct DateTimeField: View {
+struct DateTimeField: View {
     let title: String
     let icon: String
     let tint: Color

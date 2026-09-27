@@ -2,13 +2,11 @@ import SwiftUI
 
 private enum AppSection: String, CaseIterable, Identifiable {
     case overview = "总览"
-    case history = "历史"
     case settings = "设置"
     var id: String { rawValue }
     var icon: String {
         switch self {
         case .overview: "square.grid.2x2"
-        case .history: "clock.arrow.trianglehead.counterclockwise.rotate.90"
         case .settings: "gearshape"
         }
     }
@@ -63,7 +61,6 @@ struct ContentView: View {
         } detail: {
             switch selection ?? .overview {
             case .overview: DashboardView()
-            case .history: HistoryView()
             case .settings: SettingsView()
             }
         }

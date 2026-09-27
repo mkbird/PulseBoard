@@ -9,6 +9,9 @@ struct DashboardView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
                 header
+                if store.selectedRange == .custom {
+                    customRangePanel
+                }
                 LazyVGrid(columns: grid, spacing: 16) {
                     MetricCard(title: "CPU", icon: "cpu", value: MetricFormat.percent(store.latest?.cpuUsage), subtitle: cpuSubtitle, tint: .cyan, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoCPUComparison, barMaximum: 100) { $0.cpuUsage }
                     MetricCard(title: "GPU", icon: "rectangle.3.group", value: MetricFormat.percent(store.latest?.gpuUsage), subtitle: gpuSubtitle, tint: .purple, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoGPUComparison, barMaximum: 100) { $0.gpuUsage }
@@ -62,7 +65,6 @@ struct DashboardView: View {
             .padding(.bottom, 32)
         }
         .background(AppBackground())
-        .onAppear { store.resumeLiveRange() }
     }
 
     private var header: some View {
@@ -79,14 +81,67 @@ struct DashboardView: View {
                 }
             }
             Spacer()
-            Picker("时间范围", selection: $store.selectedRange) {
-                ForEach(HistoryRange.allCases.filter { $0 != .custom }) { range in Text(range.title).tag(range) }
+            Picker("时间范围", selection: Binding(
+                get: { store.selectedRange },
+                set: { store.selectHistoryRange($0) }
+            )) {
+                ForEach(HistoryRange.allCases) { range in Text(range.title).tag(range) }
             }
             .pickerStyle(.segmented)
-            .frame(width: 390)
+            .frame(width: 460)
             Button { store.exportCurrentRange() } label: { Label("导出", systemImage: "square.and.arrow.up") }
                 .buttonStyle(.borderedProminent)
         }
+    }
+
+    private var customRangePanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("自定义时间范围", systemImage: "calendar")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                StatusPill(text: "固定区间", color: .orange)
+                Text("\(store.samples.count) 个采样点")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(alignment: .center, spacing: 12) {
+                DateTimeField(title: "开始", icon: "calendar.badge.clock", tint: PulseTheme.cyan, date: $store.customFrom)
+                Image(systemName: "arrow.right")
+                    .foregroundStyle(.tertiary)
+                DateTimeField(title: "结束", icon: "calendar.badge.checkmark", tint: PulseTheme.violet, date: $store.customTo)
+            }
+
+            HStack {
+                if store.customTo <= store.customFrom {
+                    Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else {
+                    Text(customRangeSummary)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+                Button("现在") { store.customTo = Date() }
+                    .help("将结束时间设为当前时间")
+                Button("应用") { store.applyCustomRange() }
+                    .buttonStyle(.borderedProminent)
+                    .help("应用自定义时间范围")
+            }
+        }
+        .padding(16)
+        .glassPanel()
+    }
+
+    private var customRangeSummary: String {
+        let interval = max(0, store.customTo.timeIntervalSince(store.customFrom))
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = interval >= 86_400 ? [.day, .hour] : [.hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        return "跨度 \(formatter.string(from: interval) ?? "—")"
     }
 
     private var memorySubtitle: String {
