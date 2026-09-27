@@ -78,37 +78,9 @@ struct HistoryView: View {
                 .glassPanel()
 
                 TelemetryChart(
-                    title: "CPU / GPU / ANE", subtitle: "查看处理器负载变化与相关性", icon: "chart.xyaxis.line", samples: store.samples,
-                    series: [
-                        .init(name: "CPU", color: .cyan, value: { $0.cpuUsage }),
-                        .init(name: "GPU", color: .purple, value: { $0.gpuUsage }),
-                        .init(name: "ANE", color: .pink, value: { $0.aneUsage })
-                    ], suffix: "%", timeDomain: store.chartWindow
+                    title: "CPU / GPU / ANE", subtitle: processorSubtitle, icon: "chart.xyaxis.line", samples: store.samples,
+                    series: processorSeries, suffix: "%", timeDomain: store.chartWindow
                 )
-
-                if store.samples.contains(where: \.cliptoRunning) {
-                    HStack(alignment: .top, spacing: 16) {
-                        TelemetryChart(
-                            title: "Clipto CPU", subtitle: "Clipto 进程组；多核时可能超过 100%", icon: "app.badge", samples: store.samples,
-                            series: [
-                                .init(name: "CPU", color: .cyan, value: { $0.cliptoCPUPercent })
-                            ], suffix: "%", timeDomain: store.chartWindow
-                        )
-                        TelemetryChart(
-                            title: "Clipto 内存", subtitle: "主进程、Helper 与分析服务的物理占用估算", icon: "memorychip", samples: store.samples,
-                            series: [
-                                .init(name: "内存", color: .orange, value: { $0.cliptoMemoryBytes.map { $0 / 1_073_741_824 } })
-                            ], suffix: " GB", timeDomain: store.chartWindow
-                        )
-                    }
-                    TelemetryChart(
-                        title: "Clipto 磁盘 I/O", subtitle: "Clipto 进程组读取与写入历史", icon: "internaldrive", samples: store.samples,
-                        series: [
-                            .init(name: "读取", color: .green, value: { $0.cliptoDiskReadBytesPerSecond.map { $0 / 1_000_000 } }),
-                            .init(name: "写入", color: .teal, value: { $0.cliptoDiskWriteBytesPerSecond.map { $0 / 1_000_000 } })
-                        ], suffix: " MB/s", timeDomain: store.chartWindow
-                    )
-                }
 
                 HStack(alignment: .top, spacing: 16) {
                     TelemetryChart(
@@ -129,11 +101,8 @@ struct HistoryView: View {
 
                 HStack(alignment: .top, spacing: 16) {
                     TelemetryChart(
-                        title: "磁盘吞吐", subtitle: "内部存储读取与写入历史", icon: "internaldrive", samples: store.samples,
-                        series: [
-                            .init(name: "读取", color: .green, value: { $0.diskReadBytesPerSecond / 1_000_000 }),
-                            .init(name: "写入", color: .teal, value: { $0.diskWriteBytesPerSecond / 1_000_000 })
-                        ], suffix: " MB/s", timeDomain: store.chartWindow
+                        title: "磁盘吞吐", subtitle: diskSubtitle, icon: "internaldrive", samples: store.samples,
+                        series: diskSeries, suffix: " MB/s", timeDomain: store.chartWindow
                     )
                     TelemetryChart(
                         title: "系统功耗", subtitle: "整机与 CPU、GPU、ANE 分项历史", icon: "bolt", samples: store.samples,
@@ -159,6 +128,46 @@ struct HistoryView: View {
         formatter.unitsStyle = .abbreviated
         formatter.maximumUnitCount = 2
         return "跨度 \(formatter.string(from: interval) ?? "—")"
+    }
+
+    private var hasCliptoSamples: Bool {
+        store.samples.contains { $0.cliptoRunning }
+    }
+
+    private var processorSubtitle: String {
+        hasCliptoSamples ? "系统处理器负载与 Clipto 整机 CPU 占比" : "查看处理器负载变化与相关性"
+    }
+
+    private var diskSubtitle: String {
+        hasCliptoSamples ? "内部存储总吞吐与 Clipto 进程组吞吐" : "内部存储读取与写入历史"
+    }
+
+    private var processorSeries: [TelemetrySeries] {
+        var result: [TelemetrySeries] = [
+            .init(name: "CPU", color: .cyan, value: { $0.cpuUsage }),
+            .init(name: "GPU", color: .purple, value: { $0.gpuUsage }),
+            .init(name: "ANE", color: .pink, value: { $0.aneUsage })
+        ]
+        if hasCliptoSamples {
+            result.append(.init(name: "Clipto", color: .yellow, value: cliptoCPUShare))
+        }
+        return result
+    }
+
+    private var diskSeries: [TelemetrySeries] {
+        var result: [TelemetrySeries] = [
+            .init(name: "读取", color: .green, value: { $0.diskReadBytesPerSecond / 1_000_000 }),
+            .init(name: "写入", color: .teal, value: { $0.diskWriteBytesPerSecond / 1_000_000 })
+        ]
+        if hasCliptoSamples {
+            result.append(.init(name: "Clipto 读取", color: .orange, value: { $0.cliptoDiskReadBytesPerSecond.map { $0 / 1_000_000 } }))
+            result.append(.init(name: "Clipto 写入", color: .pink, value: { $0.cliptoDiskWriteBytesPerSecond.map { $0 / 1_000_000 } }))
+        }
+        return result
+    }
+
+    private func cliptoCPUShare(_ sample: MetricSample) -> Double? {
+        sample.cliptoCPUPercent.map { $0 / Double(max(1, ProcessInfo.processInfo.activeProcessorCount)) }
     }
 }
 

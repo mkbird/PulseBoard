@@ -62,6 +62,7 @@ struct MetricCard: View {
     let tint: Color
     let samples: [MetricSample]
     var timeDomain: ClosedRange<Date>? = nil
+    var comparison: TelemetrySeries? = nil
     let metric: (MetricSample) -> Double?
 
     private var points: [ChartValuePoint] {
@@ -71,6 +72,17 @@ struct MetricCard: View {
             limit: 72,
             domain: resolvedTimeDomain,
             value: metric
+        )
+    }
+
+    private var comparisonPoints: [ChartValuePoint] {
+        guard let comparison else { return [] }
+        return chartPoints(
+            samples: samples,
+            series: comparison.name,
+            limit: 72,
+            domain: resolvedTimeDomain,
+            value: comparison.value
         )
     }
 
@@ -86,25 +98,42 @@ struct MetricCard: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
+                if let comparison {
+                    HStack(spacing: 5) {
+                        Circle().fill(comparison.color).frame(width: 6, height: 6)
+                        Text(comparison.name).font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(value).font(.system(size: 30, weight: .medium, design: .default)).monospacedDigit()
                 Text(subtitle).font(.caption).foregroundStyle(.tertiary).lineLimit(1)
             }
-            Chart(points) { sample in
-                AreaMark(
-                    x: .value("时间", sample.timestamp),
-                    y: .value(title, sample.value),
-                    series: .value("连续区间", sample.seriesID)
-                )
-                .foregroundStyle(LinearGradient(colors: [tint.opacity(0.18), tint.opacity(0.005)], startPoint: .top, endPoint: .bottom))
-                LineMark(
-                    x: .value("时间", sample.timestamp),
-                    y: .value(title, sample.value),
-                    series: .value("连续区间", sample.seriesID)
-                )
-                .foregroundStyle(tint)
-                .lineStyle(.init(lineWidth: 1.6))
+            Chart {
+                ForEach(points) { sample in
+                    AreaMark(
+                        x: .value("时间", sample.timestamp),
+                        y: .value(title, sample.value),
+                        series: .value("连续区间", sample.seriesID)
+                    )
+                    .foregroundStyle(LinearGradient(colors: [tint.opacity(0.18), tint.opacity(0.005)], startPoint: .top, endPoint: .bottom))
+                    LineMark(
+                        x: .value("时间", sample.timestamp),
+                        y: .value(title, sample.value),
+                        series: .value("连续区间", sample.seriesID)
+                    )
+                    .foregroundStyle(tint)
+                    .lineStyle(.init(lineWidth: 1.6))
+                }
+                ForEach(comparisonPoints) { sample in
+                    LineMark(
+                        x: .value("时间", sample.timestamp),
+                        y: .value(comparison?.name ?? "Clipto", sample.value),
+                        series: .value("连续区间", sample.seriesID)
+                    )
+                    .foregroundStyle(comparison?.color ?? .yellow)
+                    .lineStyle(.init(lineWidth: 1.4))
+                }
             }
             .chartXAxis(.hidden)
             .chartYAxis(.hidden)

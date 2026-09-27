@@ -1,4 +1,3 @@
-import Charts
 import SwiftUI
 
 struct DashboardView: View {
@@ -11,9 +10,9 @@ struct DashboardView: View {
             LazyVStack(alignment: .leading, spacing: 22) {
                 header
                 LazyVGrid(columns: grid, spacing: 16) {
-                    MetricCard(title: "CPU", icon: "cpu", value: MetricFormat.percent(store.latest?.cpuUsage), subtitle: store.latest?.thermalState ?? "采样中", tint: .cyan, samples: store.samples, timeDomain: store.chartWindow) { $0.cpuUsage }
+                    MetricCard(title: "CPU", icon: "cpu", value: MetricFormat.percent(store.latest?.cpuUsage), subtitle: cpuSubtitle, tint: .cyan, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoCPUComparison) { $0.cpuUsage }
                     MetricCard(title: "GPU", icon: "rectangle.3.group", value: MetricFormat.percent(store.latest?.gpuUsage), subtitle: "设备利用率", tint: .purple, samples: store.samples, timeDomain: store.chartWindow) { $0.gpuUsage }
-                    MetricCard(title: "内存", icon: "memorychip", value: MetricFormat.percent(store.latest?.memoryUsage), subtitle: memorySubtitle, tint: .orange, samples: store.samples, timeDomain: store.chartWindow) { $0.memoryUsage }
+                    MetricCard(title: "内存", icon: "memorychip", value: MetricFormat.percent(store.latest?.memoryUsage), subtitle: memorySubtitle, tint: .orange, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoMemoryComparison) { $0.memoryUsage }
                     MetricCard(title: "ANE 功耗", icon: "brain.head.profile", value: MetricFormat.watts(store.latest?.anePowerWatts), subtitle: "", tint: .pink, samples: store.samples, timeDomain: store.chartWindow) { $0.anePowerWatts }
                     MetricCard(title: "整机功耗", icon: "bolt.fill", value: MetricFormat.watts(store.latest?.systemPowerWatts), subtitle: "", tint: .yellow, samples: store.samples, timeDomain: store.chartWindow) { $0.systemPowerWatts }
                     MetricCard(title: "磁盘空间", icon: "internaldrive", value: diskFree, subtitle: "可用 / \(diskTotal)", tint: .green, samples: store.samples, timeDomain: store.chartWindow) { sample in
@@ -21,22 +20,9 @@ struct DashboardView: View {
                     }
                 }
 
-                if let latest = store.latest, latest.cliptoRunning {
-                    CliptoResourcePanel(
-                        latest: latest,
-                        samples: store.samples,
-                        timeDomain: store.chartWindow
-                    )
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
                 TelemetryChart(
-                    title: "处理器负载", subtitle: "CPU/GPU 为系统计数器；ANE 为活跃度估算", icon: "waveform.path.ecg", samples: store.samples,
-                    series: [
-                        .init(name: "CPU", color: .cyan, value: { $0.cpuUsage }),
-                        .init(name: "GPU", color: .purple, value: { $0.gpuUsage }),
-                        .init(name: "ANE", color: .pink, value: { $0.aneUsage })
-                    ], suffix: "%", timeDomain: store.chartWindow
+                    title: "处理器负载", subtitle: processorSubtitle, icon: "waveform.path.ecg", samples: store.samples,
+                    series: processorSeries, suffix: "%", timeDomain: store.chartWindow
                 )
 
                 HStack(alignment: .top, spacing: 16) {
@@ -58,11 +44,8 @@ struct DashboardView: View {
 
                 HStack(alignment: .top, spacing: 16) {
                     TelemetryChart(
-                        title: "磁盘吞吐", subtitle: "内部存储实时读写速率", icon: "internaldrive", samples: store.samples,
-                        series: [
-                            .init(name: "读取", color: .green, value: { $0.diskReadBytesPerSecond / 1_000_000 }),
-                            .init(name: "写入", color: .teal, value: { $0.diskWriteBytesPerSecond / 1_000_000 })
-                        ], suffix: " MB/s", timeDomain: store.chartWindow
+                        title: "磁盘吞吐", subtitle: diskSubtitle, icon: "internaldrive", samples: store.samples,
+                        series: diskSeries, suffix: " MB/s", timeDomain: store.chartWindow
                     )
                     TelemetryChart(
                         title: "芯片功耗", subtitle: "IOReport 能耗模型，适合趋势观察", icon: "bolt.fill", samples: store.samples,
@@ -96,6 +79,9 @@ struct DashboardView: View {
                 }
             }
             Spacer()
+            if let count = store.latest?.cliptoProcessCount {
+                StatusPill(text: "Clipto · \(count) 个进程", color: .cyan)
+            }
             StatusPill(text: store.enhancedMetricsAvailable ? "增强指标在线" : "标准采样", color: store.enhancedMetricsAvailable ? .green : .orange)
             Picker("时间范围", selection: $store.selectedRange) {
                 ForEach(HistoryRange.allCases.filter { $0 != .custom }) { range in Text(range.title).tag(range) }
@@ -109,136 +95,73 @@ struct DashboardView: View {
 
     private var memorySubtitle: String {
         guard let latest = store.latest else { return "采样中" }
+        if let cliptoMemory = latest.cliptoMemoryBytes {
+            return "Clipto \(MetricFormat.bytes(cliptoMemory))"
+        }
         return "\(MetricFormat.bytes(latest.memoryUsedBytes)) / \(MetricFormat.bytes(latest.memoryTotalBytes))"
     }
+
+    private var cpuSubtitle: String {
+        guard let latest = store.latest else { return "采样中" }
+        guard let clipto = cliptoCPUShare(latest) else { return latest.thermalState }
+        return "\(latest.thermalState) · Clipto \(MetricFormat.percent(clipto))"
+    }
+
+    private var processorSubtitle: String {
+        hasCliptoSamples
+            ? "CPU/GPU 为系统计数器；Clipto 为整机 CPU 占比；ANE 为活跃度估算"
+            : "CPU/GPU 为系统计数器；ANE 为活跃度估算"
+    }
+
+    private var diskSubtitle: String {
+        hasCliptoSamples ? "内部存储总吞吐与 Clipto 进程组吞吐" : "内部存储实时读写速率"
+    }
+
+    private var hasCliptoSamples: Bool {
+        store.samples.contains { $0.cliptoRunning }
+    }
+
+    private var processorSeries: [TelemetrySeries] {
+        var result: [TelemetrySeries] = [
+            .init(name: "CPU", color: .cyan, value: { $0.cpuUsage }),
+            .init(name: "GPU", color: .purple, value: { $0.gpuUsage }),
+            .init(name: "ANE", color: .pink, value: { $0.aneUsage })
+        ]
+        if hasCliptoSamples {
+            result.append(.init(name: "Clipto", color: .yellow, value: cliptoCPUShare))
+        }
+        return result
+    }
+
+    private var cliptoCPUComparison: TelemetrySeries? {
+        guard hasCliptoSamples else { return nil }
+        return .init(name: "Clipto", color: .yellow, value: cliptoCPUShare)
+    }
+
+    private var cliptoMemoryComparison: TelemetrySeries? {
+        guard hasCliptoSamples else { return nil }
+        return .init(name: "Clipto", color: .yellow, value: { sample in
+            guard let bytes = sample.cliptoMemoryBytes, sample.memoryTotalBytes > 0 else { return nil }
+            return bytes / sample.memoryTotalBytes * 100
+        })
+    }
+
+    private var diskSeries: [TelemetrySeries] {
+        var result: [TelemetrySeries] = [
+            .init(name: "读取", color: .green, value: { $0.diskReadBytesPerSecond / 1_000_000 }),
+            .init(name: "写入", color: .teal, value: { $0.diskWriteBytesPerSecond / 1_000_000 })
+        ]
+        if hasCliptoSamples {
+            result.append(.init(name: "Clipto 读取", color: .orange, value: { $0.cliptoDiskReadBytesPerSecond.map { $0 / 1_000_000 } }))
+            result.append(.init(name: "Clipto 写入", color: .pink, value: { $0.cliptoDiskWriteBytesPerSecond.map { $0 / 1_000_000 } }))
+        }
+        return result
+    }
+
+    private func cliptoCPUShare(_ sample: MetricSample) -> Double? {
+        sample.cliptoCPUPercent.map { $0 / Double(max(1, ProcessInfo.processInfo.activeProcessorCount)) }
+    }
+
     private var diskFree: String { store.latest.map { MetricFormat.bytes($0.diskFreeBytes) } ?? "—" }
     private var diskTotal: String { store.latest.map { MetricFormat.bytes($0.diskTotalBytes) } ?? "—" }
-}
-
-private struct CliptoResourcePanel: View {
-    let latest: MetricSample
-    let samples: [MetricSample]
-    let timeDomain: ClosedRange<Date>
-
-    private var cpuPoints: [CliptoCPUPoint] {
-        samples.compactMap { sample in
-            guard timeDomain.contains(sample.timestamp), let value = sample.cliptoCPUPercent else { return nil }
-            return CliptoCPUPoint(timestamp: sample.timestamp, value: value)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 11) {
-                Image(systemName: "app.badge")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(PulseTheme.cyan)
-                    .frame(width: 30, height: 30)
-                    .background(PulseTheme.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Clipto 资源").font(.headline)
-                    Text("主进程、Helper 与分析服务合计").font(.caption).foregroundStyle(.tertiary)
-                }
-                Spacer()
-                StatusPill(text: "运行中 · \(latest.cliptoProcessCount ?? 0) 个进程", color: .green)
-            }
-
-            HStack(alignment: .top, spacing: 24) {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    CliptoMetric(title: "CPU", value: cpuText, note: "多核可超过 100%", color: .cyan)
-                    CliptoMetric(title: "内存", value: byteText(latest.cliptoMemoryBytes), note: "物理占用估算", color: .orange)
-                    CliptoMetric(title: "磁盘读取", value: rateText(latest.cliptoDiskReadBytesPerSecond), note: "当前速率", color: .green)
-                    CliptoMetric(title: "磁盘写入", value: rateText(latest.cliptoDiskWriteBytesPerSecond), note: "当前速率", color: .teal)
-                }
-                .frame(maxWidth: .infinity)
-
-                Divider().frame(height: 146)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("CPU 趋势").font(.subheadline.weight(.semibold))
-                        Spacer()
-                        Text(cpuText).font(.callout.monospacedDigit()).foregroundStyle(PulseTheme.cyan)
-                    }
-                    Chart(cpuPoints) { point in
-                        AreaMark(
-                            x: .value("时间", point.timestamp),
-                            y: .value("CPU", point.value)
-                        )
-                        .foregroundStyle(LinearGradient(
-                            colors: [PulseTheme.cyan.opacity(0.18), PulseTheme.cyan.opacity(0.005)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ))
-                        LineMark(
-                            x: .value("时间", point.timestamp),
-                            y: .value("CPU", point.value)
-                        )
-                        .foregroundStyle(PulseTheme.cyan)
-                        .lineStyle(.init(lineWidth: 1.7))
-                    }
-                    .chartXAxis(.hidden)
-                    .chartYAxis {
-                        AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
-                            AxisGridLine().foregroundStyle(.quaternary)
-                            AxisValueLabel {
-                                if let number = value.as(Double.self) {
-                                    Text("\(number, format: .number.precision(.fractionLength(0)))%")
-                                }
-                            }
-                        }
-                    }
-                    .chartXScale(domain: timeDomain)
-                    .frame(height: 116)
-                }
-                .frame(maxWidth: .infinity)
-            }
-
-            Text("GPU、ANE 与功耗无法通过 macOS 公共接口可靠归属到单个 App，仍显示整机数据。")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(20)
-        .glassPanel()
-    }
-
-    private var cpuText: String {
-        latest.cliptoCPUPercent.map { String(format: "%.1f%%", $0) } ?? "—"
-    }
-
-    private func byteText(_ value: Double?) -> String {
-        value.map(MetricFormat.bytes) ?? "—"
-    }
-
-    private func rateText(_ value: Double?) -> String {
-        value.map(MetricFormat.rate) ?? "—"
-    }
-}
-
-private struct CliptoMetric: View {
-    let title: String
-    let value: String
-    let note: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 6) {
-                Circle().fill(color).frame(width: 6, height: 6)
-                Text(title).font(.caption).foregroundStyle(.secondary)
-            }
-            Text(value).font(.system(size: 19, weight: .medium)).monospacedDigit().lineLimit(1)
-            Text(note).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
-        }
-        .padding(11)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.black.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(PulseTheme.stroke) }
-    }
-}
-
-private struct CliptoCPUPoint: Identifiable {
-    let timestamp: Date
-    let value: Double
-    var id: Date { timestamp }
 }
