@@ -1,4 +1,3 @@
-import AppKit
 import Combine
 import Foundation
 
@@ -16,11 +15,9 @@ final class MonitorStore: ObservableObject {
     }
     @Published var retentionDays = 30
     @Published private(set) var enhancedMetricsAvailable = false
-    @Published private(set) var helperStatus: PrivilegedHelperStatus = .notRegistered
     @Published private(set) var errorMessage: String?
 
     private let sampler = SystemSampler()
-    private let helperManager = PrivilegedHelperManager()
     private let history: HistoryStore?
     private var samplingTask: Task<Void, Never>?
     private var lastPrune = Date.distantPast
@@ -39,14 +36,11 @@ final class MonitorStore: ObservableObject {
             history = nil
             errorMessage = error.localizedDescription
         }
-        helperStatus = helperManager.status
         // Prime cumulative counters before persisting. The first CPU, disk,
         // network and IOReport deltas do not have a valid baseline yet.
         _ = sampler.sample()
         restartTimer()
     }
-
-    var enhancedMetricsFile: URL { sampler.enhancedMetricsFile }
 
     var chartWindow: ClosedRange<Date> {
         if selectedRange == .custom {
@@ -66,7 +60,6 @@ final class MonitorStore: ObservableObject {
         let sample = sampler.sample()
         latest = sample
         enhancedMetricsAvailable = sampler.enhancedMetricsAvailable
-        helperStatus = helperManager.status
         do {
             try history?.append(sample)
             if Date().timeIntervalSince(lastPrune) > 3_600 {
@@ -124,28 +117,6 @@ final class MonitorStore: ObservableObject {
 
     func dismissError() {
         errorMessage = nil
-    }
-
-    func copyEnhancedMetricsCommand() {
-        let destination = enhancedMetricsFile.path.replacingOccurrences(of: "'", with: "'\\''")
-        let temporary = destination + ".tmp"
-        let command = "while true; do sudo /usr/bin/powermetrics --samplers cpu_power,gpu_power,ane_power --show-extra-power-info -n 1 -i 1000 -b 1 -o '\(temporary)' && mv '\(temporary)' '\(destination)'; sleep 1; done"
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(command, forType: .string)
-    }
-
-    func enableEnhancedMonitoring() {
-        do { helperStatus = try helperManager.enable() }
-        catch { errorMessage = "无法启用高级监控：\(error.localizedDescription)" }
-    }
-
-    func disableEnhancedMonitoring() {
-        do { helperStatus = try helperManager.disable() }
-        catch { errorMessage = "无法停用高级监控：\(error.localizedDescription)" }
-    }
-
-    func openHelperApprovalSettings() {
-        helperManager.openApprovalSettings()
     }
 
     private func restartTimer() {

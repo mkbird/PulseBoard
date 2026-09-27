@@ -6,8 +6,7 @@ let package = Package(
     name: "PulseBoard",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "PulseBoard", targets: ["PulseBoard"]),
-        .executable(name: "PulseBoardHelper", targets: ["PulseBoardHelper"])
+        .executable(name: "PulseBoard", targets: ["PulseBoard"])
     ],
     targets: [
         .executableTarget(
@@ -15,7 +14,6 @@ let package = Package(
             dependencies: ["PulseHardware"],
             linkerSettings: [
                 .linkedFramework("IOKit"),
-                .linkedFramework("Security"),
                 .linkedLibrary("sqlite3")
             ]
         ),
@@ -24,7 +22,6 @@ let package = Package(
             publicHeadersPath: "include",
             linkerSettings: [.linkedFramework("IOKit")]
         ),
-        .executableTarget(name: "PulseBoardHelper"),
         .testTarget(
             name: "PulseBoardTests",
             dependencies: ["PulseBoard"]

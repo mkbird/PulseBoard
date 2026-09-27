@@ -11,7 +11,6 @@ final class SystemSampler {
     private let clipto = CliptoProcessBridge()
 
     var enhancedMetricsAvailable: Bool { enhanced.isFresh }
-    var enhancedMetricsFile: URL { enhanced.fileURL }
 
     func sample() -> MetricSample {
         let now = Date()
@@ -56,10 +55,7 @@ final class SystemSampler {
             cliptoDiskReadBytesPerSecond: cliptoMetrics.diskReadBytesPerSecond,
             cliptoDiskWriteBytesPerSecond: cliptoMetrics.diskWriteBytesPerSecond,
             cliptoProcessCount: cliptoMetrics.processCount,
-            cliptoGPUPercent: cliptoMetrics.gpuPercent ?? (cliptoMetrics.running ? extra.cliptoGPUPercent : nil),
-            cliptoNetworkDownBytesPerSecond: cliptoMetrics.running ? extra.cliptoNetworkDownBytesPerSecond : nil,
-            cliptoNetworkUpBytesPerSecond: cliptoMetrics.running ? extra.cliptoNetworkUpBytesPerSecond : nil,
-            cliptoEnergyImpact: cliptoMetrics.running ? extra.cliptoEnergyImpact : nil
+            cliptoGPUPercent: cliptoMetrics.gpuPercent
         )
     }
 

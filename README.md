@@ -36,23 +36,19 @@ open dist/PulseBoard.app
 
 ## 增强指标
 
-macOS 没有为普通应用公开 ANE、分项功耗和 DRAM 带宽的完整 API。PulseBoard 使用内置的轻量采样层直接读取 IOReport/SMC，不依赖 Homebrew 或外部监控程序；`powermetrics` 特权辅助进程作为降级路径保留。
-
-在“设置 → 增强指标”中点击“启用高级监控”，然后由管理员在系统设置中批准一次。内置 LaunchDaemon 会以特权辅助进程运行 `powermetrics`，后续无需保持终端窗口。终端命令仍作为开发和故障排除的兼容方案保留。
+macOS 没有为普通应用公开 ANE、分项功耗和 DRAM 带宽的完整 API。PulseBoard 使用内置的轻量采样层直接读取 IOReport、SMC 与 IOKit，不依赖 Homebrew、`powermetrics` 或特权辅助进程，也无需管理员授权。
 
 ## 分享与公证
 
-特权辅助进程要求 App 使用 Developer ID 签名并通过 Apple 公证。先用 `notarytool store-credentials` 在钥匙串中保存公证凭据，然后运行：
+对外分发时，App 仍应使用 Developer ID 签名并通过 Apple 公证。先用 `notarytool store-credentials` 在钥匙串中保存公证凭据，然后运行：
 
 ```bash
 NOTARY_PROFILE=你的凭据名称 ./Scripts/distribute.sh
 ```
 
-成功后可分享 `dist/PulseBoard.zip`。接收者将 App 拖入 `/Applications`，首次启用高级监控时批准后台项目即可。
+成功后可分享 `dist/PulseBoard.zip`。接收者将 App 拖入 `/Applications` 即可使用，无需额外批准后台项目。
 
 ## 数据位置
 
 - 历史数据库：`~/Library/Application Support/PulseBoard/history.sqlite`
-- 增强指标桥接文件：`/Library/Application Support/PulseBoard/powermetrics.txt`
-
 默认保留 30 天，可在设置中改为 7 或 90 天。

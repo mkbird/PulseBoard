@@ -33,11 +33,7 @@ final class NativeHardwareBridge {
             gpuUsage: nil,
             aneUsage: sample.ane_usage_percent,
             memoryReadGBps: sample.memory_read_gbps,
-            memoryWriteGBps: sample.memory_write_gbps,
-            cliptoGPUPercent: nil,
-            cliptoNetworkDownBytesPerSecond: nil,
-            cliptoNetworkUpBytesPerSecond: nil,
-            cliptoEnergyImpact: nil
+            memoryWriteGBps: sample.memory_write_gbps
         )
         cached = result
         cacheDate = Date()

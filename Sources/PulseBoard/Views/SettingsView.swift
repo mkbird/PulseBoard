@@ -2,8 +2,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var store: MonitorStore
-    @State private var copied = false
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -42,39 +40,14 @@ struct SettingsView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("ANE、分项功耗与应用级 GPU").font(.headline)
-                            Text("整机指标优先使用内置 IOReport/SMC；启用辅助进程后，还可获得 Clipto GPU、网络与 Energy Impact。")
+                            Text("IOReport、SMC 与 IOKit 在本机直接采样，无需管理员权限。")
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        StatusPill(text: store.enhancedMetricsAvailable ? "正在采样" : store.helperStatus.title, color: helperColor)
-                    }
-                    HStack {
-                        Text(store.enhancedMetricsFile.path).font(.caption.monospaced()).textSelection(.enabled)
-                        Spacer()
-                        switch store.helperStatus {
-                        case .enabled:
-                            Button("停用", role: .destructive) { store.disableEnhancedMonitoring() }
-                        case .requiresApproval:
-                            Button("打开系统设置") { store.openHelperApprovalSettings() }
-                                .buttonStyle(.borderedProminent)
-                        case .notRegistered, .notFound:
-                            Button("启用高级监控") { store.enableEnhancedMonitoring() }
-                                .buttonStyle(.borderedProminent)
-                        }
-                    }
-                    DisclosureGroup("终端兼容模式") {
-                        HStack {
-                            Text("无法启用辅助进程时，可复制命令并在终端中运行。")
-                                .font(.caption).foregroundStyle(.secondary)
-                            Spacer()
-                            Button {
-                                store.copyEnhancedMetricsCommand()
-                                copied = true
-                                Task { try? await Task.sleep(for: .seconds(2)); copied = false }
-                            } label: {
-                                Label(copied ? "已复制" : "复制命令", systemImage: copied ? "checkmark" : "doc.on.doc")
-                            }
-                        }.padding(.top, 8)
+                        StatusPill(
+                            text: store.enhancedMetricsAvailable ? "正在采样" : "暂不可用",
+                            color: store.enhancedMetricsAvailable ? .green : .secondary
+                        )
                     }
                     Text("IOReport 与 SMC 的功耗属于系统估算值，适合观察同一设备的变化趋势，不适合跨设备比较。")
                         .font(.caption).foregroundStyle(.tertiary)
@@ -87,7 +60,7 @@ struct SettingsView: View {
                     sourceRow("ANE、功耗、内存带宽", detail: "内置 IOReport / SMC", state: "实时增强")
                     sourceRow(
                         "Clipto 应用资源",
-                        detail: "libproc；GPU/网络/能耗使用 powermetrics",
+                        detail: "libproc / IOKit GPU 客户端计数器",
                         state: store.latest?.cliptoRunning == true ? "正在跟踪" : "自动检测"
                     )
                 }
@@ -98,15 +71,6 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity)
         }
         .background(AppBackground())
-    }
-
-    private var helperColor: Color {
-        if store.enhancedMetricsAvailable { return .green }
-        switch store.helperStatus {
-        case .enabled: return .blue
-        case .requiresApproval: return .orange
-        case .notRegistered, .notFound: return .secondary
-        }
     }
 
     private func settingsSection<Content: View>(_ title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
