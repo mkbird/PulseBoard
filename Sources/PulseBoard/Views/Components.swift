@@ -86,7 +86,6 @@ struct MetricCard: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Rectangle().fill(tint.opacity(0.85)).frame(width: 14, height: 2)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(value).font(.system(size: 30, weight: .medium, design: .default)).monospacedDigit()
@@ -113,7 +112,7 @@ struct MetricCard: View {
             .frame(height: 52)
         }
         .padding(16)
-        .glassPanel(tint: tint)
+        .glassPanel()
     }
 
     private var resolvedTimeDomain: ClosedRange<Date> {
