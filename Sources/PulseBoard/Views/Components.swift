@@ -122,17 +122,17 @@ struct MetricCard: View {
                 HStack(spacing: 3) {
                     ForEach(0..<24, id: \.self) { index in
                         let threshold = Double(index + 1) / 24
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .fill(threshold <= barProgress ? tint : Color.white.opacity(0.055))
                             .overlay {
                                 if threshold <= barProgress {
-                                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                                         .fill(.white.opacity(index.isMultiple(of: 3) ? 0.08 : 0.025))
                                 }
                             }
                     }
                 }
-                .frame(height: 12)
+                .frame(height: 18)
 
                 HStack {
                     Text("0")
