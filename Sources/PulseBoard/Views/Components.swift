@@ -63,27 +63,36 @@ struct MetricCard: View {
     let samples: [MetricSample]
     var timeDomain: ClosedRange<Date>? = nil
     var comparison: TelemetrySeries? = nil
+    var barMaximum: Double? = nil
     let metric: (MetricSample) -> Double?
 
-    private var points: [ChartValuePoint] {
-        chartPoints(
-            samples: samples,
-            series: title,
-            limit: 72,
-            domain: resolvedTimeDomain,
-            value: metric
-        )
+    private var currentMetricValue: Double? {
+        samples.reversed().lazy
+            .filter { resolvedTimeDomain.contains($0.timestamp) }
+            .compactMap(metric)
+            .first { $0.isFinite }
     }
 
-    private var comparisonPoints: [ChartValuePoint] {
-        guard let comparison else { return [] }
-        return chartPoints(
-            samples: samples,
-            series: comparison.name,
-            limit: 72,
-            domain: resolvedTimeDomain,
-            value: comparison.value
-        )
+    private var observedMaximum: Double {
+        samples.lazy
+            .filter { resolvedTimeDomain.contains($0.timestamp) }
+            .compactMap(metric)
+            .filter(\.isFinite)
+            .max() ?? currentMetricValue ?? 0
+    }
+
+    private var resolvedMaximum: Double {
+        if let barMaximum { return max(0.001, barMaximum) }
+        return max(1, observedMaximum * 1.15)
+    }
+
+    private var barProgress: Double {
+        min(1, max(0, (currentMetricValue ?? 0) / resolvedMaximum))
+    }
+
+    private var scaleLabel: String {
+        if let barMaximum, abs(barMaximum - 100) < 0.001 { return "100%" }
+        return "近期峰值 \(MetricFormat.watts(observedMaximum))"
     }
 
     var body: some View {
@@ -109,35 +118,30 @@ struct MetricCard: View {
                 Text(value).font(.system(size: 30, weight: .medium, design: .default)).monospacedDigit()
                 Text(subtitle).font(.caption).foregroundStyle(.tertiary).lineLimit(1)
             }
-            Chart {
-                ForEach(points) { sample in
-                    AreaMark(
-                        x: .value("时间", sample.timestamp),
-                        y: .value(title, sample.value),
-                        series: .value("连续区间", sample.seriesID)
-                    )
-                    .foregroundStyle(LinearGradient(colors: [tint.opacity(0.18), tint.opacity(0.005)], startPoint: .top, endPoint: .bottom))
-                    LineMark(
-                        x: .value("时间", sample.timestamp),
-                        y: .value(title, sample.value),
-                        series: .value("连续区间", sample.seriesID)
-                    )
-                    .foregroundStyle(tint)
-                    .lineStyle(.init(lineWidth: 1.6))
+            VStack(spacing: 8) {
+                HStack(spacing: 3) {
+                    ForEach(0..<24, id: \.self) { index in
+                        let threshold = Double(index + 1) / 24
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill(threshold <= barProgress ? tint : Color.white.opacity(0.055))
+                            .overlay {
+                                if threshold <= barProgress {
+                                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                        .fill(.white.opacity(index.isMultiple(of: 3) ? 0.08 : 0.025))
+                                }
+                            }
+                    }
                 }
-                ForEach(comparisonPoints) { sample in
-                    LineMark(
-                        x: .value("时间", sample.timestamp),
-                        y: .value(comparison?.name ?? "Clipto", sample.value),
-                        series: .value("连续区间", sample.seriesID)
-                    )
-                    .foregroundStyle(comparison?.color ?? .yellow)
-                    .lineStyle(.init(lineWidth: 1.4))
+                .frame(height: 12)
+
+                HStack {
+                    Text("0")
+                    Spacer()
+                    Text(scaleLabel)
                 }
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.tertiary)
             }
-            .chartXAxis(.hidden)
-            .chartYAxis(.hidden)
-            .chartXScale(domain: resolvedTimeDomain)
             .frame(height: 52)
         }
         .padding(16)
