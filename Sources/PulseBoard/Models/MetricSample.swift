@@ -30,6 +30,8 @@ struct MetricSample: Codable, Identifiable, Hashable, Sendable {
     let cliptoDiskWriteBytesPerSecond: Double?
     let cliptoProcessCount: Int?
     let cliptoGPUPercent: Double?
+    let swapUsedBytes: Double
+    let swapTotalBytes: Double
 
     var cliptoRunning: Bool { (cliptoProcessCount ?? 0) > 0 }
 }

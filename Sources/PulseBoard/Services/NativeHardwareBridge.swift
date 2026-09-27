@@ -30,7 +30,7 @@ final class NativeHardwareBridge {
             gpuPowerWatts: sample.gpu_power_watts,
             anePowerWatts: sample.ane_power_watts,
             systemPowerWatts: sample.system_power_watts,
-            gpuUsage: nil,
+            gpuUsage: sample.gpu_usage_valid != 0 ? min(100, max(0, sample.gpu_usage_percent)) : nil,
             aneUsage: sample.ane_usage_percent,
             memoryReadGBps: sample.memory_read_gbps,
             memoryWriteGBps: sample.memory_write_gbps

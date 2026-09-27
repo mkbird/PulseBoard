@@ -14,13 +14,14 @@ enum CSVExporter {
     }
 
     static func csv(samples: [MetricSample]) -> String {
-        var rows = ["timestamp,cpu_percent,gpu_percent,ane_percent,memory_percent,memory_used_bytes,memory_total_bytes,memory_pressure_percent,ane_watts,cpu_watts,gpu_watts,system_watts,memory_read_gbps,memory_write_gbps,disk_read_bps,disk_write_bps,disk_free_bytes,disk_total_bytes,network_down_bps,network_up_bps,thermal_state,clipto_cpu_percent,clipto_memory_bytes,clipto_disk_read_bps,clipto_disk_write_bps,clipto_process_count,clipto_gpu_percent"]
+        var rows = ["timestamp,cpu_percent,gpu_percent,ane_percent,memory_percent,memory_used_bytes,memory_total_bytes,memory_pressure_percent,swap_used_bytes,swap_total_bytes,ane_watts,cpu_watts,gpu_watts,system_watts,memory_read_gbps,memory_write_gbps,disk_read_bps,disk_write_bps,disk_free_bytes,disk_total_bytes,network_down_bps,network_up_bps,thermal_state,clipto_cpu_percent,clipto_memory_bytes,clipto_disk_read_bps,clipto_disk_write_bps,clipto_process_count,clipto_gpu_percent"]
         let formatter = ISO8601DateFormatter()
         rows += samples.map { sample in
             [
                 formatter.string(from: sample.timestamp),
                 number(sample.cpuUsage), number(sample.gpuUsage), number(sample.aneUsage), number(sample.memoryUsage),
                 number(sample.memoryUsedBytes), number(sample.memoryTotalBytes), number(sample.memoryPressure),
+                number(sample.swapUsedBytes), number(sample.swapTotalBytes),
                 number(sample.anePowerWatts), number(sample.cpuPowerWatts), number(sample.gpuPowerWatts),
                 number(sample.systemPowerWatts), number(sample.memoryReadGBps), number(sample.memoryWriteGBps),
                 number(sample.diskReadBytesPerSecond), number(sample.diskWriteBytesPerSecond),

@@ -25,7 +25,7 @@ final class SystemSampler {
         let networkRate = rate(current: networkTotals, previous: &previousNetwork, elapsed: elapsed)
         let capacity = diskCapacity()
         let extra = enhanced.latest()
-        let gpu = gpuUsage() ?? extra.gpuUsage
+        let gpu = extra.gpuUsage ?? gpuUsage()
         let cliptoMetrics = clipto.sample()
 
         return MetricSample(
@@ -55,7 +55,9 @@ final class SystemSampler {
             cliptoDiskReadBytesPerSecond: cliptoMetrics.diskReadBytesPerSecond,
             cliptoDiskWriteBytesPerSecond: cliptoMetrics.diskWriteBytesPerSecond,
             cliptoProcessCount: cliptoMetrics.processCount,
-            cliptoGPUPercent: cliptoMetrics.gpuPercent
+            cliptoGPUPercent: cliptoMetrics.gpuPercent,
+            swapUsedBytes: memory.swapUsed,
+            swapTotalBytes: memory.swapTotal
         )
     }
 
@@ -81,7 +83,7 @@ final class SystemSampler {
         return min(100, max(0, Double(total - deltas[Int(CPU_STATE_IDLE)]) / Double(total) * 100))
     }
 
-    private func memoryUsage() -> (percent: Double, used: Double, total: Double, pressure: Double) {
+    private func memoryUsage() -> (percent: Double, used: Double, total: Double, pressure: Double, swapUsed: Double, swapTotal: Double) {
         var info = vm_statistics64_data_t()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size)
         let result = withUnsafeMutablePointer(to: &info) { pointer in
@@ -90,14 +92,23 @@ final class SystemSampler {
             }
         }
         let total = Double(ProcessInfo.processInfo.physicalMemory)
-        guard result == KERN_SUCCESS else { return (0, 0, total, 0) }
+        guard result == KERN_SUCCESS else { return (0, 0, total, 0, 0, 0) }
         var pageSize: vm_size_t = 0
         host_page_size(mach_host_self(), &pageSize)
-        let pages = UInt64(info.active_count) + UInt64(info.inactive_count) + UInt64(info.wire_count) + UInt64(info.compressor_page_count)
-        let used = min(total, Double(pages) * Double(pageSize))
+        // Match macOS monitoring tools: inactive pages are immediately reclaimable,
+        // so count them as available instead of used. Compressor pages must not be
+        // added independently because their physical storage is already represented.
+        let availablePages = UInt64(info.free_count) + UInt64(info.inactive_count)
+        let available = min(total, Double(availablePages) * Double(pageSize))
+        let used = max(0, total - available)
         let percent = total > 0 ? used / total * 100 : 0
         let pressure = min(100, max(0, percent + (info.pageouts > 0 ? 5 : 0)))
-        return (percent, used, total, pressure)
+        var swap = xsw_usage()
+        var swapSize = MemoryLayout<xsw_usage>.size
+        let swapResult = sysctlbyname("vm.swapusage", &swap, &swapSize, nil, 0)
+        let swapUsed = swapResult == 0 ? Double(swap.xsu_used) : 0
+        let swapTotal = swapResult == 0 ? Double(swap.xsu_total) : 0
+        return (percent, used, total, pressure, swapUsed, swapTotal)
     }
 
     private func gpuUsage() -> Double? {

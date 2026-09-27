@@ -55,7 +55,7 @@ struct SettingsView: View {
 
                 settingsSection("数据来源", icon: "checkmark.shield") {
                     sourceRow("CPU、内存", detail: "Mach host statistics", state: "公开 API")
-                    sourceRow("GPU", detail: "IOKit PerformanceStatistics", state: "公开系统数据")
+                    sourceRow("GPU", detail: "IOReport GPU Performance States", state: "实时活跃率")
                     sourceRow("磁盘、网络", detail: "IOKit / getifaddrs 累计计数器", state: "公开 API")
                     sourceRow("ANE、功耗、内存带宽", detail: "内置 IOReport / SMC", state: "实时增强")
                     sourceRow(

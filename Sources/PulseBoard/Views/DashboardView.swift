@@ -15,8 +15,8 @@ struct DashboardView: View {
                     MetricCard(title: "内存", icon: "memorychip", value: MetricFormat.percent(store.latest?.memoryUsage), subtitle: memorySubtitle, tint: .orange, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoMemoryComparison) { $0.memoryUsage }
                     MetricCard(title: "ANE 功耗", icon: "brain.head.profile", value: MetricFormat.watts(store.latest?.anePowerWatts), subtitle: "", tint: .pink, samples: store.samples, timeDomain: store.chartWindow) { $0.anePowerWatts }
                     MetricCard(title: "整机功耗", icon: "bolt.fill", value: MetricFormat.watts(store.latest?.systemPowerWatts), subtitle: "", tint: .yellow, samples: store.samples, timeDomain: store.chartWindow) { $0.systemPowerWatts }
-                    MetricCard(title: "磁盘空间", icon: "internaldrive", value: diskFree, subtitle: "可用 / \(diskTotal)", tint: .green, samples: store.samples, timeDomain: store.chartWindow) { sample in
-                        sample.diskTotalBytes > 0 ? (1 - sample.diskFreeBytes / sample.diskTotalBytes) * 100 : nil
+                    MetricCard(title: "Swap", icon: "arrow.left.arrow.right.square", value: swapUsed, subtitle: "已用 / 共 \(swapTotal)", tint: .green, samples: store.samples, timeDomain: store.chartWindow) { sample in
+                        sample.swapTotalBytes > 0 ? sample.swapUsedBytes / sample.swapTotalBytes * 100 : nil
                     }
                 }
 
@@ -175,6 +175,6 @@ struct DashboardView: View {
         sample.cliptoCPUPercent.map { $0 / Double(max(1, ProcessInfo.processInfo.activeProcessorCount)) }
     }
 
-    private var diskFree: String { store.latest.map { MetricFormat.bytes($0.diskFreeBytes) } ?? "—" }
-    private var diskTotal: String { store.latest.map { MetricFormat.bytes($0.diskTotalBytes) } ?? "—" }
+    private var swapUsed: String { store.latest.map { MetricFormat.bytes($0.swapUsedBytes) } ?? "—" }
+    private var swapTotal: String { store.latest.map { MetricFormat.bytes($0.swapTotalBytes) } ?? "—" }
 }

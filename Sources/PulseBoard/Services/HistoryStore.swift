@@ -29,7 +29,9 @@ final class HistoryStore {
             ("clipto_disk_read", "REAL"),
             ("clipto_disk_write", "REAL"),
             ("clipto_process_count", "INTEGER"),
-            ("clipto_gpu", "REAL")
+            ("clipto_gpu", "REAL"),
+            ("swap_used", "REAL"),
+            ("swap_total", "REAL")
         ]
         for (column, type) in migrations where !hasColumn(column, in: "samples") {
             try execute("ALTER TABLE samples ADD COLUMN \(column) \(type);")
@@ -45,9 +47,10 @@ final class HistoryStore {
           timestamp,cpu,gpu,memory,memory_used,memory_total,memory_pressure,
           ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,
           disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,ane_usage,
-          clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count,clipto_gpu
+          clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count,clipto_gpu,
+          swap_used,swap_total
         ) VALUES (
-          ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+          ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         );
         """
         var statement: OpaquePointer?
@@ -87,6 +90,8 @@ final class HistoryStore {
             sqlite3_bind_null(statement, 26)
         }
         bind(sample.cliptoGPUPercent, to: statement, at: 27)
+        sqlite3_bind_double(statement, 28, sample.swapUsedBytes)
+        sqlite3_bind_double(statement, 29, sample.swapTotalBytes)
 
         guard sqlite3_step(statement) == SQLITE_DONE else { throw StoreError.queryFailed(message) }
     }
@@ -105,7 +110,7 @@ final class HistoryStore {
                    AVG(memory_read),AVG(memory_write),AVG(disk_read),AVG(disk_write),AVG(disk_free),
                    AVG(disk_total),AVG(net_down),AVG(net_up),MAX(thermal),AVG(clipto_cpu),
                    AVG(clipto_memory),AVG(clipto_disk_read),AVG(clipto_disk_write),MAX(clipto_process_count),
-                   AVG(clipto_gpu)
+                   AVG(clipto_gpu),AVG(swap_used),AVG(swap_total)
             FROM samples WHERE timestamp BETWEEN ? AND ?
             GROUP BY CAST(timestamp / \(bucket) AS INTEGER)
             ORDER BY timestamp;
@@ -169,7 +174,9 @@ final class HistoryStore {
                 cliptoDiskReadBytesPerSecond: optionalDouble(statement, 23),
                 cliptoDiskWriteBytesPerSecond: optionalDouble(statement, 24),
                 cliptoProcessCount: optionalInt(statement, 25),
-                cliptoGPUPercent: optionalDouble(statement, 26)
+                cliptoGPUPercent: optionalDouble(statement, 26),
+                swapUsedBytes: optionalDouble(statement, 27) ?? 0,
+                swapTotalBytes: optionalDouble(statement, 28) ?? 0
             ))
         }
         return samples
@@ -205,7 +212,7 @@ final class HistoryStore {
 
     private var message: String { database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error" }
 
-    private static let columns = "timestamp,cpu,gpu,ane_usage,memory,memory_used,memory_total,memory_pressure,ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count,clipto_gpu"
+    private static let columns = "timestamp,cpu,gpu,ane_usage,memory,memory_used,memory_total,memory_pressure,ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count,clipto_gpu,swap_used,swap_total"
     private static let schema = """
     CREATE TABLE IF NOT EXISTS samples (
       timestamp REAL PRIMARY KEY,
@@ -234,7 +241,9 @@ final class HistoryStore {
       clipto_disk_read REAL,
       clipto_disk_write REAL,
       clipto_process_count INTEGER,
-      clipto_gpu REAL
+      clipto_gpu REAL,
+      swap_used REAL,
+      swap_total REAL
     );
     """
 }

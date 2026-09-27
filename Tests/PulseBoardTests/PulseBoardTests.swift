@@ -15,7 +15,8 @@ import Testing
         diskWriteBytesPerSecond: 20, diskFreeBytes: 100, diskTotalBytes: 200,
         networkDownBytesPerSecond: 30, networkUpBytesPerSecond: 40, thermalState: "正常",
         cliptoCPUPercent: 150, cliptoMemoryBytes: 500, cliptoDiskReadBytesPerSecond: 60,
-        cliptoDiskWriteBytesPerSecond: 70, cliptoProcessCount: 8, cliptoGPUPercent: 24
+        cliptoDiskWriteBytesPerSecond: 70, cliptoProcessCount: 8, cliptoGPUPercent: 24,
+        swapUsedBytes: 300, swapTotalBytes: 400
     )
     try store.append(sample)
     let values = try store.fetchRaw(from: now.addingTimeInterval(-1), to: now.addingTimeInterval(1))
@@ -25,5 +26,7 @@ import Testing
     #expect(values.first?.cliptoCPUPercent == 150)
     #expect(values.first?.cliptoProcessCount == 8)
     #expect(values.first?.cliptoGPUPercent == 24)
+    #expect(values.first?.swapUsedBytes == 300)
+    #expect(values.first?.swapTotalBytes == 400)
     #expect(values.first?.thermalState == "正常")
 }

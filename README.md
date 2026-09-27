@@ -2,7 +2,7 @@
 
 PulseBoard 是一个原生 SwiftUI macOS 资源监控应用，提供：
 
-- CPU、GPU、内存、磁盘容量与热状态
+- CPU、GPU、内存、Swap 与热状态
 - 网络和磁盘实时吞吐曲线
 - ANE、CPU/GPU/ANE 功耗与内存带宽增强采样
 - SQLite 历史记录、15 分钟至 7 天时间选择、自定义时间范围

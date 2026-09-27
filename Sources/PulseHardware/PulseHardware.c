@@ -21,6 +21,9 @@ typedef CFDictionaryRef (*CreateSamplesFn)(PBSubscriptionRef, CFMutableDictionar
 typedef CFDictionaryRef (*CreateDeltaFn)(CFDictionaryRef, CFDictionaryRef, CFTypeRef);
 typedef int64_t (*IntegerValueFn)(CFDictionaryRef, int32_t);
 typedef CFStringRef (*ChannelStringFn)(CFDictionaryRef);
+typedef CFStringRef (*StateNameFn)(CFDictionaryRef, int32_t);
+typedef int32_t (*StateCountFn)(CFDictionaryRef);
+typedef int64_t (*StateResidencyFn)(CFDictionaryRef, int32_t);
 
 static void *g_io_report = NULL;
 static CopyChannelsFn g_copy_channels = NULL;
@@ -30,8 +33,12 @@ static CreateSamplesFn g_create_samples = NULL;
 static CreateDeltaFn g_create_delta = NULL;
 static IntegerValueFn g_integer_value = NULL;
 static ChannelStringFn g_channel_group = NULL;
+static ChannelStringFn g_channel_subgroup = NULL;
 static ChannelStringFn g_channel_name = NULL;
 static ChannelStringFn g_channel_unit = NULL;
+static StateNameFn g_state_name = NULL;
+static StateCountFn g_state_count = NULL;
+static StateResidencyFn g_state_residency = NULL;
 
 static PBSubscriptionRef g_subscription = NULL;
 static CFMutableDictionaryRef g_channels = NULL;
@@ -182,11 +189,16 @@ static int load_symbols(void) {
     g_create_delta = (CreateDeltaFn)dlsym(g_io_report, "IOReportCreateSamplesDelta");
     g_integer_value = (IntegerValueFn)dlsym(g_io_report, "IOReportSimpleGetIntegerValue");
     g_channel_group = (ChannelStringFn)dlsym(g_io_report, "IOReportChannelGetGroup");
+    g_channel_subgroup = (ChannelStringFn)dlsym(g_io_report, "IOReportChannelGetSubGroup");
     g_channel_name = (ChannelStringFn)dlsym(g_io_report, "IOReportChannelGetChannelName");
     g_channel_unit = (ChannelStringFn)dlsym(g_io_report, "IOReportChannelGetUnitLabel");
+    g_state_name = (StateNameFn)dlsym(g_io_report, "IOReportStateGetNameForIndex");
+    g_state_count = (StateCountFn)dlsym(g_io_report, "IOReportStateGetCount");
+    g_state_residency = (StateResidencyFn)dlsym(g_io_report, "IOReportStateGetResidency");
     if (!g_copy_channels || !g_merge_channels || !g_create_subscription ||
         !g_create_samples || !g_create_delta || !g_integer_value ||
-        !g_channel_group || !g_channel_name || !g_channel_unit) return -2;
+        !g_channel_group || !g_channel_subgroup || !g_channel_name || !g_channel_unit ||
+        !g_state_name || !g_state_count || !g_state_residency) return -2;
     return 0;
 }
 
@@ -276,6 +288,12 @@ int pb_hardware_init(void) {
     CFRelease(all_energy);
     if (!g_channels) return -3;
 
+    CFDictionaryRef gpu = g_copy_channels(CFSTR("GPU Stats"), NULL, 0, 0, 0);
+    if (gpu) {
+        g_merge_channels(g_channels, gpu, NULL);
+        CFRelease(gpu);
+    }
+
     CFDictionaryRef all_energy_counters = g_copy_channels(CFSTR("Energy Counters"), NULL, 0, 0, 0);
     CFMutableDictionaryRef energy_counters = filtered_channels(all_energy_counters, PB_CHANNELS_ENERGY);
     if (all_energy_counters) CFRelease(all_energy_counters);
@@ -352,9 +370,9 @@ PBHardwareMetrics pb_hardware_sample(void) {
         cf_string(g_channel_group(channel), group, sizeof(group));
         cf_string(g_channel_name(channel), name, sizeof(name));
         int64_t value = g_integer_value(channel, 0);
-        if (value == INT64_MIN || value < 0) continue;
 
         if (strcmp(group, "Energy Model") == 0 || strcmp(group, "Energy Counters") == 0) {
+            if (value == INT64_MIN || value < 0) continue;
             double watts = energy_to_watts(value, g_channel_unit(channel), seconds);
             if (strcmp(name, "CPU Energy") == 0 || (strstr(name, "DIE_") && strstr(name, "CPU Energy"))) cpu_total += watts;
             else if (strcmp(name, "ECPU") == 0 || strcmp(name, "PCPU") == 0 || strstr(name, "ECPU Energy") || strstr(name, "PCPU Energy")) cpu_clusters += watts;
@@ -363,7 +381,31 @@ PBHardwareMetrics pb_hardware_sample(void) {
             else if (strncmp(name, "GPU SRAM", 8) == 0) gpu_sram += watts;
             else if (strstr(name, "ANE") || strstr(name, "NPU") || strstr(name, "Neural")) ane += watts;
             else if (strncmp(name, "DRAM", 4) == 0) dram += watts;
+        } else if (strcmp(group, "GPU Stats") == 0) {
+            char subgroup[128] = {0};
+            cf_string(g_channel_subgroup(channel), subgroup, sizeof(subgroup));
+            if (strcmp(subgroup, "GPU Performance States") == 0 && strcmp(name, "GPUPH") == 0) {
+                int32_t state_count = g_state_count(channel);
+                int64_t total_time = 0;
+                int64_t active_time = 0;
+                for (int32_t state = 0; state < state_count; state++) {
+                    int64_t residency = g_state_residency(channel, state);
+                    if (residency <= 0) continue;
+                    total_time += residency;
+                    char state_name[64] = {0};
+                    cf_string(g_state_name(channel, state), state_name, sizeof(state_name));
+                    if (strcmp(state_name, "OFF") != 0 && strcmp(state_name, "IDLE") != 0 &&
+                        strcmp(state_name, "DOWN") != 0) {
+                        active_time += residency;
+                    }
+                }
+                if (total_time > 0) {
+                    metrics.gpu_usage_percent = (double)active_time / (double)total_time * 100.0;
+                    metrics.gpu_usage_valid = 1;
+                }
+            }
         } else if (strcmp(group, "AMC Stats") == 0) {
+            if (value == INT64_MIN || value < 0) continue;
             int dir = direction(name);
             if (strcmp(name, "DCS RD") == 0) dcs_read += value;
             else if (strcmp(name, "DCS WR") == 0) dcs_write += value;
