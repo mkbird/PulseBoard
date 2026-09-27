@@ -2,6 +2,13 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.1.1] - 2026-09-27
+
+### Added
+
+- 总览“处理器负载”下方新增系统内存与 Clipto 内存占用对比曲线
+- 内存占用组件支持实时窗口、自定义历史区间和中英文界面
+
 ## [1.1.0] - 2026-09-27
 
 ### Added
@@ -29,5 +36,6 @@
 - SQLite 历史记录、自定义时间范围和 CSV 导出
 - Developer ID 签名、公证和可分发应用包脚本
 
+[1.1.1]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.1
 [1.1.0]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.0
 [1.0.0]: https://github.com/mkbird/PulseBoard/releases/tag/v1.0.0

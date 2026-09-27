@@ -18,6 +18,7 @@ PulseBoard 是一个原生 SwiftUI macOS 资源监控应用。它将系统负载
 ### 功能
 
 - CPU、GPU、内存、Swap 和热状态
+- 系统内存与 Clipto 内存占用对比曲线
 - 网络、磁盘与 DRAM 读写带宽曲线
 - ANE 活跃度、CPU/GPU/ANE 分项功耗与整机功耗
 - 15 分钟至 7 天的实时窗口，以及自定义历史区间
@@ -103,6 +104,7 @@ PulseBoard is a native SwiftUI system monitor for macOS. It brings system load, 
 ### Features
 
 - CPU, GPU, memory, swap, and thermal state
+- System and Clipto memory usage comparison chart
 - Network, disk, and DRAM read/write bandwidth charts
 - ANE activity, CPU/GPU/ANE component power, and total system power
 - Live windows from 15 minutes to 7 days, plus custom history ranges
