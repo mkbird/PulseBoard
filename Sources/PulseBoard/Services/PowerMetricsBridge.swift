@@ -9,15 +9,28 @@ struct EnhancedMetrics: Sendable {
     var aneUsage: Double?
     var memoryReadGBps: Double?
     var memoryWriteGBps: Double?
+    var cliptoGPUPercent: Double?
+    var cliptoNetworkDownBytesPerSecond: Double?
+    var cliptoNetworkUpBytesPerSecond: Double?
+    var cliptoEnergyImpact: Double?
+}
+
+struct CliptoPowerMetrics: Sendable {
+    var gpuPercent: Double?
+    var networkDownBytesPerSecond: Double?
+    var networkUpBytesPerSecond: Double?
+    var energyImpact: Double?
 }
 
 struct PowerMetricsBridge {
     private let fileURLs: [URL]
+    private let processFileURLs: [URL]
     private let native: NativeHardwareBridge?
 
     init(fileURL: URL? = nil) {
         if let fileURL {
             self.fileURLs = [fileURL]
+            self.processFileURLs = []
             self.native = nil
             return
         }
@@ -26,6 +39,10 @@ struct PowerMetricsBridge {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("PulseBoard", isDirectory: true)
         self.fileURLs = [system, support.appendingPathComponent("powermetrics.txt")]
+        self.processFileURLs = [
+            system.deletingLastPathComponent().appendingPathComponent("processmetrics.plist"),
+            support.appendingPathComponent("processmetrics.plist")
+        ]
         self.native = NativeHardwareBridge()
     }
 
@@ -43,6 +60,11 @@ struct PowerMetricsBridge {
                   let text = String(data: data.suffix(256_000), encoding: .utf8) else { return nil }
             return Self.parse(text: text)
         }()
+        let cliptoMetrics: CliptoPowerMetrics? = {
+            guard let source = freshProcessFileURL,
+                  let data = try? Data(contentsOf: source) else { return nil }
+            return Self.parseCliptoProcessMetrics(data: data)
+        }()
         return EnhancedMetrics(
             cpuPowerWatts: systemMetrics?.cpuPowerWatts ?? powerMetrics?.cpuPowerWatts,
             gpuPowerWatts: systemMetrics?.gpuPowerWatts ?? powerMetrics?.gpuPowerWatts,
@@ -51,12 +73,24 @@ struct PowerMetricsBridge {
             gpuUsage: systemMetrics?.gpuUsage ?? powerMetrics?.gpuUsage,
             aneUsage: systemMetrics?.aneUsage ?? powerMetrics?.aneUsage,
             memoryReadGBps: systemMetrics?.memoryReadGBps ?? powerMetrics?.memoryReadGBps,
-            memoryWriteGBps: systemMetrics?.memoryWriteGBps ?? powerMetrics?.memoryWriteGBps
+            memoryWriteGBps: systemMetrics?.memoryWriteGBps ?? powerMetrics?.memoryWriteGBps,
+            cliptoGPUPercent: cliptoMetrics?.gpuPercent,
+            cliptoNetworkDownBytesPerSecond: cliptoMetrics?.networkDownBytesPerSecond,
+            cliptoNetworkUpBytesPerSecond: cliptoMetrics?.networkUpBytesPerSecond,
+            cliptoEnergyImpact: cliptoMetrics?.energyImpact
         )
     }
 
     private var freshFileURL: URL? {
         fileURLs.first { url in
+            guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
+                  let date = values.contentModificationDate else { return false }
+            return Date().timeIntervalSince(date) < 15
+        }
+    }
+
+    private var freshProcessFileURL: URL? {
+        processFileURLs.first { url in
             guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
                   let date = values.contentModificationDate else { return false }
             return Date().timeIntervalSince(date) < 15
@@ -90,8 +124,98 @@ struct PowerMetricsBridge {
             gpuUsage: gpuUsage,
             aneUsage: aneUsage,
             memoryReadGBps: memoryRead,
-            memoryWriteGBps: memoryWrite
+            memoryWriteGBps: memoryWrite,
+            cliptoGPUPercent: nil,
+            cliptoNetworkDownBytesPerSecond: nil,
+            cliptoNetworkUpBytesPerSecond: nil,
+            cliptoEnergyImpact: nil
         )
+    }
+
+    static func parseCliptoProcessMetrics(data: Data) -> CliptoPowerMetrics? {
+        let documents = data.split(separator: 0, omittingEmptySubsequences: true)
+        guard let document = documents.last,
+              let root = try? PropertyListSerialization.propertyList(from: Data(document), options: [], format: nil) else {
+            return nil
+        }
+
+        var tasks: [Int: [String: Any]] = [:]
+        collectTasks(from: root, into: &tasks)
+        guard !tasks.isEmpty else { return nil }
+
+        var cliptoPIDs = Set(tasks.compactMap { pid, task -> Int? in
+            guard let name = task["name"] as? String else { return nil }
+            let normalized = name.lowercased()
+            return normalized == "clipto" || normalized.hasPrefix("clipto helper") ? pid : nil
+        })
+
+        var changed: Bool
+        repeat {
+            changed = false
+            for (pid, task) in tasks where !cliptoPIDs.contains(pid) {
+                let parent = integer(task["parent_pid"])
+                let name = (task["name"] as? String)?.lowercased() ?? ""
+                let knownComponent = name == "clipto-p-io" || name == "dag-schedule-center" ||
+                    name == "cbs-worker" || name.hasPrefix("cms_")
+                if (parent.map(cliptoPIDs.contains) ?? false) || knownComponent {
+                    cliptoPIDs.insert(pid)
+                    changed = true
+                }
+            }
+        } while changed
+
+        guard !cliptoPIDs.isEmpty else { return nil }
+        var gpuMSPerSecond = 0.0
+        var received = 0.0
+        var sent = 0.0
+        var energy = 0.0
+        var hasGPU = false
+        var hasNetwork = false
+        var hasEnergy = false
+        for pid in cliptoPIDs {
+            guard let task = tasks[pid], task["invalid"] == nil else { continue }
+            if let value = number(task["gputime_ms_per_s"]) {
+                gpuMSPerSecond += value
+                hasGPU = true
+            }
+            if let value = number(task["bytes_received_per_s"]) {
+                received += value
+                hasNetwork = true
+            }
+            if let value = number(task["bytes_sent_per_s"]) {
+                sent += value
+                hasNetwork = true
+            }
+            if let value = number(task["energy_impact_per_s"]) ?? number(task["energy_impact"]) {
+                energy += value
+                hasEnergy = true
+            }
+        }
+        return CliptoPowerMetrics(
+            gpuPercent: hasGPU ? min(100, max(0, gpuMSPerSecond / 10)) : nil,
+            networkDownBytesPerSecond: hasNetwork ? received : nil,
+            networkUpBytesPerSecond: hasNetwork ? sent : nil,
+            energyImpact: hasEnergy ? energy : nil
+        )
+    }
+
+    private static func collectTasks(from value: Any, into tasks: inout [Int: [String: Any]]) {
+        if let dictionary = value as? [String: Any] {
+            if let pid = integer(dictionary["pid"]), dictionary["name"] is String {
+                tasks[pid] = dictionary
+            }
+            for child in dictionary.values { collectTasks(from: child, into: &tasks) }
+        } else if let array = value as? [Any] {
+            for child in array { collectTasks(from: child, into: &tasks) }
+        }
+    }
+
+    private static func number(_ value: Any?) -> Double? {
+        (value as? NSNumber)?.doubleValue ?? (value as? Double)
+    }
+
+    private static func integer(_ value: Any?) -> Int? {
+        (value as? NSNumber)?.intValue ?? (value as? Int)
     }
 
     private static func power(named name: String, in text: String) -> Double? {

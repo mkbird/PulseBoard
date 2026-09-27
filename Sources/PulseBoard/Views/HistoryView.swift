@@ -91,11 +91,8 @@ struct HistoryView: View {
                         ], suffix: " GB/s", timeDomain: store.chartWindow
                     )
                     TelemetryChart(
-                        title: "网络带宽", subtitle: "所有活跃网络接口的吞吐历史", icon: "network", samples: store.samples,
-                        series: [
-                            .init(name: "下载", color: .blue, value: { $0.networkDownBytesPerSecond / 1_000_000 }),
-                            .init(name: "上传", color: .mint, value: { $0.networkUpBytesPerSecond / 1_000_000 })
-                        ], suffix: " MB/s", timeDomain: store.chartWindow
+                        title: "网络带宽", subtitle: networkSubtitle, icon: "network", samples: store.samples,
+                        series: networkSeries, suffix: " MB/s", timeDomain: store.chartWindow
                     )
                 }
 
@@ -134,12 +131,21 @@ struct HistoryView: View {
         store.samples.contains { $0.cliptoRunning }
     }
 
+    private var hasCliptoPowerSamples: Bool {
+        store.samples.contains { $0.cliptoGPUPercent != nil || $0.cliptoNetworkDownBytesPerSecond != nil }
+    }
+
     private var processorSubtitle: String {
-        hasCliptoSamples ? "系统处理器负载与 Clipto 整机 CPU 占比" : "查看处理器负载变化与相关性"
+        hasCliptoPowerSamples ? "系统处理器负载与 Clipto CPU、GPU 占比" :
+            (hasCliptoSamples ? "系统处理器负载与 Clipto 整机 CPU 占比" : "查看处理器负载变化与相关性")
     }
 
     private var diskSubtitle: String {
         hasCliptoSamples ? "内部存储总吞吐与 Clipto 进程组吞吐" : "内部存储读取与写入历史"
+    }
+
+    private var networkSubtitle: String {
+        hasCliptoPowerSamples ? "所有接口总吞吐与 Clipto 进程组吞吐" : "所有活跃网络接口的吞吐历史"
     }
 
     private var processorSeries: [TelemetrySeries] {
@@ -150,6 +156,9 @@ struct HistoryView: View {
         ]
         if hasCliptoSamples {
             result.append(.init(name: "Clipto", color: .yellow, value: cliptoCPUShare))
+        }
+        if hasCliptoPowerSamples {
+            result.append(.init(name: "Clipto GPU", color: .orange, value: { $0.cliptoGPUPercent }))
         }
         return result
     }
@@ -162,6 +171,18 @@ struct HistoryView: View {
         if hasCliptoSamples {
             result.append(.init(name: "Clipto 读取", color: .orange, value: { $0.cliptoDiskReadBytesPerSecond.map { $0 / 1_000_000 } }))
             result.append(.init(name: "Clipto 写入", color: .pink, value: { $0.cliptoDiskWriteBytesPerSecond.map { $0 / 1_000_000 } }))
+        }
+        return result
+    }
+
+    private var networkSeries: [TelemetrySeries] {
+        var result: [TelemetrySeries] = [
+            .init(name: "下载", color: .blue, value: { $0.networkDownBytesPerSecond / 1_000_000 }),
+            .init(name: "上传", color: .mint, value: { $0.networkUpBytesPerSecond / 1_000_000 })
+        ]
+        if hasCliptoPowerSamples {
+            result.append(.init(name: "Clipto 下载", color: .orange, value: { $0.cliptoNetworkDownBytesPerSecond.map { $0 / 1_000_000 } }))
+            result.append(.init(name: "Clipto 上传", color: .pink, value: { $0.cliptoNetworkUpBytesPerSecond.map { $0 / 1_000_000 } }))
         }
         return result
     }

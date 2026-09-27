@@ -11,10 +11,10 @@ struct DashboardView: View {
                 header
                 LazyVGrid(columns: grid, spacing: 16) {
                     MetricCard(title: "CPU", icon: "cpu", value: MetricFormat.percent(store.latest?.cpuUsage), subtitle: cpuSubtitle, tint: .cyan, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoCPUComparison) { $0.cpuUsage }
-                    MetricCard(title: "GPU", icon: "rectangle.3.group", value: MetricFormat.percent(store.latest?.gpuUsage), subtitle: "设备利用率", tint: .purple, samples: store.samples, timeDomain: store.chartWindow) { $0.gpuUsage }
+                    MetricCard(title: "GPU", icon: "rectangle.3.group", value: MetricFormat.percent(store.latest?.gpuUsage), subtitle: gpuSubtitle, tint: .purple, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoGPUComparison) { $0.gpuUsage }
                     MetricCard(title: "内存", icon: "memorychip", value: MetricFormat.percent(store.latest?.memoryUsage), subtitle: memorySubtitle, tint: .orange, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoMemoryComparison) { $0.memoryUsage }
                     MetricCard(title: "ANE 功耗", icon: "brain.head.profile", value: MetricFormat.watts(store.latest?.anePowerWatts), subtitle: "", tint: .pink, samples: store.samples, timeDomain: store.chartWindow) { $0.anePowerWatts }
-                    MetricCard(title: "整机功耗", icon: "bolt.fill", value: MetricFormat.watts(store.latest?.systemPowerWatts), subtitle: "", tint: .yellow, samples: store.samples, timeDomain: store.chartWindow) { $0.systemPowerWatts }
+                    MetricCard(title: "整机功耗", icon: "bolt.fill", value: MetricFormat.watts(store.latest?.systemPowerWatts), subtitle: energySubtitle, tint: .yellow, samples: store.samples, timeDomain: store.chartWindow) { $0.systemPowerWatts }
                     MetricCard(title: "磁盘空间", icon: "internaldrive", value: diskFree, subtitle: "可用 / \(diskTotal)", tint: .green, samples: store.samples, timeDomain: store.chartWindow) { sample in
                         sample.diskTotalBytes > 0 ? (1 - sample.diskFreeBytes / sample.diskTotalBytes) * 100 : nil
                     }
@@ -34,11 +34,8 @@ struct DashboardView: View {
                         ], suffix: " GB/s", timeDomain: store.chartWindow
                     )
                     TelemetryChart(
-                        title: "网络带宽", subtitle: "所有活跃网络接口的实时吞吐", icon: "network", samples: store.samples,
-                        series: [
-                            .init(name: "下载", color: .blue, value: { $0.networkDownBytesPerSecond / 1_000_000 }),
-                            .init(name: "上传", color: .mint, value: { $0.networkUpBytesPerSecond / 1_000_000 })
-                        ], suffix: " MB/s", timeDomain: store.chartWindow
+                        title: "网络带宽", subtitle: networkSubtitle, icon: "network", samples: store.samples,
+                        series: networkSeries, suffix: " MB/s", timeDomain: store.chartWindow
                     )
                 }
 
@@ -103,8 +100,18 @@ struct DashboardView: View {
 
     private var cpuSubtitle: String {
         guard let latest = store.latest else { return "采样中" }
-        guard let clipto = cliptoCPUShare(latest) else { return latest.thermalState }
-        return "\(latest.thermalState) · Clipto \(MetricFormat.percent(clipto))"
+        guard let clipto = latest.cliptoCPUPercent else { return latest.thermalState }
+        return "Clipto \(MetricFormat.percent(clipto))"
+    }
+
+    private var gpuSubtitle: String {
+        guard let value = store.latest?.cliptoGPUPercent else { return "设备利用率" }
+        return "Clipto \(MetricFormat.percent(value))"
+    }
+
+    private var energySubtitle: String {
+        guard let value = store.latest?.cliptoEnergyImpact else { return "" }
+        return "Clipto 能耗影响 \(value.formatted(.number.precision(.fractionLength(1))))"
     }
 
     private var processorSubtitle: String {
@@ -117,8 +124,16 @@ struct DashboardView: View {
         hasCliptoSamples ? "内部存储总吞吐与 Clipto 进程组吞吐" : "内部存储实时读写速率"
     }
 
+    private var networkSubtitle: String {
+        hasCliptoPowerSamples ? "所有接口总吞吐与 Clipto 进程组吞吐" : "所有活跃网络接口的实时吞吐"
+    }
+
     private var hasCliptoSamples: Bool {
         store.samples.contains { $0.cliptoRunning }
+    }
+
+    private var hasCliptoPowerSamples: Bool {
+        store.samples.contains { $0.cliptoGPUPercent != nil || $0.cliptoNetworkDownBytesPerSecond != nil }
     }
 
     private var processorSeries: [TelemetrySeries] {
@@ -130,12 +145,20 @@ struct DashboardView: View {
         if hasCliptoSamples {
             result.append(.init(name: "Clipto", color: .yellow, value: cliptoCPUShare))
         }
+        if hasCliptoPowerSamples {
+            result.append(.init(name: "Clipto GPU", color: .orange, value: { $0.cliptoGPUPercent }))
+        }
         return result
     }
 
     private var cliptoCPUComparison: TelemetrySeries? {
         guard hasCliptoSamples else { return nil }
         return .init(name: "Clipto", color: .yellow, value: cliptoCPUShare)
+    }
+
+    private var cliptoGPUComparison: TelemetrySeries? {
+        guard hasCliptoPowerSamples else { return nil }
+        return .init(name: "Clipto", color: .orange, value: { $0.cliptoGPUPercent })
     }
 
     private var cliptoMemoryComparison: TelemetrySeries? {
@@ -154,6 +177,18 @@ struct DashboardView: View {
         if hasCliptoSamples {
             result.append(.init(name: "Clipto 读取", color: .orange, value: { $0.cliptoDiskReadBytesPerSecond.map { $0 / 1_000_000 } }))
             result.append(.init(name: "Clipto 写入", color: .pink, value: { $0.cliptoDiskWriteBytesPerSecond.map { $0 / 1_000_000 } }))
+        }
+        return result
+    }
+
+    private var networkSeries: [TelemetrySeries] {
+        var result: [TelemetrySeries] = [
+            .init(name: "下载", color: .blue, value: { $0.networkDownBytesPerSecond / 1_000_000 }),
+            .init(name: "上传", color: .mint, value: { $0.networkUpBytesPerSecond / 1_000_000 })
+        ]
+        if hasCliptoPowerSamples {
+            result.append(.init(name: "Clipto 下载", color: .orange, value: { $0.cliptoNetworkDownBytesPerSecond.map { $0 / 1_000_000 } }))
+            result.append(.init(name: "Clipto 上传", color: .pink, value: { $0.cliptoNetworkUpBytesPerSecond.map { $0 / 1_000_000 } }))
         }
         return result
     }

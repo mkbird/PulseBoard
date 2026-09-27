@@ -41,8 +41,8 @@ struct SettingsView: View {
                 settingsSection("增强指标", icon: "gauge.with.dots.needle.67percent") {
                     HStack {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("ANE、分项功耗与内存带宽").font(.headline)
-                            Text("优先使用内置 IOReport/SMC 采样引擎，无需管理员权限；不可用时可启用特权辅助进程作为降级方案。")
+                            Text("ANE、分项功耗与应用级 GPU").font(.headline)
+                            Text("整机指标优先使用内置 IOReport/SMC；启用辅助进程后，还可获得 Clipto GPU、网络与 Energy Impact。")
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -87,7 +87,7 @@ struct SettingsView: View {
                     sourceRow("ANE、功耗、内存带宽", detail: "内置 IOReport / SMC", state: "实时增强")
                     sourceRow(
                         "Clipto 应用资源",
-                        detail: "libproc 进程组累计计数器",
+                        detail: "libproc；GPU/网络/能耗使用 powermetrics",
                         state: store.latest?.cliptoRunning == true ? "正在跟踪" : "自动检测"
                     )
                 }

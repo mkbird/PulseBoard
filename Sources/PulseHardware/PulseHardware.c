@@ -512,7 +512,11 @@ PBAppMetrics pb_clipto_sample(void) {
                   (double)g_timebase.numer / (double)g_timebase.denom / 1e9;
     }
     if (seconds >= 0.05 && g_previous_clipto_time != 0) {
-        metrics.cpu_percent = (double)cpu_delta / seconds / 1e9 * 100.0;
+        // rusage CPU times use mach absolute-time ticks, not nanoseconds.
+        // Convert them with the same timebase used for the wall interval.
+        double cpu_seconds = (double)cpu_delta *
+                             (double)g_timebase.numer / (double)g_timebase.denom / 1e9;
+        metrics.cpu_percent = cpu_seconds / seconds * 100.0;
         metrics.disk_read_bytes_per_second = (double)read_delta / seconds;
         metrics.disk_write_bytes_per_second = (double)write_delta / seconds;
         metrics.rates_valid = 1;
