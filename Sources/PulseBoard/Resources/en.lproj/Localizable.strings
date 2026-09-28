@@ -63,7 +63,7 @@
 "subtitle.memory_usage_clipto" = "System and Clipto usage as a share of physical memory";
 "subtitle.memory_io" = "IOReport AMC DRAM read and write counters";
 "subtitle.network" = "Live throughput across all active network interfaces";
-"subtitle.chip_power" = "IOReport energy model for trend analysis";
+"subtitle.chip_power" = "IOReport energy model; batched counters use their full update-window average";
 "subtitle.processor_clipto" = "CPU/GPU use system counters; Clipto is whole-system CPU share; ANE is estimated activity";
 "subtitle.processor" = "CPU/GPU use system counters; ANE is estimated activity";
 "subtitle.disk_clipto" = "Internal storage throughput with Clipto process-group throughput";

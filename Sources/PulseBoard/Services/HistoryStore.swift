@@ -104,9 +104,13 @@ final class HistoryStore {
         if bucket == 1 {
             sql = "SELECT \(columns) FROM samples WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp;"
         } else {
+            let anePower = Self.sanitizedPowerSQL("ane_power", absoluteMaximum: 150)
+            let cpuPower = Self.sanitizedPowerSQL("cpu_power", absoluteMaximum: 500, minimum: 0.001)
+            let gpuPower = Self.sanitizedPowerSQL("gpu_power", absoluteMaximum: 500)
             sql = """
             SELECT AVG(timestamp),AVG(cpu),AVG(gpu),AVG(ane_usage),AVG(memory),AVG(memory_used),AVG(memory_total),
-                   AVG(memory_pressure),AVG(ane_power),AVG(cpu_power),AVG(gpu_power),AVG(system_power),
+                   AVG(memory_pressure),AVG(\(anePower)),AVG(\(cpuPower)),AVG(\(gpuPower)),
+                   AVG(CASE WHEN system_power >= 0 AND system_power <= 1000 THEN system_power END),
                    AVG(memory_read),AVG(memory_write),AVG(disk_read),AVG(disk_write),AVG(disk_free),
                    AVG(disk_total),AVG(net_down),AVG(net_up),MAX(thermal),AVG(clipto_cpu),
                    AVG(clipto_memory),AVG(clipto_disk_read),AVG(clipto_disk_write),MAX(clipto_process_count),
@@ -147,6 +151,7 @@ final class HistoryStore {
 
         var samples: [MetricSample] = []
         while sqlite3_step(statement) == SQLITE_ROW {
+            let systemPower = PowerReadingSanitizer.systemPower(optionalDouble(statement, 11))
             samples.append(MetricSample(
                 timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 0)),
                 cpuUsage: sqlite3_column_double(statement, 1),
@@ -156,10 +161,10 @@ final class HistoryStore {
                 memoryUsedBytes: sqlite3_column_double(statement, 5),
                 memoryTotalBytes: sqlite3_column_double(statement, 6),
                 memoryPressure: sqlite3_column_double(statement, 7),
-                anePowerWatts: optionalDouble(statement, 8),
-                cpuPowerWatts: optionalDouble(statement, 9),
-                gpuPowerWatts: optionalDouble(statement, 10),
-                systemPowerWatts: optionalDouble(statement, 11),
+                anePowerWatts: PowerReadingSanitizer.componentPower(optionalDouble(statement, 8), systemPower: systemPower, absoluteMaximum: 150),
+                cpuPowerWatts: PowerReadingSanitizer.componentPower(optionalDouble(statement, 9), systemPower: systemPower, absoluteMaximum: 500, minimum: 0.001),
+                gpuPowerWatts: PowerReadingSanitizer.componentPower(optionalDouble(statement, 10), systemPower: systemPower, absoluteMaximum: 500),
+                systemPowerWatts: systemPower,
                 memoryReadGBps: optionalDouble(statement, 12),
                 memoryWriteGBps: optionalDouble(statement, 13),
                 diskReadBytesPerSecond: sqlite3_column_double(statement, 14),
@@ -211,6 +216,12 @@ final class HistoryStore {
     }
 
     private var message: String { database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error" }
+
+    private static func sanitizedPowerSQL(_ column: String, absoluteMaximum: Double, minimum: Double = 0) -> String {
+        "CASE WHEN \(column) >= \(minimum) AND \(column) <= \(absoluteMaximum) " +
+        "AND (system_power IS NULL OR system_power < 0 OR system_power > 1000 " +
+        "OR \(column) <= MAX(50, system_power * 3 + 20)) THEN \(column) END"
+    }
 
     private static let columns = "timestamp,cpu,gpu,ane_usage,memory,memory_used,memory_total,memory_pressure,ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count,clipto_gpu,swap_used,swap_total"
     private static let schema = """

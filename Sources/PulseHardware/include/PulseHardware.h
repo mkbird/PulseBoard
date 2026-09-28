@@ -14,6 +14,9 @@ typedef struct {
     double memory_write_gbps;
     double gpu_usage_percent;
     double ane_usage_percent;
+    int cpu_power_valid;
+    int gpu_power_valid;
+    int ane_power_valid;
     int gpu_usage_valid;
     int valid;
 } PBHardwareMetrics;

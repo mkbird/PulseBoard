@@ -63,7 +63,7 @@
 "subtitle.memory_usage_clipto" = "系统与 Clipto 内存占物理内存的比例";
 "subtitle.memory_io" = "IOReport AMC 的 DRAM 读写计数器";
 "subtitle.network" = "所有活跃网络接口的实时吞吐";
-"subtitle.chip_power" = "IOReport 能耗模型，适合趋势观察";
+"subtitle.chip_power" = "IOReport 能耗模型；批量计数器按完整更新周期取平均";
 "subtitle.processor_clipto" = "CPU/GPU 为系统计数器；Clipto 为整机 CPU 占比；ANE 为活跃度估算";
 "subtitle.processor" = "CPU/GPU 为系统计数器；ANE 为活跃度估算";
 "subtitle.disk_clipto" = "内部存储总吞吐与 Clipto 进程组吞吐";

@@ -2,6 +2,15 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.1.3] - 2026-09-28
+
+### Fixed
+
+- 修复 macOS 27 IOReport Energy Model 批量刷新造成的 CPU/ANE 功耗尖峰
+- 批量能量按两次有效更新之间的完整时间窗口计算平均功耗
+- Energy Model 与 Energy Counters 保持主备关系，不再重复累加
+- 使用 SMC 整机功耗交叉校验组件功耗，并过滤已有历史数据中的不可能值
+
 ## [1.1.2] - 2026-09-28
 
 ### Fixed
@@ -44,6 +53,7 @@
 - SQLite 历史记录、自定义时间范围和 CSV 导出
 - Developer ID 签名、公证和可分发应用包脚本
 
+[1.1.3]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.3
 [1.1.2]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.2
 [1.1.1]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.1
 [1.1.0]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.0

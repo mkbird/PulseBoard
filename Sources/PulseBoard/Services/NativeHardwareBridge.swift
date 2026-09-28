@@ -25,11 +25,18 @@ final class NativeHardwareBridge {
         if let cached, Date().timeIntervalSince(cacheDate) < 0.5 { return cached }
         let sample = pb_hardware_sample()
         guard sample.valid != 0 else { return cached }
+        let systemPower = PowerReadingSanitizer.systemPower(sample.system_power_watts)
         let result = EnhancedMetrics(
-            cpuPowerWatts: sample.cpu_power_watts,
-            gpuPowerWatts: sample.gpu_power_watts,
-            anePowerWatts: sample.ane_power_watts,
-            systemPowerWatts: sample.system_power_watts,
+            cpuPowerWatts: sample.cpu_power_valid != 0
+                ? PowerReadingSanitizer.componentPower(sample.cpu_power_watts, systemPower: systemPower, absoluteMaximum: 500, minimum: 0.001)
+                : nil,
+            gpuPowerWatts: sample.gpu_power_valid != 0
+                ? PowerReadingSanitizer.componentPower(sample.gpu_power_watts, systemPower: systemPower, absoluteMaximum: 500)
+                : nil,
+            anePowerWatts: sample.ane_power_valid != 0
+                ? PowerReadingSanitizer.componentPower(sample.ane_power_watts, systemPower: systemPower, absoluteMaximum: 150)
+                : nil,
+            systemPowerWatts: systemPower,
             gpuUsage: sample.gpu_usage_valid != 0 ? min(100, max(0, sample.gpu_usage_percent)) : nil,
             aneUsage: sample.ane_usage_percent,
             memoryReadGBps: sample.memory_read_gbps,

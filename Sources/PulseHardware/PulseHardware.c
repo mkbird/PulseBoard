@@ -5,6 +5,7 @@
 #include <dlfcn.h>
 #include <libproc.h>
 #include <limits.h>
+#include <math.h>
 #include <mach/mach_time.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -47,6 +48,28 @@ static uint64_t g_previous_time = 0;
 static mach_timebase_info_data_t g_timebase = {0, 0};
 static io_connect_t g_smc = 0;
 static double g_max_ane_bandwidth = 4.0;
+
+typedef struct {
+    double cpu_total;
+    double cpu_clusters;
+    double gpu_named;
+    double gpu_alias;
+    double gpu_sram;
+    double ane;
+    double dram;
+} PBEnergyAccumulator;
+
+typedef struct {
+    uint64_t last_change_time;
+    double last_power_watts;
+    double window_seconds;
+    int has_value;
+} PBPowerWindow;
+
+static PBPowerWindow g_cpu_power_window = {0};
+static PBPowerWindow g_gpu_power_window = {0};
+static PBPowerWindow g_ane_power_window = {0};
+static PBPowerWindow g_dram_power_window = {0};
 
 typedef struct {
     pid_t pid;
@@ -158,6 +181,47 @@ static double energy_to_watts(int64_t energy, CFStringRef unit_ref, double secon
     return joules / seconds;
 }
 
+static double mach_elapsed_seconds(uint64_t start, uint64_t end) {
+    if (start == 0 || end <= start || g_timebase.denom == 0) return 0;
+    return (double)(end - start) * (double)g_timebase.numer / (double)g_timebase.denom / 1e9;
+}
+
+// macOS 27 can publish Energy Model counters in batches ranging from seconds to
+// minutes. Convert each non-zero update over its actual update window and carry
+// that measured average until the next counter update.
+static double windowed_power(double event_watts, double sample_seconds, uint64_t now, PBPowerWindow *window) {
+    if (!window) return 0;
+    if (window->last_change_time == 0) window->last_change_time = now;
+    if (event_watts > 0 && isfinite(event_watts)) {
+        double elapsed = mach_elapsed_seconds(window->last_change_time, now);
+        if (elapsed >= 0.05) {
+            double average = event_watts * sample_seconds / elapsed;
+            if (average >= 0 && isfinite(average)) {
+                window->last_power_watts = average;
+                window->window_seconds = elapsed;
+                window->has_value = 1;
+            }
+        }
+        window->last_change_time = now;
+    }
+    return window->has_value ? window->last_power_watts : 0;
+}
+
+static int has_suffix(const char *text, const char *suffix) {
+    size_t text_length = strlen(text);
+    size_t suffix_length = strlen(suffix);
+    return text_length >= suffix_length && strcmp(text + text_length - suffix_length, suffix) == 0;
+}
+
+static int is_m5_cpu_cluster(const char *name) {
+    if (strcmp(name, "PCPU") == 0 || strcmp(name, "MCPU") == 0) return 1;
+    if (strncmp(name, "MCPU", 4) != 0 || name[4] == '\0') return 0;
+    for (const char *cursor = name + 4; *cursor; cursor++) {
+        if (*cursor < '0' || *cursor > '9') return 0;
+    }
+    return 1;
+}
+
 static int has_token(const char *text, const char *token) {
     const char *position = text;
     size_t length = strlen(token);
@@ -213,7 +277,10 @@ static int is_energy_channel(const char *name) {
         strcmp(name, "GPU Energy") == 0 || strcmp(name, "GPU") == 0 ||
         strcmp(name, "ANE") == 0 || strcmp(name, "DRAM") == 0) return 1;
     if (strstr(name, "CPU Energy") != NULL) return 1;
-    if (strncmp(name, "GPU SRAM", 8) == 0) return 1;
+    if (is_m5_cpu_cluster(name)) return 1;
+    if (has_suffix(name, "_CPU") && (strstr(name, "EACC") || strstr(name, "PACC"))) return 1;
+    if (strncmp(name, "GPU", 3) == 0 || strstr(name, " GPU") != NULL) return 1;
+    if (strncmp(name, "DRAM", 4) == 0 || strstr(name, " DRAM") != NULL) return 1;
     if (strstr(name, "ANE") != NULL || strstr(name, "NPU") != NULL ||
         strstr(name, "Neural") != NULL) return 1;
     return 0;
@@ -333,6 +400,10 @@ PBHardwareMetrics pb_hardware_sample(void) {
     if (!g_previous_sample) {
         g_previous_sample = current;
         g_previous_time = now;
+        g_cpu_power_window.last_change_time = now;
+        g_gpu_power_window.last_change_time = now;
+        g_ane_power_window.last_change_time = now;
+        g_dram_power_window.last_change_time = now;
         return metrics;
     }
 
@@ -355,9 +426,9 @@ PBHardwareMetrics pb_hardware_sample(void) {
         return metrics;
     }
 
-    double cpu_total = 0, cpu_clusters = 0;
-    double gpu_named = 0, gpu_alias = 0, gpu_sram = 0;
-    double ane = 0, dram = 0;
+    // Keep Energy Model and fallback Energy Counters separate so matching rails
+    // are never double-counted. Batched updates are normalized below.
+    PBEnergyAccumulator energy[2] = {{0}};
     int64_t dcs_read = 0, dcs_write = 0;
     int64_t fallback_read = 0, fallback_write = 0;
     int64_t ane_read = 0, ane_write = 0;
@@ -374,13 +445,24 @@ PBHardwareMetrics pb_hardware_sample(void) {
         if (strcmp(group, "Energy Model") == 0 || strcmp(group, "Energy Counters") == 0) {
             if (value == INT64_MIN || value < 0) continue;
             double watts = energy_to_watts(value, g_channel_unit(channel), seconds);
-            if (strcmp(name, "CPU Energy") == 0 || (strstr(name, "DIE_") && strstr(name, "CPU Energy"))) cpu_total += watts;
-            else if (strcmp(name, "ECPU") == 0 || strcmp(name, "PCPU") == 0 || strstr(name, "ECPU Energy") || strstr(name, "PCPU Energy")) cpu_clusters += watts;
-            else if (strcmp(name, "GPU Energy") == 0) gpu_named += watts;
-            else if (strcmp(name, "GPU") == 0) gpu_alias += watts;
-            else if (strncmp(name, "GPU SRAM", 8) == 0) gpu_sram += watts;
-            else if (strstr(name, "ANE") || strstr(name, "NPU") || strstr(name, "Neural")) ane += watts;
-            else if (strncmp(name, "DRAM", 4) == 0) dram += watts;
+            PBEnergyAccumulator *source = &energy[strcmp(group, "Energy Counters") == 0 ? 1 : 0];
+            if (strcmp(name, "CPU Energy") == 0 || (strstr(name, "DIE_") && strstr(name, "CPU Energy"))) {
+                source->cpu_total += watts;
+            } else if (strcmp(name, "ECPU") == 0 || is_m5_cpu_cluster(name) ||
+                       strstr(name, "ECPU Energy") || strstr(name, "PCPU Energy") ||
+                       (has_suffix(name, "_CPU") && (strstr(name, "EACC") || strstr(name, "PACC")))) {
+                source->cpu_clusters += watts;
+            } else if (strstr(name, "GPU Energy") != NULL) {
+                source->gpu_named += watts;
+            } else if (strstr(name, "GPU SRAM") != NULL) {
+                source->gpu_sram += watts;
+            } else if (strncmp(name, "GPU", 3) == 0 || strstr(name, " GPU") != NULL) {
+                source->gpu_alias += watts;
+            } else if (strstr(name, "ANE") || strstr(name, "NPU") || strstr(name, "Neural")) {
+                source->ane += watts;
+            } else if (strncmp(name, "DRAM", 4) == 0 || strstr(name, " DRAM") != NULL) {
+                source->dram += watts;
+            }
         } else if (strcmp(group, "GPU Stats") == 0) {
             char subgroup[128] = {0};
             cf_string(g_channel_subgroup(channel), subgroup, sizeof(subgroup));
@@ -420,9 +502,20 @@ PBHardwareMetrics pb_hardware_sample(void) {
     }
     CFRelease(delta);
 
-    metrics.cpu_power_watts = cpu_total > 0 ? cpu_total : cpu_clusters;
-    metrics.gpu_power_watts = (gpu_named > 0 ? gpu_named : gpu_alias) + gpu_sram;
-    metrics.ane_power_watts = ane;
+    double model_cpu = energy[0].cpu_total > 0 ? energy[0].cpu_total : energy[0].cpu_clusters;
+    double counter_cpu = energy[1].cpu_total > 0 ? energy[1].cpu_total : energy[1].cpu_clusters;
+    metrics.cpu_power_watts = windowed_power(model_cpu > 0 ? model_cpu : counter_cpu, seconds, now, &g_cpu_power_window);
+    metrics.cpu_power_valid = g_cpu_power_window.has_value;
+
+    // GPU Energy is a live nanojoule counter on macOS 27 and must not be mixed
+    // with the separately batched millijoule GPU/GPU SRAM rails.
+    double model_gpu = energy[0].gpu_named > 0 ? energy[0].gpu_named : energy[0].gpu_alias + energy[0].gpu_sram;
+    double counter_gpu = energy[1].gpu_named > 0 ? energy[1].gpu_named : energy[1].gpu_alias + energy[1].gpu_sram;
+    metrics.gpu_power_watts = windowed_power(model_gpu > 0 ? model_gpu : counter_gpu, seconds, now, &g_gpu_power_window);
+    metrics.ane_power_watts = windowed_power(energy[0].ane > 0 ? energy[0].ane : energy[1].ane, seconds, now, &g_ane_power_window);
+    metrics.gpu_power_valid = g_gpu_power_window.has_value;
+    metrics.ane_power_valid = g_ane_power_window.has_value;
+    double dram = windowed_power(energy[0].dram > 0 ? energy[0].dram : energy[1].dram, seconds, now, &g_dram_power_window);
     metrics.system_power_watts = smc_float(g_smc, "PSTR");
     if (metrics.system_power_watts <= 0) {
         metrics.system_power_watts = metrics.cpu_power_watts + metrics.gpu_power_watts + metrics.ane_power_watts + dram;
@@ -434,7 +527,7 @@ PBHardwareMetrics pb_hardware_sample(void) {
 
     double ane_bandwidth = (double)(ane_read + ane_write) / seconds / 1e9;
     if (ane_bandwidth > g_max_ane_bandwidth * 1.03) g_max_ane_bandwidth = ane_bandwidth;
-    if (metrics.ane_power_watts > 0) metrics.ane_usage_percent = metrics.ane_power_watts / 8.0 * 100.0;
+    if (metrics.ane_power_watts > 0 && g_ane_power_window.window_seconds <= 15.0) metrics.ane_usage_percent = metrics.ane_power_watts / 8.0 * 100.0;
     else if (ane_bandwidth > 0) metrics.ane_usage_percent = ane_bandwidth / g_max_ane_bandwidth * 100.0;
     if (metrics.ane_usage_percent > 100) metrics.ane_usage_percent = 100;
     metrics.valid = 1;
@@ -662,4 +755,9 @@ void pb_hardware_shutdown(void) {
     g_previous_clipto_processes = NULL;
     g_previous_clipto_count = 0;
     g_previous_clipto_time = 0;
+    g_previous_time = 0;
+    memset(&g_cpu_power_window, 0, sizeof(g_cpu_power_window));
+    memset(&g_gpu_power_window, 0, sizeof(g_gpu_power_window));
+    memset(&g_ane_power_window, 0, sizeof(g_ane_power_window));
+    memset(&g_dram_power_window, 0, sizeof(g_dram_power_window));
 }

@@ -64,6 +64,8 @@ PulseBoard 使用 Mach、sysctl、getifaddrs、IOKit、IORegistry、IOReport 与
 
 ANE 活跃度、功耗、GPU 利用率和 DRAM 带宽依赖不同 Mac 及 macOS 版本上可用的硬件通道。这些指标适合观察趋势，不应用作计费、实验室校准或硬件故障判定依据。通道不可用时，界面会显示缺失值，而不会伪造数据。
 
+macOS 27 在部分 Apple Silicon 机型上会分批刷新组件能量计数器。PulseBoard 会按两次有效刷新之间的完整时间窗口计算平均功耗；第一个完整窗口形成前显示缺失值，而不是错误的 `0 W` 或瞬时尖峰。
+
 Clipto 指标仅在检测到对应进程组时出现。其 CPU 百分比在部分位置会换算为整机占比，以便与系统总 CPU 曲线比较。
 
 ### 隐私与数据位置
@@ -149,6 +151,8 @@ The source artwork is stored at `Resources/AppIcon-master.png`.
 PulseBoard samples local Mach, sysctl, getifaddrs, IOKit, IORegistry, IOReport, and SMC data sources. CPU, memory, swap, network, and disk metrics are derived from system counters. Rate metrics require at least two samples before a valid delta is available.
 
 ANE activity, power, GPU utilization, and DRAM bandwidth depend on hardware channels that vary across Mac models and macOS releases. These values are intended for trend analysis, not billing, laboratory calibration, or hardware fault diagnosis. When a channel is unavailable, PulseBoard shows a missing value instead of inventing data.
+
+On some Apple Silicon models, macOS 27 refreshes component energy counters in batches. PulseBoard reports power averaged over the complete interval between valid refreshes; it shows a missing value before the first complete window instead of a false `0 W` or an instantaneous spike.
 
 Clipto metrics appear only while a matching process group is detected. In comparison charts, Clipto CPU may be converted to its share of total system CPU capacity.
 
