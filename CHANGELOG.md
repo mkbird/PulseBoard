@@ -2,6 +2,14 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/)。
 
+## [1.1.2] - 2026-09-28
+
+### Fixed
+
+- 修复在未安装开发构建目录的新 Mac 上因 SwiftPM 本地化资源包路径错误导致的启动崩溃
+- 本地化资源加载增加旧版安装包兼容与缺失资源安全降级
+- 构建脚本现在会校验资源包，并保持可通过 macOS 签名验证的标准资源布局
+
 ## [1.1.1] - 2026-09-27
 
 ### Added
@@ -36,6 +44,7 @@
 - SQLite 历史记录、自定义时间范围和 CSV 导出
 - Developer ID 签名、公证和可分发应用包脚本
 
+[1.1.2]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.2
 [1.1.1]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.1
 [1.1.0]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.0
 [1.0.0]: https://github.com/mkbird/PulseBoard/releases/tag/v1.0.0

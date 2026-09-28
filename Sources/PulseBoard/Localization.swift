@@ -1,6 +1,8 @@
 import Combine
 import Foundation
 
+private final class PulseBoardResourceBundleToken: NSObject {}
+
 enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
     case system
     case simplifiedChinese = "zh-Hans"
@@ -34,6 +36,44 @@ final class LocalizationManager: ObservableObject {
 }
 
 enum L10n {
+    private static let resourceBundle: Bundle = {
+        let resourceBundleName = "PulseBoard_PulseBoard.bundle"
+        let containingBundle = Bundle(for: PulseBoardResourceBundleToken.self)
+        var origins = [Bundle.main.bundleURL, containingBundle.bundleURL]
+
+        if let resourceURL = Bundle.main.resourceURL {
+            origins.append(resourceURL)
+        }
+        if let executableURL = Bundle.main.executableURL {
+            origins.append(executableURL.deletingLastPathComponent())
+        }
+        if let resourceURL = containingBundle.resourceURL {
+            origins.append(resourceURL)
+        }
+        if let launchPath = CommandLine.arguments.first, !launchPath.isEmpty {
+            origins.append(URL(fileURLWithPath: launchPath).deletingLastPathComponent())
+        }
+
+        var searchDirectories: [URL] = []
+        for origin in origins {
+            var directory = origin
+            for _ in 0..<6 {
+                searchDirectories.append(directory)
+                directory.deleteLastPathComponent()
+            }
+        }
+
+        for directory in searchDirectories {
+            let candidate = directory.appendingPathComponent(resourceBundleName, isDirectory: true)
+            if let bundle = Bundle(url: candidate) {
+                return bundle
+            }
+        }
+
+        // Missing localization resources must never prevent the app from launching.
+        return Bundle.main
+    }()
+
     private static var selectedLanguage: AppLanguage {
         UserDefaults.standard.string(forKey: AppLanguage.defaultsKey)
             .flatMap(AppLanguage.init(rawValue:)) ?? .system
@@ -46,7 +86,7 @@ enum L10n {
     static func locale(for language: AppLanguage) -> Locale {
         switch language {
         case .system:
-            Locale(identifier: Bundle.module.preferredLocalizations.first ?? Locale.current.identifier)
+            Locale(identifier: resourceBundle.preferredLocalizations.first ?? Locale.current.identifier)
         case .simplifiedChinese, .english:
             Locale(identifier: language.rawValue)
         }
@@ -66,17 +106,17 @@ enum L10n {
 
     private static func bundle(for language: AppLanguage) -> Bundle {
         switch language {
-        case .system: Bundle.module
+        case .system: resourceBundle
         case .simplifiedChinese, .english:
-            localizedBundle(for: language.rawValue) ?? Bundle.module
+            localizedBundle(for: language.rawValue) ?? resourceBundle
         }
     }
 
     private static func localizedBundle(for language: String) -> Bundle? {
-        guard let localization = Bundle.module.localizations.first(where: {
+        guard let localization = resourceBundle.localizations.first(where: {
             $0.caseInsensitiveCompare(language) == .orderedSame
         }),
-        let path = Bundle.module.path(forResource: localization, ofType: "lproj") else { return nil }
+        let path = resourceBundle.path(forResource: localization, ofType: "lproj") else { return nil }
         return Bundle(path: path)
     }
 }
