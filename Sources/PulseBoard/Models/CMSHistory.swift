@@ -20,6 +20,8 @@ struct CMSHistoryFrame: Sendable {
     let totalCPUPercent: Double?
     let totalMemoryBytes: Double?
     let processCPUPercent: [CMSProcessID: Double]
+    /// 1: complete-system gate; 2: sum the observed CMS rows independently.
+    var statisticsVersion: Int = 2
 
     static func capture(
         sessionID: String, sequence: Int64, segment: Int64,
@@ -35,7 +37,8 @@ struct CMSHistoryFrame: Sendable {
             sessionID: sessionID, sessionStartedAt: statistics.startedAt,
             sequence: sequence, segment: segment, maximumGap: maximumGap,
             raw: raw, totalCPUPercent: statistics.cpu.current,
-            totalMemoryBytes: statistics.memory.current, processCPUPercent: cpu
+            totalMemoryBytes: statistics.memory.current, processCPUPercent: cpu,
+            statisticsVersion: statistics.statisticsVersion
         )
     }
 }

@@ -49,7 +49,8 @@ import Testing
     let reopened = HistoryRepository(databaseURL: url)
     let frames = try await reopened.fetchCMS(from: start.addingTimeInterval(-10), to: start.addingTimeInterval(4_000))
     #expect(frames.count == observations.count)
-    var replayed = CMSProcessSession(startedAt: try #require(frames.first?.sessionStartedAt))
+    var replayed = CMSProcessSession(startedAt: try #require(frames.first?.sessionStartedAt),
+                                    statisticsVersion: try #require(frames.first?.statisticsVersion))
     previousSegment = 0
     for frame in frames {
         if frame.segment != previousSegment { replayed.suspend() }

@@ -18,7 +18,7 @@ enum CMSCSVExporter {
 
     static func csv(frames: [CMSHistoryFrame], includeHeader: Bool = true) -> String {
         var rows = includeHeader ? [
-            "row_type,session_id,session_started_at,session_started_unix_seconds,sequence,segment,timestamp,timestamp_unix_seconds,monotonic_seconds,maximum_gap_seconds,pid,process_start_time_us,process_name,cpu_percent,memory_bytes,cpu_seconds,enumeration_valid,unreadable_count"
+            "row_type,session_id,session_started_at,session_started_unix_seconds,sequence,segment,timestamp,timestamp_unix_seconds,monotonic_seconds,maximum_gap_seconds,pid,process_start_time_us,process_name,cpu_percent,memory_bytes,cpu_seconds,enumeration_valid,unreadable_count,statistics_version"
         ] : []
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -35,7 +35,7 @@ enum CMSCSVExporter {
             ]
             let completeness = [
                 frame.raw.enumerationValid ? "true" : "false",
-                String(frame.raw.unreadableCount)
+                String(frame.raw.unreadableCount), String(frame.statisticsVersion)
             ]
             rows.append(row(
                 ["total"] + context + ["", "", "", number(frame.totalCPUPercent), number(frame.totalMemoryBytes), ""]

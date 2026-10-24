@@ -51,6 +51,7 @@ import Testing
     #expect(total["timestamp"] == "2027-01-15T08:00:00.123Z")
     #expect(total["enumeration_valid"] == "true")
     #expect(total["unreadable_count"] == "0")
+    #expect(total["statistics_version"] == "2")
 }
 
 @Test func cmsCSVNoFramesProducesHeaderAndNonfiniteReadingsStayMissing() throws {
@@ -118,7 +119,7 @@ private func cmsExportRows(_ csv: String) throws -> [[String: String]] {
     #expect(!quoted)
     if !record.isEmpty || !field.isEmpty { records.append(record + [field]) }
     let header = try #require(records.first)
-    #expect(header.count == 18)
+    #expect(header.count == 19)
     #expect(Set(header).count == header.count)
     return try records.dropFirst().map { values in
         try #require(values.count == header.count)

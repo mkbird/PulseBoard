@@ -70,13 +70,15 @@ macOS 27 在部分 Apple Silicon 机型上会分批刷新组件能量计数器�
 
 Clipto 指标仅在检测到对应进程组时出现。其 CPU 百分比在部分位置会换算为整机占比，以便与系统总 CPU 曲线比较。
 
-CMS 面板通过公开 `libproc` 接口按可执行文件名匹配，不区分大小写。CPU 以一个逻辑核满载为 100%，多核合计可超过 100%；内存为进程物理内存足迹（`phys_footprint`）之和。每个进程实例及总计独立记录本次 PulseBoard 启动以来的时间加权平均和采样峰值，退出实例保留摘要。已确认不存在的时段计为零，休眠、首次 CPU 差分和读取失败的时段不计入对应指标的有效时长；内存平均使用前一采样值近似区间内的占用。总计缺少成员读数时显示缺失值。采样可能遗漏短暂进程或短于采样周期的尖峰。
+CMS 面板通过公开 `libproc` 接口按可执行文件名匹配，不区分大小写。CPU 以一个逻辑核满载为 100%，多核合计可超过 100%；内存使用进程物理内存足迹（`phys_footprint`）。当前总计分别相加本次发现的 CMS 进程中有效的 CPU、内存读数，单行失败或其他进程无法识别不会清空已有合计。列表为空时合计为零；某项读数全部缺失或整次进程枚举失败时，该项显示 `—`。总平均与总峰值根据每次合计形成的序列计算，不相加各行的平均或峰值；因此总计表示实际读到的进程占用，未读到的占用不包括在内。
+
+每个进程实例及总计独立记录本次 PulseBoard 启动以来的时间加权平均和采样峰值，退出实例保留摘要。逐进程统计中，已确认不存在的时段计为零；未知缺席不推断为退出。休眠、首次 CPU 差分和该项没有有效读数的时段不计入对应平均值的有效时长；内存平均使用前一采样合计近似区间内占用。采样可能遗漏短暂进程或短于采样周期的尖峰。
 
 CMS 面板的当前值、平均值和峰值仍仅针对本次 PulseBoard 会话，切换历史窗口不会改变这些统计，重新启动应用会开始新会话。CMS 原始采样和当次 CPU、内存读数同时写入本地 SQLite 历史数据库；应用保持运行时，关闭窗口后仍继续采样，退出 PulseBoard 则停止采样。重新打开窗口不会创建新会话，也不需要额外常驻服务。
 
 点击 CMS 面板的“导出 CMS 历史”，可导出总览顶部当前选择的时间范围，包括已保存的先前会话。导出在后台分页读取并逐批写入文件，避免一次将整个历史区间加载到内存。CSV 中每个采样帧有一条 `total` 总计行，每个已识别的进程另有一条 `process` 行；空进程组和枚举失败的帧仍保留总计行。缺失读数为空白，合法零值保留为零。记录包含会话 ID、帧序号、连续采样分段、墙上时间和单调时钟、最大有效采样间隔、PID、进程启动时间（微秒）、原始累计 CPU 时间及读取完整性。ISO 8601 时间之外还提供 Unix 秒数，以保留重建所需的时间精度。
 
-CMS 历史采用设置中的同一保留期，过期记录自动删除。完整会话的原始记录可按相同采样口径重建统计；若导出时间范围或保留期只覆盖会话的一部分，重建结果只能代表保留下来的区间，不能声称是完整的“启动至今”统计。历史不会在 CMS 面板中新增曲线，也不提供 HTTP 服务。
+CMS 历史采用设置中的同一保留期，过期记录自动删除。记录和 CSV 的 `statistics_version` 标明统计口径：新会话使用版本 2，按已发现进程的有效读数求和；旧会话版本 1 保留原有完整性规则，不回填或改写旧总计。`unreadable_count` 保留为采集诊断数据，不影响版本 2 的有效读数加和。完整会话的原始记录可按对应版本重建统计；若导出时间范围或保留期只覆盖会话的一部分，重建结果只能代表保留下来的区间，不能声称是完整的“启动至今”统计。历史不会在 CMS 面板中新增曲线，也不提供 HTTP 服务。
 
 ### 隐私与数据位置
 
@@ -168,13 +170,15 @@ On some Apple Silicon models, macOS 27 refreshes component energy counters in ba
 
 Clipto metrics appear only while a matching process group is detected. In comparison charts, Clipto CPU may be converted to its share of total system CPU capacity.
 
-The CMS panel matches executable names case-insensitively using public `libproc` APIs. CPU uses 100% per logical core and can exceed 100%; memory sums process physical footprints (`phys_footprint`). Each process instance and the group maintain independent time-weighted averages and observed sample peaks for this PulseBoard session. Exited instances retain their summaries. Confirmed absence counts as zero; sleep, initial CPU baselines, and failed readings are excluded from the affected metric's valid duration. Memory averages hold the previous sample over each interval. Incomplete group readings are shown as missing. Polling can miss short-lived processes and peaks shorter than the sampling interval.
+The CMS panel matches executable names case-insensitively using public `libproc` APIs. CPU uses 100% per logical core and can exceed 100%; memory uses process physical footprints (`phys_footprint`). Current totals sum valid CPU and memory readings independently for the CMS processes found in each sample. A failed row or an unidentifiable unrelated process does not clear the available total. An empty list produces zero; a metric with no valid readings, or a failed process enumeration, produces `—`. Total averages and peaks use the sequence of totals, not the sum of individual averages or peaks. Totals therefore represent observed usage and do not include unreadable usage.
+
+Each process instance and the group maintain independent time-weighted averages and observed sample peaks for this PulseBoard session. Exited instances retain their summaries. Per-process statistics count confirmed absence as zero without treating unknown absence as an exit. Sleep, initial CPU baselines, and intervals without a valid reading for that metric are excluded from its valid duration. Memory averages hold the previous sample total over each interval. Polling can miss short-lived processes and peaks shorter than the sampling interval.
 
 The CMS panel's current, average, and peak readings still cover only the current PulseBoard session. Changing the chart range does not change these statistics; restarting the app starts a new session. Raw CMS samples and their CPU/memory readings are also recorded in the local SQLite history database. Sampling continues after the window closes while the app remains running, and stops when PulseBoard quits. Reopening the window keeps the same session and requires no separate background service.
 
 Use **Export CMS history** in the CMS panel to export the time range selected at the top of the dashboard, including earlier saved sessions. Exports read and write pages in the background, avoiding loading the entire history range into memory. Each sample frame has one `total` row and one `process` row per identified process. Empty groups and failed enumerations still produce a total row. Missing readings are blank, and valid zero values remain zero. The CSV includes session IDs, frame sequences, continuous sampling segments, wall-clock and monotonic times, the maximum valid sampling gap, PIDs, process start times in microseconds, cumulative CPU times, and reading completeness. Unix timestamps accompany ISO 8601 timestamps to preserve the precision needed for reconstruction.
 
-CMS history follows the same retention setting; expired records are deleted automatically. A complete session's raw records can reconstruct statistics using the same sampling rules. If the exported range or retained history covers only part of a session, reconstructed results describe that available interval and must not be presented as complete statistics since launch. This feature does not add CMS history charts or an HTTP service.
+CMS history follows the same retention setting; expired records are deleted automatically. Records and CSV exports include `statistics_version`: new sessions use version 2 to sum available readings from observed processes; version 1 sessions retain their original completeness rules without rewriting historical totals. `unreadable_count` is retained as a sampling diagnostic and does not suppress version 2 totals. A complete session's raw records can reconstruct statistics using its recorded version. If the exported range or retained history covers only part of a session, reconstructed results describe that available interval and must not be presented as complete statistics since launch. This feature does not add CMS history charts or an HTTP service.
 
 ### Privacy and Data Location
 

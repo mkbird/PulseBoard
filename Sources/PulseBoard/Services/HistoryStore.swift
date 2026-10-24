@@ -340,17 +340,21 @@ final class HistoryStore {
 
 extension HistoryStore {
     private func appendCMS(_ frame: CMSHistoryFrame) throws {
+        guard (1...2).contains(frame.statisticsVersion) else {
+            throw StoreError.queryFailed("Unsupported CMS statistics version.")
+        }
         try withStatement("""
-        INSERT INTO cms_sessions(session_id, started_at, schema_version) VALUES (?, ?, 1)
+        INSERT INTO cms_sessions(session_id, started_at, schema_version) VALUES (?, ?, ?)
         ON CONFLICT(session_id) DO NOTHING;
         """) { statement in
             try bindText(frame.sessionID, to: statement, at: 1)
             try check(sqlite3_bind_double(statement, 2, frame.sessionStartedAt.timeIntervalSince1970))
+            try check(sqlite3_bind_int(statement, 3, Int32(frame.statisticsVersion)))
             try finish(statement)
         }
         try withStatement("SELECT started_at,schema_version FROM cms_sessions WHERE session_id=?;") { statement in
             try bindText(frame.sessionID, to: statement, at: 1)
-            guard try nextRow(statement), sqlite3_column_int(statement, 1) == 1,
+            guard try nextRow(statement), sqlite3_column_int(statement, 1) == Int32(frame.statisticsVersion),
                   sqlite3_column_double(statement, 0) == frame.sessionStartedAt.timeIntervalSince1970 else {
                 throw StoreError.queryFailed("CMS session metadata does not match the stored session.")
             }
@@ -470,12 +474,13 @@ extension HistoryStore {
                         unreadableCount: frame.raw.unreadableCount
                     ),
                     totalCPUPercent: frame.totalCPUPercent, totalMemoryBytes: frame.totalMemoryBytes,
-                    processCPUPercent: cpuPercent
+                    processCPUPercent: cpuPercent, statisticsVersion: frame.statisticsVersion
                 )
             }
 
             while try nextRow(statement) {
-                guard sqlite3_column_int(statement, 17) == 1,
+                let statisticsVersion = Int(sqlite3_column_int(statement, 17))
+                guard (1...2).contains(statisticsVersion),
                       let sessionText = sqlite3_column_text(statement, 0) else {
                     throw StoreError.queryFailed("Unsupported or invalid CMS history version.")
                 }
@@ -497,7 +502,8 @@ extension HistoryStore {
                             unreadableCount: Int(sqlite3_column_int64(statement, 8))
                         ),
                         totalCPUPercent: optionalDouble(statement, 9),
-                        totalMemoryBytes: optionalDouble(statement, 10), processCPUPercent: [:]
+                        totalMemoryBytes: optionalDouble(statement, 10), processCPUPercent: [:],
+                        statisticsVersion: statisticsVersion
                     )
                 }
                 // LEFT JOIN emits one row even for an empty process frame.

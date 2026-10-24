@@ -54,7 +54,7 @@ private func sample(_ time: Double, _ processes: [CMSProcessReading] = [], compl
     session.consume(sample(3, [process(cpu: 13, memory: 100)]))
     #expect(session.snapshot.processes.first?.cpu.average == 50) // 1s absent + 1s measured.
     session.consume(sample(4))
-    #expect(session.snapshot.cpu.current == nil) // The exiting process's tail is unknown.
+    #expect(session.snapshot.cpu.current == 0) // No observed processes remain in this frame.
     #expect(session.snapshot.memory.current == 0)
     #expect(session.snapshot.processes.first?.state == .exited)
     #expect(session.snapshot.processes.first?.cpu.current == 0)
@@ -82,8 +82,8 @@ private func sample(_ time: Double, _ processes: [CMSProcessReading] = [], compl
     #expect(session.snapshot.cpu.peak == 100)
 }
 
-@Test func cmsPartialReadsNeverBecomeCompleteTotalsOrFalseExits() {
-    var session = CMSProcessSession(startedAt: epoch)
+@Test func cmsLegacyPartialReadsNeverBecomeCompleteTotalsOrFalseExits() {
+    var session = CMSProcessSession(startedAt: epoch, statisticsVersion: 1)
     session.consume(sample(0, [process(1), process(2)]))
     session.consume(sample(1, [process(1, cpu: 1), process(2, cpu: nil, memory: nil)]))
     #expect(session.snapshot.cpu.current == nil)
@@ -103,14 +103,119 @@ private func sample(_ time: Double, _ processes: [CMSProcessReading] = [], compl
     #expect(session.snapshot.memory.validDuration == 1)
 }
 
-@Test func cmsUnidentifiableProcessesInvalidateGroupMembership() {
-    var session = CMSProcessSession(startedAt: epoch)
+@Test func cmsLegacyUnidentifiableProcessesInvalidateGroupMembership() {
+    var session = CMSProcessSession(startedAt: epoch, statisticsVersion: 1)
     session.consume(sample(0, [process()]))
     session.consume(sample(1, unreadable: 1))
     #expect(!session.snapshot.isComplete)
     #expect(session.snapshot.cpu.current == nil)
     #expect(session.snapshot.memory.current == nil)
     #expect(session.snapshot.processes.first?.state == .unavailable)
+}
+
+@Test func cmsObservedTotalsIgnoreUnrelatedUnreadableProcesses() throws {
+    var session = CMSProcessSession(startedAt: epoch)
+    for tick in 0...2 {
+        let readings = (1...8).map { pid in
+            process(Int32(pid), cpu: Double(pid * tick) / 100, memory: Double(pid * (tick + 1) * 100))
+        }
+        session.consume(sample(Double(tick), readings, unreadable: 1))
+    }
+    let result = session.snapshot
+    #expect(result.statisticsVersion == 2)
+    #expect(result.isComplete)
+    #expect(result.runningCount == 8)
+    #expect(result.processes.count == 8)
+    #expect(abs(try #require(result.cpu.current) - 36) < 0.0001)
+    #expect(abs(try #require(result.cpu.average) - 36) < 0.0001)
+    #expect(abs(try #require(result.cpu.peak) - 36) < 0.0001)
+    #expect(abs(try #require(result.cpu.current) - result.processes.compactMap(\.cpu.current).reduce(0, +)) < 0.0001)
+    #expect(result.memory.current == 10_800)
+    #expect(result.memory.average == 5_400)
+    #expect(result.memory.peak == 10_800)
+    #expect(result.cpu.validDuration == 2)
+    #expect(result.memory.validDuration == 2)
+}
+
+@Test func cmsObservedTotalsSumAvailableCPUAndMemoryIndependently() {
+    var session = CMSProcessSession(startedAt: epoch)
+    session.consume(sample(0, [process(1, memory: 10), process(2, memory: 20)], unreadable: 1))
+    session.consume(sample(1, [process(1, cpu: 1, memory: nil), process(2, cpu: nil, memory: 40)], unreadable: 1))
+    #expect(session.snapshot.isComplete)
+    #expect(session.snapshot.cpu.current == 100)
+    #expect(session.snapshot.cpu.average == 100)
+    #expect(session.snapshot.memory.current == 40)
+    #expect(session.snapshot.memory.average == 30)
+    #expect(session.snapshot.processes.allSatisfy { $0.state == .unavailable })
+
+    session.consume(sample(2, [process(1, cpu: 2, memory: 30), process(2, cpu: 2, memory: 50)], unreadable: 1))
+    #expect(session.snapshot.cpu.current == 100) // Process 2 needs its own fresh CPU baseline.
+    #expect(session.snapshot.cpu.average == 100)
+    #expect(session.snapshot.memory.current == 80)
+    #expect(session.snapshot.memory.average == 35)
+    #expect(session.snapshot.memory.peak == 80)
+    #expect(session.snapshot.cpu.validDuration == 2)
+    #expect(session.snapshot.memory.validDuration == 2)
+}
+
+@Test func cmsObservedTotalsKeepAllMissingReadingsUnknown() {
+    var session = CMSProcessSession(startedAt: epoch)
+    session.consume(sample(0, [process(cpu: nil, memory: nil)], unreadable: 1))
+    session.consume(sample(1, [process(cpu: nil, memory: nil)], unreadable: 1))
+    #expect(session.snapshot.isComplete) // The list was read; the individual row failed.
+    #expect(session.snapshot.cpu.current == nil)
+    #expect(session.snapshot.cpu.average == nil)
+    #expect(session.snapshot.cpu.peak == nil)
+    #expect(session.snapshot.memory.current == nil)
+    #expect(session.snapshot.memory.average == nil)
+    #expect(session.snapshot.memory.peak == nil)
+    #expect(session.snapshot.cpu.validDuration == 0)
+    #expect(session.snapshot.memory.validDuration == 0)
+}
+
+@Test func cmsObservedEmptyFramesAreZeroWithoutInventingProcessExits() {
+    var session = CMSProcessSession(startedAt: epoch)
+    session.consume(sample(0, [process()], unreadable: 1))
+    session.consume(sample(1, unreadable: 1))
+    #expect(session.snapshot.isComplete)
+    #expect(session.snapshot.runningCount == 0)
+    #expect(session.snapshot.cpu.current == 0)
+    #expect(session.snapshot.memory.current == 0)
+    #expect(session.snapshot.processes.first?.state == .unavailable)
+    #expect(session.snapshot.processes.first?.cpu.current == nil)
+    #expect(session.snapshot.processes.first?.memory.current == nil)
+}
+
+@Test func cmsObservedEnumerationFailureDoesNotReuseRowsOrRecordZero() {
+    var session = CMSProcessSession(startedAt: epoch)
+    session.consume(sample(0, [process()], unreadable: 1))
+    session.consume(sample(1, [process(cpu: 1)], unreadable: 1))
+    session.consume(sample(2, complete: false))
+    #expect(!session.snapshot.isComplete)
+    #expect(session.snapshot.cpu.current == nil)
+    #expect(session.snapshot.memory.current == nil)
+    #expect(session.snapshot.cpu.average == 100)
+    #expect(session.snapshot.cpu.peak == 100)
+    #expect(session.snapshot.cpu.validDuration == 1)
+    #expect(session.snapshot.memory.validDuration == 1)
+    #expect(session.snapshot.processes.first?.state == .unavailable)
+    session.consume(sample(3))
+    #expect(session.snapshot.cpu.current == 0)
+    #expect(session.snapshot.memory.current == 0)
+    #expect(session.snapshot.cpu.validDuration == 1) // Do not bridge the failed frame.
+    #expect(session.snapshot.memory.validDuration == 1)
+}
+
+@Test func cmsLegacyExitFramesRetainOriginalStrictTotals() {
+    var session = CMSProcessSession(startedAt: epoch, statisticsVersion: 1)
+    session.consume(sample(0, [process()]))
+    session.consume(sample(1, [process(cpu: 1)]))
+    session.consume(sample(2))
+    #expect(session.snapshot.statisticsVersion == 1)
+    #expect(session.snapshot.cpu.current == nil)
+    #expect(session.snapshot.memory.current == 0)
+    session.consume(sample(3))
+    #expect(session.snapshot.cpu.current == 0)
 }
 
 @Test func cmsSleepAndLongGapsRebaselineWithoutClearingSession() {
@@ -156,7 +261,7 @@ private func sample(_ time: Double, _ processes: [CMSProcessReading] = [], compl
 
 @Test func cmsLocalizationsAreAvailable() {
     for language in ["en", "zh-Hans"] {
-        for key in ["cms.title", "cms.statistics_note", "cms.state_exited", "cms.incomplete", "cms.average"] {
+        for key in ["cms.title", "cms.statistics_note", "cms.total_scope", "cms.state_exited", "cms.read_failed", "cms.average"] {
             #expect(L10n.text(key, language: language) != key)
         }
     }

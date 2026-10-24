@@ -52,7 +52,7 @@ import Testing
         #expect(!frames[3].raw.enumerationValid)
         #expect(frames[3].raw.unreadableCount == 2)
         #expect(frames[4].raw.processes[0].cpuSeconds == 10)
-        #expect(try cmsScalar(url, "SELECT COUNT(*) FROM cms_sessions WHERE schema_version=1;") == 2)
+        #expect(try cmsScalar(url, "SELECT COUNT(*) FROM cms_sessions WHERE schema_version=2;") == 2)
         #expect(try cmsScalar(url, "SELECT COUNT(*) FROM cms_processes;") == 3)
     }
 }
@@ -86,6 +86,48 @@ import Testing
         let sameTime = try store.fetchCMSPage(from: Date(timeIntervalSince1970: 105), to: to,
                                              after: CMSHistoryCursor(sessionID: "a", sequence: 1), limit: 5)
         #expect(sameTime.map(\.sessionID) == ["b"])
+    }
+}
+
+@Test func cmsHistoryPreservesLegacyAndObservedSumSemantics() throws {
+    try withCMSHistoryDatabase { url in
+        let store = try HistoryStore(databaseURL: url)
+        let start = Date(timeIntervalSince1970: 100)
+        let id = CMSProcessID(pid: 42, startTime: 1)
+        for version in [1, 2] {
+            var statistics = CMSProcessSession(startedAt: start, statisticsVersion: version)
+            for sequence in 1...2 {
+                let raw = CMSRawSnapshot(
+                    timestamp: start.addingTimeInterval(Double(sequence)), monotonicSeconds: Double(sequence),
+                    processes: [historyReading(id, name: "cms_worker", cpu: Double(sequence), memory: Double(sequence * 50))],
+                    enumerationValid: true, unreadableCount: 1
+                )
+                statistics.consume(raw)
+                let frame = CMSHistoryFrame.capture(
+                    sessionID: "version-\(version)", sequence: Int64(sequence), segment: 0,
+                    maximumGap: 30, raw: raw, statistics: statistics.snapshot
+                )
+                try store.append(system: nil, cms: frame)
+            }
+        }
+        let frames = try store.fetchCMS(from: start, to: start.addingTimeInterval(10))
+        #expect(frames.map(\.statisticsVersion) == [1, 1, 2, 2])
+        #expect(frames[1].totalCPUPercent == nil)
+        #expect(frames[1].totalMemoryBytes == nil)
+        #expect(frames[3].totalCPUPercent == 100)
+        #expect(frames[3].totalMemoryBytes == 100)
+        for version in [1, 2] {
+            var replay = CMSProcessSession(startedAt: start, statisticsVersion: version)
+            for frame in frames where frame.statisticsVersion == version {
+                replay.consume(frame.raw, maximumGap: frame.maximumGap)
+                #expect(replay.snapshot.cpu.current == frame.totalCPUPercent)
+                #expect(replay.snapshot.memory.current == frame.totalMemoryBytes)
+            }
+        }
+        var changedVersion = frames[0]
+        changedVersion.statisticsVersion = 2
+        #expect(throws: StoreError.self) { try store.append(system: nil, cms: changedVersion) }
+        #expect(try store.fetchCMS(from: start, to: start.addingTimeInterval(10)).count == 4)
     }
 }
 

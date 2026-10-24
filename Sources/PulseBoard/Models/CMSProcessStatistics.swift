@@ -44,6 +44,9 @@ struct CMSProcessRow: Identifiable, Sendable {
 
 struct CMSSessionSnapshot: Sendable {
     let startedAt: Date
+    /// Version 1 requires complete group membership; version 2 sums the
+    /// available readings from the processes observed in each frame.
+    let statisticsVersion: Int
     let processes: [CMSProcessRow]
     let runningCount: Int
     let cpu: CMSMetricStatistics
@@ -95,6 +98,7 @@ struct CMSProcessSession {
     }
 
     let startedAt: Date
+    let statisticsVersion: Int
     private var entries: [CMSProcessID: Entry] = [:]
     private var previous: CMSRawSnapshot?
     private var totalCPU = CMSMetricAccumulator()
@@ -106,11 +110,14 @@ struct CMSProcessSession {
     private var isComplete = false
     private var isSuspended = false
 
-    init(startedAt: Date = Date()) { self.startedAt = startedAt }
+    init(startedAt: Date = Date(), statisticsVersion: Int = 2) {
+        self.startedAt = startedAt
+        self.statisticsVersion = statisticsVersion
+    }
 
     var snapshot: CMSSessionSnapshot {
         CMSSessionSnapshot(
-            startedAt: startedAt,
+            startedAt: startedAt, statisticsVersion: statisticsVersion,
             processes: entries.values.map(\.row).sorted {
                 $0.id.pid == $1.id.pid ? $0.id.startTime < $1.id.startTime : $0.id.pid < $1.id.pid
             },
@@ -139,9 +146,13 @@ struct CMSProcessSession {
         let prior = Dictionary((old?.processes ?? []).map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         isSuspended = false
         runningCount = current.count
-        isComplete = sample.membershipComplete && current.values.allSatisfy {
-            valid($0.cpuSeconds) != nil && valid($0.memoryBytes) != nil
-        }
+        // For the current UI, an unreadable unrelated PID or one unavailable
+        // row must not turn a successful process-list read into a global error.
+        isComplete = statisticsVersion == 1
+            ? sample.membershipComplete && current.values.allSatisfy {
+                valid($0.cpuSeconds) != nil && valid($0.memoryBytes) != nil
+            }
+            : sample.enumerationValid
 
         for reading in current.values where entries[reading.id] == nil {
             var entry = Entry(id: reading.id, name: reading.name)
@@ -150,20 +161,22 @@ struct CMSProcessSession {
             entries[reading.id] = entry
         }
 
-        var groupCPU: Double? = sample.membershipComplete ? 0 : nil
-        // An initial empty group is an observed zero; all other CPU rates need
-        // two complete snapshots. An exit's last CPU delta is not observable.
-        if !current.isEmpty || !(prior.isEmpty && (old?.membershipComplete ?? true)) {
-            if duration == 0 || old?.membershipComplete != true { groupCPU = nil }
-        }
-        for id in Set(current.keys).union(prior.keys) {
-            guard let reading = current[id], let before = prior[id], duration > 0,
-                  let nowCPU = valid(reading.cpuSeconds), let beforeCPU = valid(before.cpuSeconds),
-                  nowCPU >= beforeCPU else {
-                groupCPU = nil
-                continue
+        var groupCPU: Double?
+        if statisticsVersion == 1 {
+            groupCPU = sample.membershipComplete ? 0 : nil
+            // Preserve the original strict calculation when replaying version 1.
+            if !current.isEmpty || !(prior.isEmpty && (old?.membershipComplete ?? true)) {
+                if duration == 0 || old?.membershipComplete != true { groupCPU = nil }
             }
-            if let sum = groupCPU { groupCPU = sum + (nowCPU - beforeCPU) / duration * 100 }
+            for id in Set(current.keys).union(prior.keys) {
+                guard let reading = current[id], let before = prior[id], duration > 0,
+                      let nowCPU = valid(reading.cpuSeconds), let beforeCPU = valid(before.cpuSeconds),
+                      nowCPU >= beforeCPU else {
+                    groupCPU = nil
+                    continue
+                }
+                if let sum = groupCPU { groupCPU = sum + (nowCPU - beforeCPU) / duration * 100 }
+            }
         }
 
         for id in Array(entries.keys) {
@@ -190,9 +203,20 @@ struct CMSProcessSession {
             entries[id] = entry
         }
 
-        let memoryNow = Self.memoryTotal(sample)
-        let memoryBefore = old.flatMap(Self.memoryTotal)
-        totalCPU.record(current: groupCPU, intervalValue: groupCPU, duration: duration)
+        let memoryNow: Double?
+        let memoryBefore: Double?
+        if statisticsVersion == 1 {
+            memoryNow = Self.memoryTotal(sample)
+            memoryBefore = old.flatMap(Self.memoryTotal)
+        } else {
+            groupCPU = Self.observedTotal(
+                current.keys.map { entries[$0]?.cpu.current }, enumerationValid: sample.enumerationValid
+            )
+            memoryNow = Self.observedMemoryTotal(sample)
+            memoryBefore = old.flatMap(Self.observedMemoryTotal)
+        }
+        let cpuInterval = statisticsVersion == 1 || old?.enumerationValid == true ? groupCPU : nil
+        totalCPU.record(current: groupCPU, intervalValue: cpuInterval, duration: duration)
         totalMemory.record(current: memoryNow, intervalValue: memoryNow == nil ? nil : memoryBefore, duration: duration)
         if duration > 0, sample.membershipComplete, old?.membershipComplete == true {
             confirmedAbsenceDuration += duration
@@ -208,5 +232,18 @@ struct CMSProcessSession {
             sum += memory
         }
         return sum
+    }
+
+    private static func observedMemoryTotal(_ sample: CMSRawSnapshot) -> Double? {
+        let readings = Dictionary(sample.processes.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        return observedTotal(readings.values.map(\.memoryBytes), enumerationValid: sample.enumerationValid)
+    }
+
+    private static func observedTotal(_ values: [Double?], enumerationValid: Bool) -> Double? {
+        guard enumerationValid else { return nil }
+        if values.isEmpty { return 0 }
+        let available = values.compactMap(valid)
+        guard !available.isEmpty else { return nil }
+        return available.reduce(0, +)
     }
 }

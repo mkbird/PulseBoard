@@ -7,6 +7,7 @@ struct CMSProcessesView: View {
     @State private var sortMetric: SortMetric = .cpu
     @State private var ascending = false
     @State private var showExited = true
+    @State private var tableViewportWidth: CGFloat = 0
 
     private enum SortMetric: String, CaseIterable, Identifiable {
         case cpu, memory
@@ -14,11 +15,35 @@ struct CMSProcessesView: View {
         var title: String { L10n.text(self == .cpu ? "cms.sort_cpu" : "cms.sort_memory") }
     }
 
-    private let nameWidth: CGFloat = 190
-    private let pidWidth: CGFloat = 60
-    private let stateWidth: CGFloat = 84
-    private let valueWidth: CGFloat = 92
     private let columnSpacing: CGFloat = 10
+
+    private struct TableColumns {
+        let name: CGFloat
+        let value: CGFloat
+        let pid: CGFloat = 60
+        let state: CGFloat = 84
+        let spacing: CGFloat = 10
+        // Keep the last value clear of macOS's always-visible vertical scroller.
+        let scrollerInset: CGFloat = 16
+
+        init(viewportWidth: CGFloat) {
+            let extra = max(0, viewportWidth - 982)
+            name = 190 + extra * 0.28
+            value = 92 + extra * 0.72 / 6
+        }
+
+        var identity: CGFloat { name + pid + state + spacing * 2 }
+        var metricGroup: CGFloat { value * 3 + spacing * 2 }
+        var content: CGFloat { identity + metricGroup * 2 + spacing * 2 }
+        var table: CGFloat { content + scrollerInset }
+    }
+
+    private struct TableViewportWidthKey: PreferenceKey {
+        static var defaultValue: CGFloat { 0 }
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -112,9 +137,13 @@ struct CMSProcessesView: View {
                 summaryValue("cms.average", value: format(statistics.average))
                 summaryValue("cms.peak", value: format(statistics.peak))
             }
-            Text(L10n.format("cms.valid_duration", duration(statistics.validDuration)))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(L10n.text("cms.total_scope"))
+                Text(L10n.format("cms.valid_duration", duration(statistics.validDuration)))
+                    .monospacedDigit()
+            }
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
         }
         .frame(minWidth: 330, maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -168,38 +197,50 @@ struct CMSProcessesView: View {
     }
 
     private var processTable: some View {
-        ScrollView(.horizontal) {
-            VStack(spacing: 0) {
-                tableHeader
+        let columns = TableColumns(viewportWidth: tableViewportWidth)
+        return ScrollView(.horizontal) {
+            VStack(alignment: .leading, spacing: 0) {
+                tableHeader(columns)
                 Divider().overlay(PulseTheme.stroke)
                 ScrollView(.vertical) {
-                    LazyVStack(spacing: 0) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(sortedProcesses) { process in
-                            processRow(process)
+                            processRow(process, columns: columns)
                             Divider().opacity(0.35)
                         }
                     }
+                    .frame(width: columns.content, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(height: min(330, CGFloat(sortedProcesses.count) * 48))
             }
-            .frame(width: identityWidth + metricGroupWidth * 2 + columnSpacing * 2)
+            .frame(width: columns.table, alignment: .leading)
             .padding(.bottom, 5)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(key: TableViewportWidthKey.self, value: geometry.size.width)
+            }
+        }
+        .onPreferenceChange(TableViewportWidthKey.self) { width in
+            if abs(tableViewportWidth - width) > 0.5 { tableViewportWidth = width }
         }
     }
 
-    private var tableHeader: some View {
-        VStack(spacing: 6) {
+    private func tableHeader(_ columns: TableColumns) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: columnSpacing) {
-                Text(L10n.text("cms.process_name")).frame(width: nameWidth, alignment: .leading)
-                Text("PID").frame(width: pidWidth, alignment: .trailing)
-                Text(L10n.text("cms.state")).frame(width: stateWidth, alignment: .leading)
-                Text("CPU").foregroundStyle(PulseTheme.cyan).frame(width: metricGroupWidth)
-                Text(L10n.text("metric.memory")).foregroundStyle(.orange).frame(width: metricGroupWidth)
+                Text(L10n.text("cms.process_name")).frame(width: columns.name, alignment: .leading)
+                Text("PID").frame(width: columns.pid, alignment: .trailing)
+                Text(L10n.text("cms.state")).frame(width: columns.state, alignment: .leading)
+                Text("CPU").foregroundStyle(PulseTheme.cyan).frame(width: columns.metricGroup)
+                Text(L10n.text("metric.memory")).foregroundStyle(.orange).frame(width: columns.metricGroup)
             }
             HStack(spacing: columnSpacing) {
-                Color.clear.frame(width: identityWidth, height: 1)
-                statisticHeaders
-                statisticHeaders
+                Color.clear.frame(width: columns.identity, height: 1)
+                statisticHeaders(columns)
+                statisticHeaders(columns)
             }
         }
         .font(.caption.weight(.medium))
@@ -207,30 +248,30 @@ struct CMSProcessesView: View {
         .padding(.vertical, 10)
     }
 
-    private var statisticHeaders: some View {
+    private func statisticHeaders(_ columns: TableColumns) -> some View {
         HStack(spacing: columnSpacing) {
-            Text(L10n.text("cms.current")).frame(width: valueWidth, alignment: .trailing)
-            Text(L10n.text("cms.average")).frame(width: valueWidth, alignment: .trailing)
-            Text(L10n.text("cms.peak")).frame(width: valueWidth, alignment: .trailing)
+            Text(L10n.text("cms.current")).frame(width: columns.value, alignment: .trailing)
+            Text(L10n.text("cms.average")).frame(width: columns.value, alignment: .trailing)
+            Text(L10n.text("cms.peak")).frame(width: columns.value, alignment: .trailing)
         }
     }
 
-    private func processRow(_ process: CMSProcessRow) -> some View {
+    private func processRow(_ process: CMSProcessRow, columns: TableColumns) -> some View {
         HStack(spacing: columnSpacing) {
             Text(process.name)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(width: nameWidth, alignment: .leading)
+                .frame(width: columns.name, alignment: .leading)
                 .help(process.name)
             Text(String(process.id.pid))
                 .foregroundStyle(.secondary)
-                .frame(width: pidWidth, alignment: .trailing)
+                .frame(width: columns.pid, alignment: .trailing)
             Text(processState(process.state))
                 .font(.caption)
                 .foregroundStyle(processStateColor(process.state))
-                .frame(width: stateWidth, alignment: .leading)
-            metricValues(process.cpu, format: percent)
-            metricValues(process.memory, format: memory)
+                .frame(width: columns.state, alignment: .leading)
+            metricValues(process.cpu, columns: columns, format: percent)
+            metricValues(process.memory, columns: columns, format: memory)
         }
         .font(.callout.monospacedDigit())
         .frame(height: 47)
@@ -239,21 +280,18 @@ struct CMSProcessesView: View {
         ))
     }
 
-    private func metricValues(_ statistics: CMSMetricStatistics, format: (Double?) -> String) -> some View {
+    private func metricValues(_ statistics: CMSMetricStatistics, columns: TableColumns, format: (Double?) -> String) -> some View {
         HStack(spacing: columnSpacing) {
             Text(format(session.isSuspended ? nil : statistics.current))
-                .frame(width: valueWidth, alignment: .trailing)
+                .frame(width: columns.value, alignment: .trailing)
             Text(format(statistics.average))
                 .foregroundStyle(.secondary)
-                .frame(width: valueWidth, alignment: .trailing)
+                .frame(width: columns.value, alignment: .trailing)
             Text(format(statistics.peak))
                 .foregroundStyle(.secondary)
-                .frame(width: valueWidth, alignment: .trailing)
+                .frame(width: columns.value, alignment: .trailing)
         }
     }
-
-    private var identityWidth: CGFloat { nameWidth + pidWidth + stateWidth + columnSpacing * 2 }
-    private var metricGroupWidth: CGFloat { valueWidth * 3 + columnSpacing * 2 }
 
     private var sortedProcesses: [CMSProcessRow] {
         session.processes.filter { showExited || !isExited($0.state) }.sorted { lhs, rhs in
@@ -275,9 +313,11 @@ struct CMSProcessesView: View {
 
     private var statusText: String {
         if session.isSuspended { return L10n.text("cms.suspended") }
-        if !session.isComplete { return L10n.text("cms.incomplete") }
+        if !session.isComplete { return L10n.text("cms.read_failed") }
         if session.runningCount == 0 { return L10n.text("cms.no_running") }
-        if session.cpu.current == nil { return L10n.text("cms.warming_up") }
+        if session.cpu.current == nil && session.processes.contains(where: { $0.state == .running }) {
+            return L10n.text("cms.warming_up")
+        }
         return L10n.text("cms.tracking")
     }
 

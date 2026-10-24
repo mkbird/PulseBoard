@@ -130,8 +130,9 @@
 "cms.title" = "CMS Processes";
 "cms.session_started" = "Session started %@";
 "cms.session_scope" = "Live session · independent of the chart time range";
-"cms.process_count" = "%d running · %d observed this session";
+"cms.process_count" = "%d currently found · %d instances this session";
 "cms.total_metric" = "CMS Total · %@";
+"cms.total_scope" = "Sum of current valid readings in the list";
 "cms.current" = "Current";
 "cms.average" = "Session avg.";
 "cms.peak" = "Sample peak";
@@ -156,10 +157,11 @@
 "cms.tracking" = "Sampling";
 "cms.suspended" = "Sampling suspended";
 "cms.incomplete" = "Incomplete reading";
-"cms.no_running" = "No running matches";
-"cms.warming_up" = "Establishing baseline";
+"cms.read_failed" = "Process list unavailable";
+"cms.no_running" = "No CMS processes found";
+"cms.warming_up" = "Waiting for first CPU reading";
 "cms.suspended_detail" = "Sampling is suspended. Session averages and peaks are retained.";
-"cms.unavailable_detail" = "The process list could not be read completely. Unknown values are shown as —.";
+"cms.unavailable_detail" = "This process-list read failed. Current readings are shown as —; existing averages and peaks are retained.";
 "cms.exited_hidden" = "No matching processes are running. Enable “Show exited processes” to view retained session statistics.";
 "cms.empty" = "No processes with “cms” in their name have been observed. Matching is case-insensitive.";
-"cms.statistics_note" = "Averages cover this PulseBoard session and are weighted by valid sampling time. Confirmed absence counts as zero, including before a process starts and after it exits; sleep and failed readings are excluded. Exited processes retain their peaks while their averages may decrease. Peaks are observed sample peaks; — means no valid reading.";
+"cms.statistics_note" = "Totals sum valid CPU and memory readings independently for the CMS processes found in each sample; a failed row does not hide other readings. Total averages and peaks use the sequence of totals, not the sum of row averages or peaks. Averages are weighted by valid sampling time since launch; memory holds the previous reading over each interval. Confirmed process absence counts as zero; sleep is excluded. — means no valid reading.";
