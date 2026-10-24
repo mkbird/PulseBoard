@@ -2,8 +2,15 @@ import SwiftUI
 
 @main
 struct PulseBoardApp: App {
-    @StateObject private var store = MonitorStore()
+    @NSApplicationDelegateAdaptor(PulseBoardAppDelegate.self) private var appDelegate
+    @StateObject private var store: MonitorStore
     @StateObject private var localization = LocalizationManager()
+
+    init() {
+        let monitor = MonitorStore()
+        _store = StateObject(wrappedValue: monitor)
+        appDelegate.monitor = monitor
+    }
 
     var body: some Scene {
         WindowGroup {

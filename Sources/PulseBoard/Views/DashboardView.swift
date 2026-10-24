@@ -13,6 +13,7 @@ struct DashboardView: View {
                 if store.selectedRange == .custom {
                     customRangePanel
                 }
+                CMSProcessesView(session: store.cmsSession, exportHistory: store.exportCMSCurrentRange)
                 LazyVGrid(columns: grid, spacing: 16) {
                     MetricCard(title: "CPU", icon: "cpu", value: MetricFormat.percent(store.latest?.cpuUsage), subtitle: cpuSubtitle, tint: .cyan, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoCPUComparison, barMaximum: 100) { $0.cpuUsage }
                     MetricCard(title: "GPU", icon: "rectangle.3.group", value: MetricFormat.percent(store.latest?.gpuUsage), subtitle: gpuSubtitle, tint: .purple, samples: store.samples, timeDomain: store.chartWindow, comparison: cliptoGPUComparison, barMaximum: 100) { $0.gpuUsage }
