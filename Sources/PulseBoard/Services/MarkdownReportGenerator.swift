@@ -3,8 +3,8 @@ import Foundation
 struct MarkdownReportOptions: Sendable {
     /// 评测人 (manually entered; defaults to the saved profile)
     var reporter: String = ReportProfile.reporter
-    /// 局域网 IP for the "查看详情" link (manually entered; empty = no link line)
-    var lanHost: String = ReportProfile.lanHost
+    /// 局域网 IP for the "查看详情" link (manual value, else first 192.168.* address; empty = no link line)
+    var lanHost: String = ReportProfile.effectiveLANHost
     var changeSummary: String = ""
     var notes: String = ""
     var includeHardware: Bool = true
@@ -139,10 +139,10 @@ enum MarkdownReportGenerator {
         return a.sliceLabel
     }
 
-    /// "Clipto Mac v0.9.288 (0.9-beta) 性能晨报"
+    /// "Clipto Mac v0.9.288 (0.9-beta) 离线分析性能晨报"
     static func reportTitle(_ a: DAGSCAnalysisResponse) -> String {
         let version = a.appVersion == "未知版本" ? "" : " \(a.appVersion)"
-        return "Clipto Mac\(version) 性能晨报"
+        return "Clipto Mac\(version) 离线分析性能晨报"
     }
 
     /// "7h29m" / "15.4s" — compact duration for KPI captions.
@@ -175,13 +175,13 @@ enum MarkdownReportGenerator {
         return "\(s) → \(f.string(from: end))"
     }
 
-    /// "Clipto晨报_20261026-2015" — used for .md / .png downloads.
+    /// "Clipto离线分析晨报_20261026-2015" — used for .md / .png downloads.
     static func fileStem(_ a: DAGSCAnalysisResponse) -> String {
         let ms = a.sliceStartMs > 0 ? a.sliceStartMs : Int64(Date().timeIntervalSince1970 * 1_000)
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyyMMdd-HHmm"
-        return "Clipto晨报_\(f.string(from: Date(timeIntervalSince1970: Double(ms) / 1_000)))"
+        return "Clipto离线分析晨报_\(f.string(from: Date(timeIntervalSince1970: Double(ms) / 1_000)))"
     }
 
     // MARK: - Formatting Helpers

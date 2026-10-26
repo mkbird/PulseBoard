@@ -143,7 +143,7 @@ enum SelfTestSuite {
 
     static func verifyReportImageRendering() throws {
         let md = """
-        # Clipto 性能晨报（10-26 20:15 → 10-27 03:40）
+        # Clipto 离线分析性能晨报（10-26 20:15 → 10-27 03:40）
 
         > - **统计范围**：批次 #1
         > - **测试机型**：`Apple M5`
@@ -277,12 +277,15 @@ enum SelfTestSuite {
             )
         )
 
-        try check(md.contains("# Clipto Mac ") && md.contains(" 性能晨报"), "Missing Markdown report H1 header")
+        try check(md.contains("# Clipto Mac ") && md.contains(" 离线分析性能晨报"), "Missing Markdown report H1 header")
         try check(md.contains("## 🎯 头条指标"), "Missing headline KPI section")
         try check(md.contains("| **6.00x** | **2.50 GB** | **250.0%** | **40.0%** |"), "Headline KPI values mismatch")
         try check(!md.contains("算法服务耗时瓶颈") && !md.contains("长尾慢素材"), "Sections 3/4 should be removed")
         try check(md.contains("**评测人**：测试工程师 A"), "Missing reporter field in Markdown")
         try check(md.contains("http://192.168.1.23:8766"), "Missing LAN detail link (normalized host + port)")
+        try check(ReportProfile.pickWorkLANHost(from: ["198.18.0.1", "10.0.0.2", "192.168.2.247", "192.168.9.9"]) == "192.168.2.247",
+                  "Work LAN IP must be the first 192.168.* address")
+        try check(ReportProfile.pickWorkLANHost(from: ["198.18.0.1"]).isEmpty, "No 192.168.* address -> no auto IP")
         try check(md.contains("优化 VLM 并发与解码管线 \\| 降低峰值内存"), "Unescaped pipe in changeSummary")
         try check(md.contains("## 二、运行期硬件与进程资源水位"), "Missing aligned hardware section")
         let csv = ReportCSVGenerator.generate(analysis: analysis)
@@ -490,7 +493,7 @@ enum CLIRunner {
         var sliceMode = "auto"
         var batchID: String?
         var reporter = ReportProfile.reporter
-        var lanHost = ReportProfile.lanHost
+        var lanHost = ReportProfile.effectiveLANHost
         var changeSummary = ""
         var notes = ""
         var outPath: String?
@@ -602,7 +605,7 @@ enum CLIRunner {
             --slice <模式>      auto | batch | all（默认 auto = 最近一个测试批次）
             --batch <batch-id>  当 --slice=batch 时指定批次 ID（如 batch-3）
             --reporter <姓名>   评测人（默认使用已保存的评测人）
-            --lan-ip <IP>       晨报「查看详情」链接中的局域网 IP（默认使用已保存的 IP）
+            --lan-ip <IP>       晨报「查看详情」链接中的局域网 IP（默认：手动保存的 IP，否则本机第一个 192.168.* 地址）
             --change <说明>     本轮版本/改动说明
             --notes <备注>      问题定位与后续计划备注
             --out <文件路径>    保存 Markdown 到文件（省略则输出到标准输出）

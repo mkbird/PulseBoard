@@ -351,12 +351,17 @@ enum WebConsoleRouter {
                 let ok = true
                 let reporter: String
                 let lan_host: String
+                /// First 192.168.* address, used when lan_host is left empty
+                let auto_lan_host: String
+                let effective_lan_host: String
                 let web_port: Int
                 let detected_lan_ips: [String]
             }
             return .json(200, ProfilePayload(
                 reporter: ReportProfile.reporter,
                 lan_host: ReportProfile.lanHost,
+                auto_lan_host: ReportProfile.pickWorkLANHost(from: env.lanIPs),
+                effective_lan_host: ReportProfile.effectiveLANHost,
                 web_port: env.webPort,
                 detected_lan_ips: env.lanIPs
             ))
@@ -403,7 +408,7 @@ enum WebConsoleRouter {
             }
             do {
                 let markdown: String
-                var stem = "Clipto晨报"
+                var stem = "Clipto离线分析晨报"
                 if let provided = bodyJSON["markdown"] as? String,
                    !provided.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     markdown = provided

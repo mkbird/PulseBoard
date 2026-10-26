@@ -50,7 +50,7 @@ struct PulseBoardApp: App {
             CommandGroup(after: .saveItem) {
                 Button("打开统一网页控制台") { store.openWebConsole() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
-                Button("打开 Clipto 晨报中心") { store.openWebConsole(hash: "report") }
+                Button("打开 Clipto 离线分析晨报中心") { store.openWebConsole(hash: "report") }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
                 Button(L10n.text("menu.export_range")) { store.exportCurrentRange() }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
@@ -125,9 +125,8 @@ private struct MenuBarControlView: View {
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 11.5))
                 }
-                Text(store.reportLANHost.isEmpty
-                     ? "填写后晨报会附上「查看详情：http://IP:\(store.webServerPort)」"
-                     : "晨报详情链接：http://\(ReportProfile.normalizeHost(store.reportLANHost)):\(store.webServerPort)")
+                Text(ReportProfile.detailURL(port: store.webServerPort).map { "晨报详情链接：\($0)" + (store.reportLANHost.isEmpty ? "（自动）" : "") }
+                     ?? "未检测到 192.168 开头的地址，请手动填写局域网 IP")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
@@ -162,7 +161,7 @@ private struct MenuBarControlView: View {
                     Button {
                         store.openWebConsole(hash: "report")
                     } label: {
-                        Label("Clipto 晨报中心", systemImage: "doc.richtext")
+                        Label("Clipto 离线分析晨报中心", systemImage: "doc.richtext")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
@@ -239,8 +238,8 @@ private struct MenuBarControlView: View {
     }
 
     private var lanPlaceholder: String {
-        if let ip = SystemEnvironmentService.lanIPv4Addresses().first { return "例如：\(ip)" }
-        return "例如：192.168.1.23"
+        let auto = ReportProfile.autoLANHost
+        return auto.isEmpty ? "例如：192.168.1.23" : "自动：\(auto)（可手动覆盖）"
     }
 
     private func telemetryRow(title: String, value: String) -> some View {

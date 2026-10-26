@@ -90,7 +90,7 @@ enum ReportCSVGenerator {
         return "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
 
-    /// "Clipto晨报_20261026-2015" stem shared with the .md/.png exports.
+    /// "Clipto离线分析晨报_20261026-2015" stem shared with the .md/.png exports.
     static func fileName(_ a: DAGSCAnalysisResponse) -> String {
         "\(MarkdownReportGenerator.fileStem(a)).csv"
     }

@@ -12,7 +12,7 @@ enum ReportProfile {
         set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: reporterKey) }
     }
 
-    /// 局域网 IP / 主机名（手动填写，不自动探测）
+    /// 局域网 IP / 主机名（手动填写；留空则自动使用工作局域网 IP，见 `effectiveLANHost`）
     static var lanHost: String {
         get { UserDefaults.standard.string(forKey: lanHostKey) ?? "" }
         set { UserDefaults.standard.set(normalizeHost(newValue), forKey: lanHostKey) }
@@ -32,9 +32,25 @@ enum ReportProfile {
         return s
     }
 
-    /// "http://10.0.0.5:8766" or nil when no LAN IP has been filled in.
+    /// The work LAN is the first detected `192.168.*` address (VPN / proxy TUN adapters such as
+    /// `198.18.*` are ignored). Re-detected every time so DHCP changes are picked up.
+    static func pickWorkLANHost(from addresses: [String]) -> String {
+        addresses.first { $0.hasPrefix("192.168.") } ?? ""
+    }
+
+    static var autoLANHost: String {
+        pickWorkLANHost(from: SystemEnvironmentService.lanIPv4Addresses())
+    }
+
+    /// Manual value wins; otherwise the auto-detected work LAN IP; empty if neither exists.
+    static var effectiveLANHost: String {
+        let manual = lanHost
+        return manual.isEmpty ? autoLANHost : manual
+    }
+
+    /// "http://192.168.2.247:8766" or nil when no LAN IP is known.
     static func detailURL(port: Int) -> String? {
-        let host = lanHost
+        let host = effectiveLANHost
         return host.isEmpty ? nil : "http://\(host):\(port)"
     }
 }

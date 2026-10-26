@@ -850,7 +850,7 @@
       <nav class="nav-tabs" id="main-nav-tabs">
         <button type="button" class="nav-tab active" data-tab="dagsc">🔬 DAGSC 联动分析</button>
         <button type="button" class="nav-tab" data-tab="monitor">📊 实时与历史监控</button>
-        <button type="button" class="nav-tab" data-tab="report">📝 Clipto 晨报</button>
+        <button type="button" class="nav-tab" data-tab="report">📝 Clipto 离线分析晨报</button>
       </nav>
 
       <div class="live-strip">
@@ -881,7 +881,7 @@
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn btn-secondary" id="reset-dagsc-path-btn">重置默认路径</button>
             <button type="button" class="btn btn-secondary" id="export-dagsc-csv-btn">导出当前表 CSV</button>
-            <button type="button" class="btn btn-purple" id="jump-to-report-btn">📝 生成当前范围 Clipto 晨报 →</button>
+            <button type="button" class="btn btn-purple" id="jump-to-report-btn">📝 生成当前范围 Clipto 离线分析晨报 →</button>
           </div>
         </div>
 
@@ -1243,7 +1243,7 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">📝 Clipto 晨报生成器（图片 · 直接粘贴到飞书 / 微信群）</h2>
+            <h2 class="card-title">📝 Clipto 离线分析晨报生成器（图片 · 直接粘贴到飞书 / 微信群）</h2>
             <div style="font-size:0.81rem; color:var(--muted); margin-top:2px;">
               晨报数据自动关联顶部所选的测试批次 / 自定义时间窗，并融合了 DAGSC 吞吐指标与 PulseBoard 硬件及 CMS 水位。请在 Clipto 全部跑完后再生成。
             </div>
@@ -1290,7 +1290,7 @@
             <input type="text" id="rpt-reporter" class="text-input" placeholder="例如：yingjia">
           </div>
           <div class="field-group">
-            <label for="rpt-lan-host">局域网 IP（手动填写，晨报会附上「查看详情」链接）</label>
+            <label for="rpt-lan-host">局域网 IP（留空自动使用本机 192.168 开头的地址；晨报附「查看详情」链接）</label>
             <input type="text" id="rpt-lan-host" class="text-input" placeholder="例如：192.168.1.23" spellcheck="false" autocomplete="off">
           </div>
           <div class="field-group">
@@ -1309,7 +1309,7 @@
         <div class="card-header">
           <h3 class="card-title">👁️ 晨报预览</h3>
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <span class="badge badge-blue" id="rpt-filename-badge">Clipto晨报.png</span>
+            <span class="badge badge-blue" id="rpt-filename-badge">Clipto离线分析晨报.png</span>
             <!-- Markdown export kept for occasional use (Feishu docs / Notion), intentionally low-key -->
             <button type="button" class="btn btn-secondary" id="copy-md-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;">复制 Markdown</button>
             <button type="button" class="btn btn-secondary" id="download-md-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;">下载 .md</button>
@@ -1338,7 +1338,7 @@
     let liveData = null;
     let monitorSeries = [];
     let lanShareURL = window.location.origin;
-    let reportProfile = { reporter: "", lan_host: "", web_port: Number(window.location.port) || 8766, detected_lan_ips: [] };
+    let reportProfile = { reporter: "", lan_host: "", auto_lan_host: "", web_port: Number(window.location.port) || 8766, detected_lan_ips: [] };
     let profileSaveTimer = null;
 
     // DAGSC slice & table state
@@ -1592,8 +1592,12 @@
       if ((h.match(/:/g) || []).length === 1) h = h.split(":")[0];
       return h;
     }
-    function updateLanPill(detected) {
-      const host = normalizeHost(document.getElementById("rpt-lan-host").value) || (detected && detected[0]) || "";
+    // Manual value, else the auto-detected work LAN (first 192.168.* address).
+    function effectiveLanHost() {
+      return normalizeHost(document.getElementById("rpt-lan-host").value) || reportProfile.auto_lan_host || "";
+    }
+    function updateLanPill() {
+      const host = effectiveLanHost();
       if (!host) return;
       lanShareURL = `http://${host}:${reportProfile.web_port}`;
       document.getElementById("lan-url-text").textContent = `${host}:${reportProfile.web_port}`;
@@ -1605,10 +1609,10 @@
         reportProfile = p;
         document.getElementById("rpt-reporter").value = p.reporter || "";
         document.getElementById("rpt-lan-host").value = p.lan_host || "";
-        if (p.detected_lan_ips && p.detected_lan_ips.length) {
-          document.getElementById("rpt-lan-host").placeholder = `例如：${p.detected_lan_ips[0]}（本机检测到的地址，需手动确认填写）`;
-        }
-        updateLanPill(p.detected_lan_ips);
+        document.getElementById("rpt-lan-host").placeholder = p.auto_lan_host
+          ? `自动：${p.auto_lan_host}（可手动覆盖）`
+          : "未检测到 192.168 开头的地址，请手动填写";
+        updateLanPill();
         rebuildMarkdownReport();
       } catch (_) {}
     }
@@ -1624,7 +1628,7 @@
           })
         }).catch(() => {});
       }, 500);
-      updateLanPill(reportProfile.detected_lan_ips);
+      updateLanPill();
     }
 
     async function pollLiveTelemetry() {
@@ -1638,7 +1642,7 @@
         if (env) {
           document.getElementById("nav-chip-badge").textContent = `${env.chip_model} · ${env.physical_memory_text}`;
           reportProfile.web_port = env.web_port || reportProfile.web_port;
-          updateLanPill(env.lan_ips || []);
+          updateLanPill();
           const pathInp = document.getElementById("dagsc-path-input");
           if (!pathInp.value && env.default_dagsc_dir) {
             pathInp.value = env.default_dagsc_dir;
@@ -3153,14 +3157,14 @@
       const version = d.app_version && d.app_version !== "未知版本" ? ` ${d.app_version}` : "";
 
       const out = [];
-      out.push(`# Clipto Mac${version} 性能晨报`);
+      out.push(`# Clipto Mac${version} 离线分析性能晨报`);
       out.push("");
       out.push(`> - **运行时段**：${reportTitleRange(d)}（${escMdCell(sliceSummary)}）`);
       out.push(`> - **测试平台**：Clipto **macOS 版** · ${env.chip_model || "Mac"} · ${env.physical_memory_text || "—"} 统一内存 · ${env.logical_cores || "—"} 核 · ${env.macos_version || "macOS"}`);
       out.push(`> - **分析模板**：${d.template_version || "—"} ｜ 生成于 ${d.analyzed_at_text}`);
       if (reporter) out.push(`> - **评测人**：${escMdCell(reporter)}`);
       if (changes) out.push(`> - **本轮改动**：${escMdCell(changes)}`);
-      const lanHost = normalizeHost(document.getElementById("rpt-lan-host").value);
+      const lanHost = effectiveLanHost();
       if (lanHost) out.push(`> - **查看详情**：同一局域网内用浏览器打开 http://${lanHost}:${env.web_port || reportProfile.web_port}（DAGSC 泳道、硬件曲线与历史监控）`);
       out.push("");
 
@@ -3274,7 +3278,7 @@
     }
     function reportFileStem(d) {
       const t = new Date(d && d.slice_start_ms > 0 ? d.slice_start_ms : Date.now());
-      return `Clipto晨报_${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}-${pad2(t.getHours())}${pad2(t.getMinutes())}`;
+      return `Clipto离线分析晨报_${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}-${pad2(t.getHours())}${pad2(t.getMinutes())}`;
     }
 
     // Lightweight, zero-dependency GFM Markdown Renderer for instant preview
@@ -3492,7 +3496,7 @@
     // Renders exactly the Markdown shown in the editor into a PNG card on the CliptoPulse server.
     function requestReportImage() {
       const md = document.getElementById("md-raw-output").value;
-      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.md").replace(/\.md$/, ".png");
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.md").replace(/\.md$/, ".png");
       return fetch("/api/report/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3517,7 +3521,7 @@
     }
 
     document.getElementById("copy-img-btn").addEventListener("click", async () => {
-      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.md").replace(/\.md$/, ".png");
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.md").replace(/\.md$/, ".png");
       const blobPromise = requestReportImage();
       try {
         if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
@@ -3552,7 +3556,7 @@
     }
 
     document.getElementById("download-csv-btn").addEventListener("click", async () => {
-      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.png").replace(/\.png$/, ".csv");
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.png").replace(/\.png$/, ".csv");
       try {
         downloadBlob(await (await fetchReportCSV()).blob(), fn);
         showToast(`✓ 已导出 ${fn}`);
@@ -3582,7 +3586,7 @@
     });
 
     document.getElementById("download-img-btn").addEventListener("click", async () => {
-      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.md").replace(/\.md$/, ".png");
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.md").replace(/\.md$/, ".png");
       try {
         downloadBlob(await requestReportImage(), fn);
         showToast(`✓ 已下载 ${fn}`);
@@ -3594,7 +3598,7 @@
 
     document.getElementById("download-md-btn").addEventListener("click", () => {
       const md = document.getElementById("md-raw-output").value;
-      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.png").replace(/\.png$/, ".md");
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.png").replace(/\.png$/, ".md");
       const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

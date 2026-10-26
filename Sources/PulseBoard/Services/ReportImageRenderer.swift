@@ -176,7 +176,7 @@ struct ReportLayout {
         var blocks: [ReportMarkdownBlock]
     }
 
-    var title: String = "Clipto 性能晨报"
+    var title: String = "Clipto 离线分析性能晨报"
     var meta: [String] = []
     var kpis: [KPI] = []
     var sections: [Section] = []
@@ -263,7 +263,7 @@ private struct ReportImageView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 pill("macOS 版")
-                pill("每日晨报")
+                pill("离线分析晨报")
                 Spacer()
                 Text("CliptoPulse")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
