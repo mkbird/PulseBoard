@@ -1,6 +1,5 @@
 .DS_Store
 .build/
-dist/
 *.xcuserstate
 *.sqlite
 *.sqlite-shm

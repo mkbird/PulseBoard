@@ -1,0 +1,3636 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CliptoPulse · 性能监控与 DAGSC 晨报工作台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f1f5f9;
+      --panel: #ffffff;
+      --panel-alt: #f8fafc;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-soft: #eff6ff;
+      --cyan: #0891b2;
+      --cyan-soft: #ecfeff;
+      --success: #10b981;
+      --success-soft: #ecfdf5;
+      --warning: #f59e0b;
+      --warning-soft: #fffbeb;
+      --danger: #ef4444;
+      --danger-soft: #fef2f2;
+      --purple: #7c3aed;
+      --purple-soft: #f5f3ff;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding-bottom: 56px;
+    }
+
+    /* Sticky Top Navigation & Live Telemetry Bar */
+    .top-navbar {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(10px);
+      color: #f8fafc;
+      border-bottom: 1px solid #1e293b;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.14);
+    }
+
+    .top-navbar-inner {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #06b6d4, #2563eb);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1rem;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.45);
+    }
+
+    .brand-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-sub {
+      font-size: 0.74rem;
+      color: #94a3b8;
+    }
+
+    .nav-tabs {
+      display: inline-flex;
+      background: #1e293b;
+      padding: 4px;
+      border-radius: 10px;
+      gap: 4px;
+      border: 1px solid #334155;
+    }
+
+    .nav-tab {
+      border: none;
+      background: transparent;
+      color: #cbd5e1;
+      padding: 7px 15px;
+      border-radius: 7px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-tab:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .nav-tab.active {
+      background: #2563eb;
+      color: #fff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    }
+
+    .live-strip {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.76rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      white-space: nowrap;
+    }
+
+    .live-pill.clickable {
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .live-pill.clickable:hover {
+      background: #334155;
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22);
+    }
+
+    .container {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 20px 24px 0;
+    }
+
+    .tab-pane {
+      display: none;
+    }
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* Common Cards & Buttons */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .btn-purple {
+      background: var(--purple);
+      color: #fff;
+    }
+    .btn-purple:hover:not(:disabled) {
+      background: #6d28d9;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--border-strong);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--panel-alt);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .seg-control {
+      display: inline-flex;
+      background: #e2e8f0;
+      padding: 3px;
+      border-radius: 9px;
+      gap: 3px;
+      flex-wrap: wrap;
+    }
+
+    .seg-btn {
+      border: none;
+      background: transparent;
+      padding: 6px 12px;
+      border-radius: 7px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .seg-btn.active {
+      background: #fff;
+      color: var(--text);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+    }
+    .badge-blue { background: var(--accent-soft); color: #1d4ed8; border-color: #bfdbfe; }
+    .badge-green { background: var(--success-soft); color: #065f46; border-color: #a7f3d0; }
+    .badge-amber { background: var(--warning-soft); color: #92400e; border-color: #fde68a; }
+    .badge-purple { background: var(--purple-soft); color: #6d28d9; border-color: #ddd6fe; }
+
+    /* Grids */
+    .cards-grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .cards-grid-6 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .charts-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    @media (max-width: 1200px) {
+      .cards-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .cards-grid-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .charts-grid-2 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 680px) {
+      .cards-grid-4, .cards-grid-6 { grid-template-columns: 1fr; }
+    }
+
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .stat-card.highlight-blue {
+      border-color: #93c5fd;
+      background: linear-gradient(180deg, #eff6ff 0%, #ffffff 68%);
+    }
+
+    .stat-card.highlight-purple {
+      border-color: #c4b5fd;
+      background: linear-gradient(180deg, #f5f3ff 0%, #ffffff 68%);
+    }
+
+    .stat-card.highlight-cyan {
+      border-color: #67e8f9;
+      background: linear-gradient(180deg, #ecfeff 0%, #ffffff 68%);
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .stat-value {
+      font-size: 1.42rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-card.highlight-blue .stat-value { color: #1d4ed8; }
+    .stat-card.highlight-purple .stat-value { color: #6d28d9; }
+    .stat-card.highlight-cyan .stat-value { color: #0e7490; }
+
+    .stat-sub {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      margin-top: 2px;
+    }
+
+    .stat-detail {
+      margin-top: 10px;
+      padding-top: 9px;
+      border-top: 1px dashed var(--border);
+      font-size: 0.78rem;
+      color: #475569;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    /* Path & Slice Controls */
+    .path-bar {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+      margin-bottom: 12px;
+    }
+
+    .path-input-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      background: var(--panel-alt);
+      overflow: hidden;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .path-input-wrap:focus-within {
+      border-color: var(--accent);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .path-input-wrap span.prefix {
+      flex-shrink: 0;
+      margin-left: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: #e2e8f0;
+      padding: 3px 8px;
+      border-radius: 5px;
+      user-select: none;
+    }
+
+    .text-input, .select-input {
+      padding: 8px 12px;
+      font-size: 0.86rem;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      background: var(--panel-alt);
+      color: var(--text);
+    }
+
+    .text-input:focus, .select-input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    #dagsc-path-input {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      padding: 8px 12px 8px 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    #dagsc-path-input:focus {
+      outline: none;
+      box-shadow: none;
+      background: transparent;
+    }
+
+    .slice-panel {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .meta-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .meta-items code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #334155;
+      background: #f1f5f9;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .error-banner {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--danger-soft);
+      border: 1px solid #fecaca;
+      color: #991b1b;
+      font-size: 0.85rem;
+    }
+
+    .ratio-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .ratio-pill.speedup { background: #dcfce7; color: #166534; }
+    .ratio-pill.rtf { background: #dbeafe; color: #1e40af; }
+
+    /* Scope A/B Strip */
+    .ab-compare-card {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 900px) { .ab-compare-card { grid-template-columns: 1fr; } }
+
+    .ab-box {
+      padding: 13px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ab-box.active-scope {
+      border-color: #60a5fa;
+      background: linear-gradient(180deg, #eff6ff 0%, #ffffff 80%);
+    }
+
+    /* Stacked Bar */
+    .stacked-bar {
+      height: 26px;
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      background: #f1f5f9;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+    }
+    .stacked-seg {
+      height: 100%;
+      transition: width 0.25s ease;
+      cursor: pointer;
+    }
+    .stacked-seg:hover { filter: brightness(1.08); }
+
+    .legend-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      font-size: 0.8rem;
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #334155;
+    }
+    .legend-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* Tables */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+      text-align: left;
+    }
+    th {
+      background: #f8fafc;
+      color: #475569;
+      font-weight: 600;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      user-select: none;
+      cursor: pointer;
+    }
+    th:hover { background: #f1f5f9; color: var(--text); }
+    td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: #f8fafc; }
+    tfoot td {
+      background: #f8fafc;
+      font-weight: 700;
+      border-top: 2px solid var(--border-strong);
+      padding: 10px 12px;
+    }
+    .num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: nowrap;
+    }
+    .node-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 600;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .exec-tag {
+      display: inline-block;
+      padding: 1px 7px;
+      font-size: 0.73rem;
+      font-weight: 600;
+      border-radius: 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .exec-cbs { background: #dbeafe; color: #1e40af; }
+    .exec-host { background: #fef3c7; color: #92400e; }
+    .exec-script { background: #f3e8ff; color: #6b21a8; }
+
+    .pct-cell { min-width: 165px; }
+    .pct-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .pct-bar-bg { flex: 1; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+    .pct-bar-fill { height: 100%; border-radius: 999px; }
+    .pct-text { width: 50px; text-align: right; font-weight: 700; font-family: ui-monospace, monospace; }
+
+    /* Nsight Canvas & Monitor Charts */
+    .nsys-controls-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 10px 10px 0 0;
+      border: 1px solid #1e293b;
+      border-bottom: none;
+      font-size: 0.79rem;
+    }
+    .nsys-ctrl-group { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .nsys-select, .nsys-btn {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.77rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .nsys-select:hover, .nsys-btn:hover { background: #334155; }
+    .nsys-canvas-container {
+      position: relative;
+      background: #0b1120;
+      border: 1px solid #1e293b;
+      border-radius: 0 0 10px 10px;
+      overflow: hidden;
+      user-select: none;
+    }
+    #nsys-canvas { display: block; width: 100%; cursor: grab; }
+    #nsys-canvas:active { cursor: grabbing; }
+
+    .monitor-chart-box {
+      background: #0b1120;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 12px 14px 8px;
+      color: #f8fafc;
+    }
+    .monitor-chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.82rem;
+    }
+    .monitor-canvas {
+      display: block;
+      width: 100%;
+      height: 195px;
+    }
+
+    .floating-tooltip {
+      position: fixed;
+      z-index: 9999;
+      pointer-events: none;
+      background: rgba(15, 23, 42, 0.96);
+      color: #f8fafc;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+      max-width: 390px;
+      display: none;
+      backdrop-filter: blur(6px);
+    }
+
+    /* Report Studio */
+    .report-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 900px) { .report-form-grid { grid-template-columns: 1fr; } }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .field-group label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #334155;
+    }
+    .field-group textarea {
+      padding: 9px 12px;
+      font-size: 0.85rem;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      background: var(--panel-alt);
+      color: var(--text);
+      font-family: inherit;
+      resize: vertical;
+      min-height: 74px;
+    }
+
+    .md-preview-box {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px 26px;
+      max-height: 820px;
+      overflow-y: auto;
+      font-size: 0.88rem;
+      line-height: 1.65;
+    }
+    .md-preview-box h1 { font-size: 1.35rem; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .md-preview-box h2 { font-size: 1.06rem; margin: 20px 0 10px; color: #1e293b; }
+    .md-preview-box h3 { font-size: 0.94rem; margin: 14px 0 8px; color: #334155; }
+    .md-preview-box blockquote {
+      margin: 0 0 14px;
+      padding: 10px 14px;
+      background: #f8fafc;
+      border-left: 4px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      color: #334155;
+    }
+    .md-preview-box blockquote ul { margin: 0; padding-left: 18px; }
+    .md-preview-box code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      color: #0f172a;
+    }
+    .md-preview-box table {
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      font-size: 0.81rem;
+    }
+    .md-preview-box th, .md-preview-box td {
+      border: 1px solid var(--border);
+      padding: 7px 10px;
+      cursor: default;
+    }
+
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      background: #0f172a;
+      color: #fff;
+      border: 1px solid #334155;
+      padding: 11px 18px;
+      border-radius: 10px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.35);
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: all 0.2s ease;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <!-- Sticky Top Navigation & Live Telemetry Bar -->
+  <header class="top-navbar">
+    <div class="top-navbar-inner">
+      <div class="brand-cluster">
+        <div class="brand-logo">CP</div>
+        <div>
+          <div class="brand-title">
+            <span>CliptoPulse</span>
+            <span id="nav-chip-badge" style="font-size:0.72rem; font-weight:600; padding:2px 8px; border-radius:999px; background:#1e293b; color:#38bdf8; border:1px solid #334155;">Apple Silicon</span>
+          </div>
+          <div class="brand-sub">硬件与 CMS 常驻监控 × DAGSC 调度分析 × 晨报工作台</div>
+        </div>
+      </div>
+
+      <nav class="nav-tabs" id="main-nav-tabs">
+        <button type="button" class="nav-tab active" data-tab="dagsc">🔬 DAGSC 联动分析</button>
+        <button type="button" class="nav-tab" data-tab="monitor">📊 实时与历史监控</button>
+        <button type="button" class="nav-tab" data-tab="report">📝 Clipto 离线分析晨报</button>
+      </nav>
+
+      <div class="live-strip">
+        <span class="live-pill" title="后台常驻实时采样状态">
+          <span class="pulse-dot" id="live-dot"></span>
+          <span id="live-cpu-pill">CPU —</span>
+        </span>
+        <span class="live-pill" id="live-power-pill">功耗 —</span>
+        <span class="live-pill" id="live-clipto-pill">Clipto —</span>
+        <span class="live-pill" id="live-cms-pill">CMS —</span>
+        <span class="live-pill clickable" id="copy-lan-pill" title="点击复制局域网访问地址，方便同事浏览器直接查看">
+          🔗 <span id="lan-url-text">局域网共享</span>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- ==================== TAB 1: DAGSC + HARDWARE ALIGNED ANALYSIS ==================== -->
+    <section class="tab-pane active" id="pane-dagsc">
+      <div class="card">
+        <div class="card-header">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <h2 class="card-title">Clipto DAGSC 运行信息 & 硬件水位联动分析</h2>
+            <span class="badge badge-blue">Clipto <span id="dagsc-app-ver">—</span></span>
+            <span class="badge badge-purple" id="dagsc-tpl-badge">模板 —</span>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary" id="reset-dagsc-path-btn">重置默认路径</button>
+            <button type="button" class="btn btn-secondary" id="export-dagsc-csv-btn">导出当前表 CSV</button>
+            <button type="button" class="btn btn-purple" id="jump-to-report-btn">📝 生成当前范围 Clipto 离线分析晨报 →</button>
+          </div>
+        </div>
+
+        <form id="dagsc-path-form" class="path-bar">
+          <div class="path-input-wrap">
+            <span class="prefix">DAGSC 路径</span>
+            <input id="dagsc-path-input" class="text-input" type="text" spellcheck="false" autocomplete="off" placeholder="输入 dagsc_data 目录路径或 schedule.db 路径...">
+          </div>
+          <button type="submit" class="btn btn-primary" id="dagsc-analyze-btn">加载并分析</button>
+        </form>
+
+        <!-- Time Slice Bar -->
+        <div class="slice-panel">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span style="font-size:0.82rem; font-weight:700; color:#334155;">统计范围切分：</span>
+            <div class="seg-control" id="slice-mode-seg">
+              <button type="button" class="seg-btn active" data-slice="batch">🎯 自动测试批次 (Batch)</button>
+              <button type="button" class="seg-btn" data-slice="custom">⏱️ 自定义时间窗</button>
+              <button type="button" class="seg-btn" data-slice="all">🗂️ 全库汇总</button>
+            </div>
+          </div>
+
+          <div id="slice-sub-controls" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex:1; justify-content:flex-end;">
+            <!-- Batch Selector -->
+            <div id="slice-ctrl-batch" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <select id="batch-select" class="select-input" style="min-width:340px; font-family:ui-monospace, monospace;"></select>
+            </div>
+            <!-- Custom Window Selector -->
+            <div id="slice-ctrl-custom" style="display:none; align-items:center; gap:6px; flex-wrap:wrap;">
+              <input type="datetime-local" step="1" id="dagsc-custom-from" class="text-input" style="padding:5px 9px;">
+              <span style="color:var(--muted);">→</span>
+              <input type="datetime-local" step="1" id="dagsc-custom-to" class="text-input" style="padding:5px 9px;">
+              <button type="button" class="btn btn-primary" id="dagsc-custom-apply" style="padding:5px 12px;">应用区间</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="dagsc-error-banner" class="error-banner"></div>
+
+        <div class="meta-bar" id="dagsc-meta-bar" style="display:none;">
+          <div class="meta-items">
+            <span>当前切片：<code id="meta-slice-label">—</code></span>
+            <span>数据库：<code id="meta-db-path">—</code></span>
+            <span>DB 大小：<code id="meta-db-size">—</code></span>
+            <span>最后修改：<code id="meta-db-mtime">—</code></span>
+            <span id="meta-epoch-wrap" style="display:none;">已隐藏 <code id="meta-epoch">—</code> 之前的批次（清空记录）</span>
+          </div>
+          <div>
+            倍速定义：<span class="ratio-pill speedup">实时处理倍速 = 素材总时长 ÷ 实际处理耗时 (越大越快)</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="dagsc-results-body" style="display:none;">
+      <!-- 4 Core DAGSC Cards -->
+      <div class="cards-grid-4">
+        <div class="stat-card highlight-purple">
+          <div>
+            <div class="stat-label"><span>切片内素材总时长</span><span>基准媒体长度</span></div>
+            <div class="stat-value" id="card-media-human">—</div>
+            <div class="stat-sub" id="card-media-ms">—</div>
+          </div>
+          <div class="stat-detail">
+            <div>素材构成：<strong id="card-media-breakdown">—</strong></div>
+            <div>总体积：<strong id="card-media-size">—</strong> ｜ 平均时长：<strong id="card-media-avg">—</strong></div>
+          </div>
+        </div>
+
+        <div class="stat-card highlight-blue">
+          <div>
+            <div class="stat-label"><span id="card-wall-title">当前口径处理总耗时</span><span id="card-wall-mode-hint">活跃区间用时</span></div>
+            <div class="stat-value" id="card-wall-human">—</div>
+            <div class="stat-sub" id="card-wall-ms">—</div>
+          </div>
+          <div class="stat-detail">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>整体实时处理倍速：</span>
+              <span class="ratio-pill speedup" id="card-wall-speedup">—</span>
+            </div>
+            <div>时间窗：<strong id="card-wall-range" style="font-size:0.74rem;">—</strong></div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div>
+            <div class="stat-label"><span>任务规模与成功率</span><span>多节点并发调度</span></div>
+            <div class="stat-value" id="card-task-count">—</div>
+            <div class="stat-sub" id="card-task-status-sub">—</div>
+          </div>
+          <div class="stat-detail">
+            <div>平均并行加速比：<strong id="card-concurrency">—</strong></div>
+            <div>工作流总数：<strong id="card-wf-total">—</strong></div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div>
+            <div class="stat-label"><span>首尾边界 Task</span></div>
+            <div style="font-size:0.81rem; font-weight:700;">
+              起点：<code id="card-first-node" style="background:#e0f2fe; color:#0369a1; padding:1px 5px; border-radius:4px;">—</code>
+            </div>
+            <div class="stat-sub" id="card-first-time">—</div>
+          </div>
+          <div class="stat-detail">
+            <div style="font-size:0.81rem; font-weight:700;">
+              终点：<code id="card-last-node" style="background:#d1fae5; color:#047857; padding:1px 5px; border-radius:4px;">—</code>
+            </div>
+            <div class="stat-sub" id="card-last-time">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aligned Hardware & Process Watermark Panel -->
+      <div class="card" id="aligned-hw-card">
+        <div class="card-header">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <h3 class="card-title">⚡ 对齐时段本机硬件、Clipto 与 CMS 进程资源水位（PulseBoard 历史联动）</h3>
+            <span class="badge badge-green" id="aligned-coverage-badge">检测中...</span>
+          </div>
+          <span style="font-size:0.78rem; color:var(--muted);" id="aligned-window-hint">—</span>
+        </div>
+        <div id="aligned-hw-body"></div>
+      </div>
+
+      <!-- Stacked Node Distribution -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">各算法服务耗时占比总览（按 <code>node_type</code> 累计耗时占比 & 单服务倍速）</h3>
+          <span style="font-size:0.79rem; color:var(--muted);">悬停色块可查看累计耗时、占比及实时处理倍速</span>
+        </div>
+        <div class="stacked-bar" id="stacked-bar"></div>
+        <div class="legend-grid" id="stacked-legend"></div>
+      </div>
+
+      <!-- Upgraded Nsight Swimlane + Synchronized Hardware Tracks -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">
+              <span>算法服务并发泳道 × 同轴硬件资源轨迹图</span>
+              <span class="badge" style="background:#0f172a; color:#38bdf8;">支持无级缩放与空泡检测</span>
+            </h3>
+            <div style="font-size:0.79rem; color:var(--muted); margin-top:2px;">
+              上方展示算法服务并发调度与等待空泡，下方同轴联动展示同一毫秒窗口内的 CPU / ANE / Clipto & CMS 内存 / 整机功耗曲线
+            </div>
+          </div>
+          <div class="seg-control" id="chart-mode-seg">
+            <button type="button" class="seg-btn active" data-chart-mode="nsys_timeline">时间轴泳道 + 同轴硬件曲线</button>
+            <button type="button" class="seg-btn" data-chart-mode="bubble_2d">算法服务多维气泡散点图</button>
+          </div>
+        </div>
+
+        <div class="nsys-controls-bar" id="nsys-toolbar">
+          <div class="nsys-ctrl-group" id="nsys-timeline-ctrls">
+            <label style="display:inline-flex; align-items:center; gap:5px;">
+              <span style="color:#94a3b8;">色块着色：</span>
+              <select id="nsys-color-mode" class="nsys-select">
+                <option value="asset">按媒体素材区分任务流</option>
+                <option value="node_type">按算法服务固定色</option>
+              </select>
+            </label>
+            <label style="display:inline-flex; align-items:center; gap:5px;">
+              <span style="color:#94a3b8;">追踪素材：</span>
+              <select id="nsys-asset-filter" class="nsys-select">
+                <option value="all">全部媒体素材</option>
+              </select>
+            </label>
+            <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; color:#cbd5e1;">
+              <input type="checkbox" id="nsys-show-bubbles" checked style="accent-color:#38bdf8;">
+              <span>标出空闲气泡</span>
+            </label>
+            <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; color:#38bdf8; font-weight:600;">
+              <input type="checkbox" id="nsys-show-hw-tracks" checked style="accent-color:#38bdf8;">
+              <span>叠加同轴硬件与内存轨迹</span>
+            </label>
+          </div>
+
+          <div class="nsys-ctrl-group" id="nsys-zoom-ctrls">
+            <span id="nsys-view-range-label" style="font-family:ui-monospace, monospace; color:#38bdf8; font-size:0.76rem;">窗口: 0.0s ~ —</span>
+            <button type="button" class="nsys-btn" id="nsys-zoom-in">放大 (+)</button>
+            <button type="button" class="nsys-btn" id="nsys-zoom-out">缩小 (-)</button>
+            <button type="button" class="nsys-btn" id="nsys-zoom-reset">重置 (100%)</button>
+          </div>
+        </div>
+
+        <div class="nsys-canvas-container" id="nsys-canvas-wrap">
+          <canvas id="nsys-canvas" height="640"></canvas>
+        </div>
+        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-top:8px; font-size:0.78rem; color:var(--muted);">
+          <span id="nsys-op-hint">滚轮按光标位置无级缩放时间轴，按住左键左右拖拽平移窗口，悬停查看任务耗时、空泡及对应时刻硬件读数。</span>
+          <span><code>Busy%</code> = 该泳道实际有任务运行的去重时长占全流程总耗时比例</span>
+        </div>
+      </div>
+
+      <!-- Detailed Breakdown Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="seg-control" id="view-seg">
+            <button type="button" class="seg-btn active" data-view="node_type">按算法服务种类 (node_type)</button>
+            <button type="button" class="seg-btn" data-view="template_node">按具体业务节点 (template_node_id)</button>
+            <button type="button" class="seg-btn" data-view="asset">按单个媒体素材 (asset_id)</button>
+          </div>
+          <input type="search" id="table-search" class="text-input" style="min-width:260px;" placeholder="搜索算法服务、节点名称、文件名或资产 ID...">
+        </div>
+        <div class="table-wrap">
+          <table id="data-table">
+            <thead id="table-head"></thead>
+            <tbody id="table-body"></tbody>
+            <tfoot id="table-foot"></tfoot>
+          </table>
+        </div>
+      </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: REAL-TIME & HISTORICAL MONITOR (PULSEBOARD WEB) ==================== -->
+    <section class="tab-pane" id="pane-monitor">
+      <div class="card">
+        <div class="card-header" style="margin-bottom:0;">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <h2 class="card-title">系统、Clipto 与 CMS 实时及历史监控</h2>
+            <div class="seg-control" id="mon-range-seg">
+              <button type="button" class="seg-btn active" data-sec="900">15 分钟</button>
+              <button type="button" class="seg-btn" data-sec="3600">1 小时</button>
+              <button type="button" class="seg-btn" data-sec="21600">6 小时</button>
+              <button type="button" class="seg-btn" data-sec="86400">24 小时</button>
+              <button type="button" class="seg-btn" data-sec="604800">7 天</button>
+              <button type="button" class="seg-btn" data-sec="custom">自定义</button>
+            </div>
+            <div id="mon-custom-wrap" style="display:none; align-items:center; gap:6px;">
+              <input type="datetime-local" step="1" id="mon-from-input" class="text-input" style="padding:5px 8px;">
+              <span>→</span>
+              <input type="datetime-local" step="1" id="mon-to-input" class="text-input" style="padding:5px 8px;">
+              <button type="button" class="btn btn-primary" id="mon-apply-custom-btn" style="padding:5px 12px;">查询</button>
+            </div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <label style="font-size:0.82rem; display:inline-flex; align-items:center; gap:5px; cursor:pointer; color:#334155;">
+              <input type="checkbox" id="mon-live-toggle" checked style="accent-color:#2563eb;">
+              <span>实时自动刷新 (2s)</span>
+            </label>
+            <button type="button" class="btn btn-secondary" id="export-sys-csv-btn">导出系统/Clipto CSV</button>
+            <button type="button" class="btn btn-secondary" id="export-cms-csv-btn">导出 CMS 历史 CSV</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 Live Telemetry Cards -->
+      <div class="cards-grid-6">
+        <div class="stat-card highlight-blue">
+          <div class="stat-label"><span>处理器负载 (CPU / GPU / ANE)</span><span id="mon-thermal-badge" class="badge badge-green">正常</span></div>
+          <div class="stat-value" id="mon-cpu-val">—</div>
+          <div class="stat-sub" id="mon-gpu-ane-sub">GPU — ｜ ANE —</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-label"><span>整机与芯片分项功耗</span><span>IOReport / SMC</span></div>
+          <div class="stat-value" id="mon-power-val">—</div>
+          <div class="stat-sub" id="mon-power-sub">CPU — ｜ GPU — ｜ ANE —</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-label"><span>系统内存与 Swap</span><span id="mon-mem-pct-badge">—</span></div>
+          <div class="stat-value" id="mon-mem-val">—</div>
+          <div class="stat-sub" id="mon-swap-sub">Swap: —</div>
+        </div>
+
+        <div class="stat-card highlight-purple">
+          <div class="stat-label"><span>Clipto 进程组实时占用</span><span id="mon-clipto-state" class="badge badge-amber">检测中</span></div>
+          <div class="stat-value" id="mon-clipto-mem">—</div>
+          <div class="stat-sub" id="mon-clipto-sub">CPU — ｜ GPU — ｜ 进程数 —</div>
+        </div>
+
+        <div class="stat-card highlight-cyan">
+          <div class="stat-label"><span>CMS 算法进程组总计</span><span id="mon-cms-count-badge">—</span></div>
+          <div class="stat-value" id="mon-cms-mem">—</div>
+          <div class="stat-sub" id="mon-cms-sub">当前 CPU — ｜ 会话峰值内存 —</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-label"><span>DRAM / 磁盘 / 网络吞吐</span><span>实时带宽</span></div>
+          <div class="stat-value" id="mon-dram-val">—</div>
+          <div class="stat-sub" id="mon-io-sub">磁盘 — ｜ 网络 —</div>
+        </div>
+      </div>
+
+      <!-- 4 Time-Series History Charts -->
+      <div class="charts-grid-2">
+        <div class="monitor-chart-box">
+          <div class="monitor-chart-header">
+            <strong>处理器与 AI 引擎利用率 (%)</strong>
+            <span style="color:#94a3b8; font-size:0.75rem;">■ 系统CPU(蓝) ■ GPU(绿) ■ ANE(橙) ■ Clipto CPU(紫)</span>
+          </div>
+          <canvas class="monitor-canvas" id="chart-cpu"></canvas>
+        </div>
+
+        <div class="monitor-chart-box">
+          <div class="monitor-chart-header">
+            <strong>系统、Clipto 与 CMS 物理内存曲线 (GB)</strong>
+            <span style="color:#94a3b8; font-size:0.75rem;">■ 系统已用(蓝) ■ Clipto内存(紫) ■ CMS总内存(青) ■ Swap(红)</span>
+          </div>
+          <canvas class="monitor-canvas" id="chart-mem"></canvas>
+        </div>
+
+        <div class="monitor-chart-box">
+          <div class="monitor-chart-header">
+            <strong>整机与分项功耗趋势 (W)</strong>
+            <span style="color:#94a3b8; font-size:0.75rem;">■ 整机(粉红) ■ CPU(蓝) ■ GPU(绿) ■ ANE(橙)</span>
+          </div>
+          <canvas class="monitor-canvas" id="chart-power"></canvas>
+        </div>
+
+        <div class="monitor-chart-box">
+          <div class="monitor-chart-header">
+            <strong>磁盘吞吐 (MB/s) & Clipto 读写速率</strong>
+            <span style="color:#94a3b8; font-size:0.75rem;">■ 磁盘读(青) ■ 磁盘写(橙) ■ Clipto读(紫) ■ DRAM总带宽 GB/s(黄)</span>
+          </div>
+          <canvas class="monitor-canvas" id="chart-io"></canvas>
+        </div>
+      </div>
+
+      <!-- Live CMS Session Processes Table -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">CMS 进程实时会话统计（匹配名称含 <code>cms</code>，不区分大小写）</h3>
+            <div style="font-size:0.78rem; color:var(--muted);" id="cms-session-meta">本次会话启动时间：—</div>
+          </div>
+          <label style="font-size:0.82rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="cms-show-exited" checked style="accent-color:#2563eb;">
+            <span>显示已退出进程实例</span>
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>PID</th>
+                <th>进程名称</th>
+                <th>状态</th>
+                <th class="num">当前 CPU (单核=100%)</th>
+                <th class="num">会话平均 CPU</th>
+                <th class="num">采样峰值 CPU</th>
+                <th class="num">当前物理内存</th>
+                <th class="num">会话平均内存</th>
+                <th class="num">采样峰值内存</th>
+              </tr>
+            </thead>
+            <tbody id="cms-live-tbody"></tbody>
+            <tfoot id="cms-live-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: CLIPTO DAILY REPORT STUDIO (MARKDOWN) ==================== -->
+    <section class="tab-pane" id="pane-report">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">📝 Clipto 离线分析晨报生成器（图片 · 直接粘贴到飞书 / 微信群）</h2>
+            <div style="font-size:0.81rem; color:var(--muted); margin-top:2px;">
+              晨报数据自动关联顶部所选的测试批次 / 自定义时间窗，并融合了 DAGSC 吞吐指标与 PulseBoard 硬件及 CMS 水位。请在 Clipto 全部跑完后再生成。
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary" id="copy-img-btn" style="padding:9px 18px; font-size:0.9rem;">
+              🖼️ 复制晨报图片
+            </button>
+            <button type="button" class="btn btn-secondary" id="download-img-btn" style="padding:9px 16px; font-size:0.9rem;">
+              ⬇️ 下载 PNG
+            </button>
+            <button type="button" class="btn btn-secondary" id="download-csv-btn" style="padding:9px 16px; font-size:0.9rem;" title="单列 CSV：第 1 行版本号，之后每行一个指标（纯数字，单位见行名）">
+              📊 导出 CSV
+            </button>
+            <button type="button" class="btn btn-secondary" id="copy-csv-btn" style="padding:9px 16px; font-size:0.9rem;" title="复制 CSV 这一列的值，可直接粘贴到表格的某一列">
+              📋 复制 CSV 列
+            </button>
+            <button type="button" class="btn btn-secondary" id="copy-csv-labels-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;" title="复制 CSV 每一行对应的指标名，用于第一次搭建记录表">
+              复制行名
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Slice Sync Bar inside Report Studio -->
+        <div class="slice-panel" style="margin-top:0; margin-bottom:16px;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span style="font-size:0.82rem; font-weight:700;">快速切换晨报数据源：</span>
+            <select id="report-quick-slice" class="select-input" style="min-width:360px; font-family:ui-monospace, monospace;"></select>
+          </div>
+          <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; font-size:0.81rem;">
+            <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
+              <input type="checkbox" id="rpt-opt-hw" checked style="accent-color:#2563eb;"> 硬件与进程水位
+            </label>
+            <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
+              <input type="checkbox" id="rpt-opt-cms" checked style="accent-color:#2563eb;"> CMS 子进程表
+            </label>
+          </div>
+        </div>
+
+        <!-- Developer Custom Fields -->
+        <div class="report-form-grid">
+          <div class="field-group">
+            <label for="rpt-reporter">评测人（手动填写，与菜单栏同步保存）</label>
+            <input type="text" id="rpt-reporter" class="text-input" placeholder="例如：yingjia">
+          </div>
+          <div class="field-group">
+            <label for="rpt-lan-host">局域网 IP（留空自动使用本机 192.168 开头的地址；晨报附「查看详情」链接）</label>
+            <input type="text" id="rpt-lan-host" class="text-input" placeholder="例如：192.168.1.23" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="field-group">
+            <label for="rpt-changes">本轮分支 / 模型 / 优化改动摘要</label>
+            <input type="text" id="rpt-changes" class="text-input" placeholder="例如：升级 clip 推理批大小，优化 node-ingest 并发锁...">
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="rpt-notes">开发结论、异常说明与跟进事项（每行以「- 」开头会显示为列表）</label>
+          <textarea id="rpt-notes" placeholder="- 整体处理倍速符合预期，内存峰值可控&#10;- 待跟进：排查长视频在 asr 泳道尾部的单核排队现象"></textarea>
+        </div>
+      </div>
+
+      <!-- Report Preview (the PNG card is rendered from the same Markdown) -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">
+          <h3 class="card-title">👁️ 晨报预览</h3>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span class="badge badge-blue" id="rpt-filename-badge">Clipto离线分析晨报.png</span>
+            <!-- Markdown export kept for occasional use (Feishu docs / Notion), intentionally low-key -->
+            <button type="button" class="btn btn-secondary" id="copy-md-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;">复制 Markdown</button>
+            <button type="button" class="btn btn-secondary" id="download-md-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;">下载 .md</button>
+          </div>
+        </div>
+        <div class="md-preview-box" id="md-rendered-preview" style="max-height:none;"></div>
+        <!-- Hidden data holder: source Markdown used for the PNG render and the optional .md export -->
+        <textarea id="md-raw-output" spellcheck="false" hidden></textarea>
+      </div>
+    </section>
+  </div>
+
+  <div id="floating-tooltip" class="floating-tooltip"></div>
+  <div id="toast" class="toast"></div>
+  <script>
+    const PALETTE = [
+      "#2563eb", "#0891b2", "#7c3aed", "#db2777", "#ea580c",
+      "#16a34a", "#d97706", "#4f46e5", "#0d9488", "#e11d48",
+      "#65a30d", "#9333ea", "#0284c7", "#c026d3", "#ca8a04",
+      "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0"
+    ];
+
+    // ==================== Global Application State ====================
+    let activeTab = "dagsc";
+    let dagscData = null;
+    let liveData = null;
+    let monitorSeries = [];
+    let lanShareURL = window.location.origin;
+    let reportProfile = { reporter: "", lan_host: "", auto_lan_host: "", web_port: Number(window.location.port) || 8766, detected_lan_ips: [] };
+    let profileSaveTimer = null;
+
+    // DAGSC slice & table state
+    let sliceMode = "auto";      // 'auto' | 'batch' | 'custom' | 'all'
+    let selectedBatchId = "";
+    let customSliceFromMs = 0;
+    let customSliceToMs = 0;
+    let currentView = "node_type";       // 'node_type' | 'template_node' | 'asset'
+    let sortKey = "sum_ms";
+    let sortAsc = false;
+    let searchQuery = "";
+
+    // Monitor tab state
+    let monitorRangeSec = 900;   // 900 | 3600 | 21600 | 86400 | 604800 | 'custom'
+    let monitorCustomFromMs = 0;
+    let monitorCustomToMs = 0;
+    let monitorAutoRefresh = true;
+
+    // Nsight Canvas state
+    let chartMode = "nsys_timeline";
+    let nsysColorMode = "asset";
+    let nsysAssetFilter = "all";
+    let nsysShowBubbles = true;
+    let nsysShowHwTracks = true;
+    let nsysViewStartMs = 0;
+    let nsysViewEndMs = 0;
+    let nsysMaxWallMs = 1;
+    let nsysIsDragging = false;
+    let nsysDragStartX = 0;
+    let nsysDragStartRange = [0, 0];
+    let nsysHitBoxes = [];
+    let nsysGapBoxes = [];
+    let nsysBubble2dNodes = [];
+    let nsysHwTrackMeta = null;
+
+    const NSYS_LEFT_PAD = 238;
+    const NSYS_RIGHT_PAD = 18;
+    const NSYS_TOP_RULER = 34;
+    const NSYS_LANE_H = 26;
+    const NSYS_HW_HEADER_H = 26;
+    const NSYS_HW_TRACK_H = 54;
+    const NSYS_BOTTOM_PAD = 24;
+
+    // ==================== Formatting Utilities ====================
+    function escHtml(str) {
+      return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function formatDurationHuman(ms) {
+      if (ms == null || isNaN(ms)) return "—";
+      const totalSec = Math.max(0, ms) / 1000;
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = (totalSec % 60).toFixed(3);
+      if (h > 0) return `${h}h ${m}m ${s}s`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    }
+
+    function formatSec(ms) {
+      if (ms == null || isNaN(ms)) return "0.000 s";
+      return (ms / 1000).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + " s";
+    }
+
+    function formatInt(n) {
+      return Number(n || 0).toLocaleString("en-US");
+    }
+
+    function formatBytes(bytes) {
+      if (bytes == null || isNaN(bytes)) return "—";
+      if (bytes <= 0) return "0 MB";
+      const gb = bytes / (1024 * 1024 * 1024);
+      if (gb >= 1) return `${gb.toFixed(2)} GB`;
+      const mb = bytes / (1024 * 1024);
+      if (mb >= 1) return `${mb.toFixed(1)} MB`;
+      return `${(bytes / 1024).toFixed(0)} KB`;
+    }
+
+    function formatRate(bps) {
+      if (bps == null || isNaN(bps)) return "—";
+      return `${formatBytes(bps)}/s`;
+    }
+
+    function formatPct(val, digits = 1) {
+      if (val == null || isNaN(val)) return "—";
+      return `${Number(val).toFixed(digits)}%`;
+    }
+
+    function formatWatts(w) {
+      if (w == null || isNaN(w)) return "—";
+      if (w < 1 && w > 0) return `${(w * 1000).toFixed(0)} mW`;
+      return `${Number(w).toFixed(2)} W`;
+    }
+
+    function formatSpeedup(speedup) {
+      if (!speedup || isNaN(speedup)) return "—";
+      return `${Number(speedup).toFixed(2)}x`;
+    }
+
+    function thermalText(state) {
+      switch (state) {
+        case "nominal": case "正常": case "Normal": return "正常";
+        case "fair": case "温热": case "Warm": return "温热";
+        case "serious": case "较高": case "High": return "较高";
+        case "critical": case "严重": case "Critical": return "严重";
+        default: return "未知";
+      }
+    }
+
+    function toDatetimeLocalValue(ms) {
+      const d = new Date(ms);
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    function formatWallClockMs(ms, withDate = false, withMillis = true) {
+      if (!ms || !isFinite(ms)) return "—";
+      const d = new Date(ms);
+      const pad2 = n => String(n).padStart(2, "0");
+      const pad3 = n => String(n).padStart(3, "0");
+      const hms = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}${withMillis ? "." + pad3(d.getMilliseconds()) : ""}`;
+      if (!withDate) return hms;
+      return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${hms}`;
+    }
+
+    function formatAxisElapsed(sec, stepSec) {
+      if (sec < 60) {
+        return stepSec < 1 ? `${sec.toFixed(1)}s` : `${Math.round(sec)}s`;
+      }
+      if (sec < 3600) {
+        const m = Math.floor(sec / 60);
+        const s = Math.round(sec % 60);
+        return s > 0 ? `${m}m${String(s).padStart(2, "0")}s` : `${m}m`;
+      }
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.round(sec % 60);
+      if (stepSec < 60 && s > 0) return `${h}h${String(m).padStart(2, "0")}m${String(s).padStart(2, "0")}s`;
+      return `${h}h${String(m).padStart(2, "0")}m`;
+    }
+
+    function virtualMsToWallMs(vMs, scopeObj) {
+      const segs = (scopeObj && scopeObj.active_segments) || [];
+      if (!segs.length) return (scopeObj ? scopeObj.origin_start_ms : 0) + vMs;
+      for (let i = 0; i < segs.length; i++) {
+        const sg = segs[i];
+        if (vMs <= sg.virtual_end_ms || i === segs.length - 1) {
+          const offset = Math.max(0, Math.min(sg.duration_ms, vMs - sg.virtual_start_ms));
+          return sg.wall_start_ms + offset;
+        }
+      }
+      return segs[0].wall_start_ms + vMs;
+    }
+
+    function wallMsToVirtualPoint(wallMs, scopeObj) {
+      const segs = (scopeObj && scopeObj.active_segments) || [];
+      if (!segs.length) {
+        const o = (scopeObj && scopeObj.origin_start_ms) || 0;
+        return { vMs: wallMs - o, segIdx: 0 };
+      }
+      for (let i = 0; i < segs.length; i++) {
+        const sg = segs[i];
+        if (wallMs >= sg.wall_start_ms - 1500 && wallMs <= sg.wall_end_ms + 1500) {
+          const clamped = Math.min(sg.wall_end_ms, Math.max(sg.wall_start_ms, wallMs));
+          return { vMs: sg.virtual_start_ms + (clamped - sg.wall_start_ms), segIdx: sg.index };
+        }
+      }
+      return null;
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => el.classList.remove("show"), 2800);
+    }
+
+    async function copyTextSafe(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch (_) {}
+      }
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (_) {}
+      document.body.removeChild(ta);
+      return ok;
+    }
+
+    // ==================== Tab Navigation ====================
+    function switchTab(tabName, updateHash = true) {
+      if (!["dagsc", "monitor", "report"].includes(tabName)) tabName = "dagsc";
+      activeTab = tabName;
+      document.querySelectorAll("#main-nav-tabs .nav-tab").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-tab") === tabName);
+      });
+      document.querySelectorAll(".tab-pane").forEach(p => {
+        p.classList.toggle("active", p.id === `pane-${tabName}`);
+      });
+      if (updateHash) {
+        history.replaceState(null, "", `#${tabName}`);
+      }
+      if (tabName === "dagsc") {
+        renderNsysCanvas();
+      } else if (tabName === "monitor") {
+        loadMonitorHistory();
+      } else if (tabName === "report") {
+        rebuildMarkdownReport();
+      }
+    }
+
+    document.getElementById("main-nav-tabs").addEventListener("click", e => {
+      const btn = e.target.closest(".nav-tab");
+      if (btn) switchTab(btn.getAttribute("data-tab"));
+    });
+
+    window.addEventListener("hashchange", () => {
+      const h = (window.location.hash || "").replace(/^#/, "");
+      if (["dagsc", "monitor", "report"].includes(h)) {
+        switchTab(h, false);
+      }
+    });
+
+    document.getElementById("jump-to-report-btn").addEventListener("click", () => {
+      switchTab("report");
+    });
+
+    document.getElementById("copy-lan-pill").addEventListener("click", async () => {
+      await copyTextSafe(lanShareURL);
+      showToast(`✓ 已复制访问网址：${lanShareURL}`);
+    });
+
+    // ==================== Live Telemetry Polling (/api/monitor/live) ====================
+    // Manually entered LAN host wins over auto-detected addresses.
+    function normalizeHost(raw) {
+      let h = String(raw || "").trim().replace(/^https?:\/\//i, "");
+      h = h.split("/")[0];
+      if ((h.match(/:/g) || []).length === 1) h = h.split(":")[0];
+      return h;
+    }
+    // Manual value, else the auto-detected work LAN (first 192.168.* address).
+    function effectiveLanHost() {
+      return normalizeHost(document.getElementById("rpt-lan-host").value) || reportProfile.auto_lan_host || "";
+    }
+    function updateLanPill() {
+      const host = effectiveLanHost();
+      if (!host) return;
+      lanShareURL = `http://${host}:${reportProfile.web_port}`;
+      document.getElementById("lan-url-text").textContent = `${host}:${reportProfile.web_port}`;
+    }
+    async function loadReportProfile() {
+      try {
+        const p = await (await fetch("/api/report/profile")).json();
+        if (!p.ok) return;
+        reportProfile = p;
+        document.getElementById("rpt-reporter").value = p.reporter || "";
+        document.getElementById("rpt-lan-host").value = p.lan_host || "";
+        document.getElementById("rpt-lan-host").placeholder = p.auto_lan_host
+          ? `自动：${p.auto_lan_host}（可手动覆盖）`
+          : "未检测到 192.168 开头的地址，请手动填写";
+        updateLanPill();
+        rebuildMarkdownReport();
+      } catch (_) {}
+    }
+    function scheduleProfileSave() {
+      clearTimeout(profileSaveTimer);
+      profileSaveTimer = setTimeout(() => {
+        fetch("/api/report/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reporter: document.getElementById("rpt-reporter").value,
+            lan_host: document.getElementById("rpt-lan-host").value
+          })
+        }).catch(() => {});
+      }, 500);
+      updateLanPill();
+    }
+
+    async function pollLiveTelemetry() {
+      try {
+        const resp = await fetch("/api/monitor/live");
+        const data = await resp.json();
+        if (!data.ok) return;
+        liveData = data;
+
+        const env = data.environment;
+        if (env) {
+          document.getElementById("nav-chip-badge").textContent = `${env.chip_model} · ${env.physical_memory_text}`;
+          reportProfile.web_port = env.web_port || reportProfile.web_port;
+          updateLanPill();
+          const pathInp = document.getElementById("dagsc-path-input");
+          if (!pathInp.value && env.default_dagsc_dir) {
+            pathInp.value = env.default_dagsc_dir;
+          }
+        }
+
+        const s = data.latest;
+        const cms = data.cms;
+        if (s) {
+          document.getElementById("live-cpu-pill").textContent = `CPU ${formatPct(s.cpu_usage, 0)}`;
+          document.getElementById("live-power-pill").textContent = `整机 ${formatWatts(s.system_power_watts)}`;
+          document.getElementById("live-clipto-pill").textContent = s.clipto_running
+            ? `Clipto ${formatBytes(s.clipto_memory_bytes)} (${formatPct(s.clipto_cpu_percent, 0)})`
+            : "Clipto 空闲";
+        }
+        if (cms) {
+          document.getElementById("live-cms-pill").textContent = cms.running_count > 0
+            ? `CMS(${cms.running_count}) ${formatBytes(cms.memory.current)}`
+            : "CMS 空闲";
+        }
+
+        renderLiveMonitorCards();
+        if (activeTab === "monitor" && monitorAutoRefresh && monitorRangeSec !== "custom") {
+          loadMonitorHistory(true);
+        }
+      } catch (_) {}
+    }
+
+    function renderLiveMonitorCards() {
+      if (!liveData) return;
+      const s = liveData.latest;
+      const cms = liveData.cms;
+      if (s) {
+        document.getElementById("mon-cpu-val").textContent = `CPU ${formatPct(s.cpu_usage, 1)}`;
+        document.getElementById("mon-gpu-ane-sub").textContent = `GPU ${formatPct(s.gpu_usage, 1)} ｜ ANE ${formatPct(s.ane_usage, 1)}`;
+        const tLabel = thermalText(s.thermal_state);
+        const tBadge = document.getElementById("mon-thermal-badge");
+        tBadge.textContent = `热状态: ${tLabel}`;
+        tBadge.className = `badge ${tLabel === "正常" ? "badge-green" : "badge-amber"}`;
+
+        document.getElementById("mon-power-val").textContent = formatWatts(s.system_power_watts);
+        document.getElementById("mon-power-sub").textContent =
+          `CPU ${formatWatts(s.cpu_power_watts)} ｜ GPU ${formatWatts(s.gpu_power_watts)} ｜ ANE ${formatWatts(s.ane_power_watts)}`;
+
+        document.getElementById("mon-mem-val").textContent =
+          `${formatBytes(s.memory_used_bytes)} / ${formatBytes(s.memory_total_bytes)}`;
+        document.getElementById("mon-mem-pct-badge").textContent = formatPct(s.memory_usage, 0);
+        document.getElementById("mon-swap-sub").textContent =
+          `Swap 已用: ${formatBytes(s.swap_used_bytes)} / ${formatBytes(s.swap_total_bytes)}`;
+
+        const cState = document.getElementById("mon-clipto-state");
+        if (s.clipto_running) {
+          cState.textContent = `运行中 (${s.clipto_process_count || 1} 进程)`;
+          cState.className = "badge badge-green";
+          document.getElementById("mon-clipto-mem").textContent = formatBytes(s.clipto_memory_bytes);
+          document.getElementById("mon-clipto-sub").textContent =
+            `CPU ${formatPct(s.clipto_cpu_percent, 1)} ｜ GPU ${formatPct(s.clipto_gpu_percent, 1)} ｜ 读 ${formatRate(s.clipto_disk_read_bps)}`;
+        } else {
+          cState.textContent = "未运行";
+          cState.className = "badge";
+          document.getElementById("mon-clipto-mem").textContent = "—";
+          document.getElementById("mon-clipto-sub").textContent = "等待检测到 Clipto 进程组...";
+        }
+
+        const dramTotal = (s.memory_read_gbps != null || s.memory_write_gbps != null)
+          ? `读 ${(s.memory_read_gbps || 0).toFixed(2)} / 写 ${(s.memory_write_gbps || 0).toFixed(2)} GB/s`
+          : "—";
+        document.getElementById("mon-dram-val").textContent = dramTotal;
+        document.getElementById("mon-io-sub").textContent =
+          `磁盘 读${formatRate(s.disk_read_bps)} 写${formatRate(s.disk_write_bps)} ｜ 网 ↓${formatRate(s.net_down_bps)}`;
+      }
+
+      if (cms) {
+        document.getElementById("mon-cms-count-badge").textContent = `活跃 ${cms.running_count} / 累计 ${cms.total_instances}`;
+        document.getElementById("mon-cms-mem").textContent = cms.memory.current != null ? formatBytes(cms.memory.current) : "—";
+        document.getElementById("mon-cms-sub").textContent =
+          `当前 CPU ${formatPct(cms.cpu.current, 1)} ｜ 峰值内存 ${formatBytes(cms.memory.peak)}`;
+        document.getElementById("cms-session-meta").textContent =
+          `本次启动：${cms.started_at_text} ｜ 当前活跃 ${cms.running_count} 个，会话累计捕获 ${cms.total_instances} 个实例`;
+
+        const showExited = document.getElementById("cms-show-exited").checked;
+        const rows = (cms.processes || []).filter(p => showExited || p.state === "running");
+        const tbody = document.getElementById("cms-live-tbody");
+        if (!rows.length) {
+          tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--muted); padding:20px;">当前列表没有匹配的 CMS 进程记录</td></tr>`;
+        } else {
+          tbody.innerHTML = rows.map(p => {
+            const stBadge = p.state === "running"
+              ? `<span class="badge badge-green">运行中</span>`
+              : (p.state === "exited" ? `<span class="badge">已退出</span>` : `<span class="badge badge-amber">不可读</span>`);
+            return `
+              <tr>
+                <td class="num">${p.pid}</td>
+                <td><code>${escHtml(p.name)}</code></td>
+                <td>${stBadge}</td>
+                <td class="num">${formatPct(p.cpu.current, 1)}</td>
+                <td class="num">${formatPct(p.cpu.average, 1)}</td>
+                <td class="num"><strong>${formatPct(p.cpu.peak, 1)}</strong></td>
+                <td class="num">${formatBytes(p.memory.current)}</td>
+                <td class="num">${formatBytes(p.memory.average)}</td>
+                <td class="num"><strong>${formatBytes(p.memory.peak)}</strong></td>
+              </tr>
+            `;
+          }).join("");
+        }
+
+        document.getElementById("cms-live-tfoot").innerHTML = `
+          <tr>
+            <td>合计</td>
+            <td><strong>CMS 进程组会话总计</strong></td>
+            <td>活跃 ${cms.running_count} 个</td>
+            <td class="num">${formatPct(cms.cpu.current, 1)}</td>
+            <td class="num">${formatPct(cms.cpu.average, 1)}</td>
+            <td class="num">${formatPct(cms.cpu.peak, 1)}</td>
+            <td class="num">${formatBytes(cms.memory.current)}</td>
+            <td class="num">${formatBytes(cms.memory.average)}</td>
+            <td class="num">${formatBytes(cms.memory.peak)}</td>
+          </tr>
+        `;
+      }
+    }
+
+    document.getElementById("cms-show-exited").addEventListener("change", renderLiveMonitorCards);
+
+    // ==================== Monitor Tab History & Multi-Series Charts ====================
+    function getMonitorWindowMs() {
+      if (monitorRangeSec === "custom" && monitorCustomFromMs > 0 && monitorCustomToMs > monitorCustomFromMs) {
+        return { fromMs: monitorCustomFromMs, toMs: monitorCustomToMs };
+      }
+      const now = Date.now();
+      const dur = (Number(monitorRangeSec) || 900) * 1000;
+      return { fromMs: now - dur, toMs: now };
+    }
+
+    async function loadMonitorHistory() {
+      const { fromMs, toMs } = getMonitorWindowMs();
+      try {
+        const resp = await fetch(`/api/monitor/history?from_ms=${fromMs}&to_ms=${toMs}&max_points=540`);
+        const data = await resp.json();
+        if (data.ok) {
+          monitorSeries = data.points || [];
+          renderAllMonitorCharts();
+        }
+      } catch (_) {}
+    }
+
+    function drawTimeSeriesChart(canvasId, points, seriesDefs, yUnitFmt, fixedMaxY = null) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = Math.max(canvas.clientWidth || 520, 280);
+      const cssH = 195;
+      canvas.width = Math.floor(cssW * dpr);
+      canvas.height = Math.floor(cssH * dpr);
+
+      const ctx = canvas.getContext("2d");
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.fillStyle = "#0b1120";
+      ctx.fillRect(0, 0, cssW, cssH);
+
+      const padL = 54, padR = 14, padT = 12, padB = 24;
+      const plotW = cssW - padL - padR;
+      const plotH = cssH - padT - padB;
+
+      if (!points || points.length < 2) {
+        ctx.fillStyle = "#64748b";
+        ctx.font = "12px -apple-system, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("该时间段暂无足够的历史采样点", cssW / 2, cssH / 2);
+        ctx.restore();
+        return;
+      }
+
+      const minT = points[0].ts_ms;
+      const maxT = Math.max(minT + 1000, points[points.length - 1].ts_ms);
+      let maxY = fixedMaxY || 0;
+      if (!fixedMaxY) {
+        points.forEach(p => {
+          seriesDefs.forEach(sd => {
+            const v = sd.get(p);
+            if (v != null && isFinite(v) && v > maxY) maxY = v;
+          });
+        });
+        maxY = maxY > 0 ? maxY * 1.15 : 10;
+      }
+
+      // Horizontal grid
+      ctx.font = "10px ui-monospace, monospace";
+      for (let i = 0; i <= 4; i++) {
+        const ratio = i / 4;
+        const y = padT + plotH - ratio * plotH;
+        ctx.strokeStyle = "#172033";
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(padL + plotW, y);
+        ctx.stroke();
+
+        ctx.fillStyle = "#64748b";
+        ctx.textAlign = "right";
+        ctx.fillText(yUnitFmt(maxY * ratio), padL - 6, y + 3);
+      }
+
+      // Time ticks
+      ctx.textAlign = "center";
+      for (let i = 0; i <= 4; i++) {
+        const ratio = i / 4;
+        const x = padL + ratio * plotW;
+        const d = new Date(minT + ratio * (maxT - minT));
+        const lbl = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+        ctx.fillStyle = "#64748b";
+        ctx.fillText(lbl, x, cssH - 6);
+      }
+
+      // Plot lines
+      seriesDefs.forEach(sd => {
+        ctx.strokeStyle = sd.color;
+        ctx.lineWidth = sd.width || 1.6;
+        ctx.beginPath();
+        let started = false;
+        let prevTs = 0;
+        points.forEach(p => {
+          const v = sd.get(p);
+          if (v == null || !isFinite(v)) {
+            started = false;
+            return;
+          }
+          const x = padL + ((p.ts_ms - minT) / (maxT - minT)) * plotW;
+          const y = padT + plotH - Math.min(1, Math.max(0, v / maxY)) * plotH;
+          const maxGap = Math.max(60000, (maxT - minT) * 0.08);
+          if (!started || (p.ts_ms - prevTs > maxGap)) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+          prevTs = p.ts_ms;
+        });
+        ctx.stroke();
+      });
+
+      ctx.restore();
+    }
+
+    function renderAllMonitorCharts() {
+      const GB = 1024 * 1024 * 1024;
+      const MB = 1024 * 1024;
+      const cores = Math.max(1, (liveData && liveData.environment && liveData.environment.logical_cores) || (dagscData && dagscData.environment && dagscData.environment.logical_cores) || 10);
+      drawTimeSeriesChart("chart-cpu", monitorSeries, [
+        { color: "#3b82f6", get: p => p.sys_cpu },
+        { color: "#10b981", get: p => p.sys_gpu },
+        { color: "#f59e0b", get: p => p.ane_usage },
+        { color: "#a855f7", get: p => p.clipto_cpu != null ? Math.min(100, p.clipto_cpu / cores) : null, width: 2.0 }
+      ], v => `${v.toFixed(0)}%`, 100);
+
+      drawTimeSeriesChart("chart-mem", monitorSeries, [
+        { color: "#3b82f6", get: p => p.sys_mem_bytes / GB },
+        { color: "#a855f7", get: p => p.clipto_mem_bytes != null ? p.clipto_mem_bytes / GB : null, width: 2.0 },
+        { color: "#06b6d4", get: p => p.cms_mem_bytes != null ? p.cms_mem_bytes / GB : null, width: 2.0 },
+        { color: "#ef4444", get: p => p.swap_used_bytes / GB }
+      ], v => `${v.toFixed(1)}G`);
+
+      drawTimeSeriesChart("chart-power", monitorSeries, [
+        { color: "#f43f5e", get: p => p.sys_power, width: 2.0 },
+        { color: "#3b82f6", get: p => p.cpu_power },
+        { color: "#10b981", get: p => p.gpu_power },
+        { color: "#f59e0b", get: p => p.ane_power }
+      ], v => `${v.toFixed(1)}W`);
+
+      drawTimeSeriesChart("chart-io", monitorSeries, [
+        { color: "#06b6d4", get: p => p.disk_read_bps / MB },
+        { color: "#f97316", get: p => p.disk_write_bps / MB },
+        { color: "#a855f7", get: p => p.clipto_disk_read != null ? p.clipto_disk_read / MB : null },
+        { color: "#eab308", get: p => (p.dram_read_gbps != null || p.dram_write_gbps != null) ? ((p.dram_read_gbps || 0) + (p.dram_write_gbps || 0)) : null }
+      ], v => `${v.toFixed(0)}`);
+    }
+
+    document.getElementById("mon-range-seg").addEventListener("click", e => {
+      const btn = e.target.closest(".seg-btn");
+      if (!btn) return;
+      document.querySelectorAll("#mon-range-seg .seg-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const val = btn.getAttribute("data-sec");
+      const customWrap = document.getElementById("mon-custom-wrap");
+      if (val === "custom") {
+        monitorRangeSec = "custom";
+        customWrap.style.display = "inline-flex";
+        const now = Date.now();
+        if (!monitorCustomToMs) {
+          monitorCustomFromMs = now - 3600 * 1000;
+          monitorCustomToMs = now;
+          document.getElementById("mon-from-input").value = toDatetimeLocalValue(monitorCustomFromMs);
+          document.getElementById("mon-to-input").value = toDatetimeLocalValue(monitorCustomToMs);
+        }
+      } else {
+        monitorRangeSec = Number(val);
+        customWrap.style.display = "none";
+        loadMonitorHistory();
+      }
+    });
+
+    document.getElementById("mon-apply-custom-btn").addEventListener("click", () => {
+      const f = new Date(document.getElementById("mon-from-input").value).getTime();
+      const t = new Date(document.getElementById("mon-to-input").value).getTime();
+      if (f > 0 && t > f) {
+        monitorCustomFromMs = f;
+        monitorCustomToMs = t;
+        loadMonitorHistory();
+      }
+    });
+
+    document.getElementById("mon-live-toggle").addEventListener("change", e => {
+      monitorAutoRefresh = e.target.checked;
+    });
+
+    document.getElementById("export-sys-csv-btn").addEventListener("click", () => {
+      const { fromMs, toMs } = getMonitorWindowMs();
+      window.location.href = `/api/export/system-csv?from_ms=${fromMs}&to_ms=${toMs}`;
+    });
+
+    document.getElementById("export-cms-csv-btn").addEventListener("click", () => {
+      const { fromMs, toMs } = getMonitorWindowMs();
+      window.location.href = `/api/export/cms-csv?from_ms=${fromMs}&to_ms=${toMs}`;
+    });
+
+    // ==================== DAGSC + Aligned Hardware Analysis ====================
+    async function fetchDAGSCAnalysis(opts = {}) {
+      const btn = document.getElementById("dagsc-analyze-btn");
+      const errBanner = document.getElementById("dagsc-error-banner");
+      const pathVal = document.getElementById("dagsc-path-input").value.trim();
+
+      btn.disabled = true;
+      btn.textContent = "分析中...";
+      errBanner.style.display = "none";
+
+      const params = buildSliceParams(opts);
+
+      try {
+        const resp = await fetch(`/api/dagsc/analyze?${params.toString()}`);
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          throw new Error(data.error || `请求失败 (${resp.status})`);
+        }
+        dagscData = data;
+        sliceMode = data.slice_mode || "batch";
+        selectedBatchId = data.selected_batch_id || "";
+        if (!pathVal && data.default_dagsc_dir) {
+          document.getElementById("dagsc-path-input").value = data.default_dagsc_dir;
+        }
+        document.getElementById("dagsc-meta-bar").style.display = "flex";
+        document.getElementById("dagsc-results-body").style.display = "block";
+        resetNsysZoom();
+        renderDAGSCAll();
+        rebuildMarkdownReport();
+      } catch (err) {
+        dagscData = null;
+        document.getElementById("dagsc-meta-bar").style.display = "none";
+        document.getElementById("dagsc-results-body").style.display = "none";
+        document.getElementById("dagsc-app-ver").textContent = "—";
+        document.getElementById("dagsc-tpl-badge").textContent = "模板 —";
+        errBanner.textContent = err.message || String(err);
+        errBanner.style.display = "block";
+        rebuildMarkdownReport();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "加载并分析";
+      }
+    }
+
+    // Query params describing the slice currently shown (shared by analyze / CSV export).
+    function buildSliceParams(opts = {}) {
+      const params = new URLSearchParams();
+      const pathVal = document.getElementById("dagsc-path-input").value.trim();
+      if (pathVal) params.set("path", pathVal);
+      const mode = opts.sliceMode || sliceMode || "auto";
+      params.set("slice_mode", mode);
+      if (mode === "batch" && (opts.batchId || selectedBatchId)) {
+        params.set("batch_id", opts.batchId || selectedBatchId);
+      } else if (mode === "custom" && customSliceFromMs > 0 && customSliceToMs >= customSliceFromMs) {
+        params.set("from_ms", String(customSliceFromMs));
+        params.set("to_ms", String(customSliceToMs));
+      }
+      return params;
+    }
+
+    function updateSliceControlVisibility() {
+      document.querySelectorAll("#slice-mode-seg .seg-btn").forEach(b => {
+        b.classList.toggle("active", b.getAttribute("data-slice") === sliceMode);
+      });
+      document.getElementById("slice-ctrl-batch").style.display = sliceMode === "batch" ? "flex" : "none";
+      document.getElementById("slice-ctrl-custom").style.display = sliceMode === "custom" ? "flex" : "none";
+    }
+
+    function renderSliceControls() {
+      if (!dagscData) return;
+      updateSliceControlVisibility();
+
+      // Batches dropdown
+      const batchSel = document.getElementById("batch-select");
+      const batches = dagscData.available_batches || [];
+      batchSel.innerHTML = batches.map(b =>
+        `<option value="${escHtml(b.batch_id)}" ${b.batch_id === selectedBatchId ? "selected" : ""}>${escHtml(b.label)}</option>`
+      ).join("");
+
+      // Records-reset epoch hint
+      const epochWrap = document.getElementById("meta-epoch-wrap");
+      if (dagscData.records_epoch_ms > 0) {
+        document.getElementById("meta-epoch").textContent = formatLocalMinute(dagscData.records_epoch_ms, true);
+        epochWrap.style.display = "inline";
+      } else {
+        epochWrap.style.display = "none";
+      }
+
+      // Report studio quick slice dropdown
+      const quickSel = document.getElementById("report-quick-slice");
+      let qHtml = `<optgroup label="🎯 自动识别测试批次 (Batch)">`;
+      batches.forEach(b => {
+        const sel = (sliceMode === "batch" && b.batch_id === selectedBatchId) ? "selected" : "";
+        qHtml += `<option value="batch:${escHtml(b.batch_id)}" ${sel}>${escHtml(b.label)}</option>`;
+      });
+      if (sliceMode === "custom") {
+        qHtml += `</optgroup><optgroup label="⏱️ 自定义"><option value="custom:" selected>${escHtml(dagscData.slice_label || "自定义时间窗")}</option>`;
+      }
+      qHtml += `</optgroup><optgroup label="🗂️ 全库"><option value="all:" ${sliceMode === "all" ? "selected" : ""}>全库所有历史任务汇总</option></optgroup>`;
+      quickSel.innerHTML = qHtml;
+    }
+
+    function renderAlignedHardwarePanel() {
+      const badge = document.getElementById("aligned-coverage-badge");
+      const hint = document.getElementById("aligned-window-hint");
+      const body = document.getElementById("aligned-hw-body");
+      const hw = dagscData && dagscData.aligned_hardware;
+
+      if (!hw || !hw.has_data) {
+        badge.textContent = "该时段无历史采样";
+        badge.className = "badge badge-amber";
+        hint.textContent = dagscData ? `对齐窗口: ${dagscData.slice_start_text} ~ ${dagscData.slice_end_text}` : "—";
+        body.innerHTML = `
+          <div style="padding:12px 14px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; color:#92400e; font-size:0.84rem;">
+            该历史测试窗口内未找到对应的本地硬件监控数据（可能当时尚未启动后台采集）。保持顶部菜单栏 <strong>CliptoPulse</strong> 常驻运行后，后续所有测试批次都会自动对齐 CPU / GPU / ANE / 功耗 / Clipto & CMS 内存水位与同轴曲线。
+          </div>
+        `;
+        return;
+      }
+
+      badge.textContent = `已对齐 ${formatInt(hw.sample_count)} 个采样点 · 覆盖率 ${hw.coverage_percent.toFixed(1)}%`;
+      badge.className = "badge badge-green";
+      hint.textContent = `对齐活跃窗口：${hw.window_start_text} → ${hw.window_end_text}`;
+
+      const energyStr = hw.estimated_energy_wh != null ? `${hw.estimated_energy_wh.toFixed(2)} Wh` : "—";
+      body.innerHTML = `
+        <div class="cards-grid-4" style="margin-bottom:0;">
+          <div class="stat-card" style="box-shadow:none; background:#f8fafc;">
+            <div class="stat-label"><span>Clipto 进程组水位</span><span>最多 ${hw.clipto_max_processes} 进程</span></div>
+            <div class="stat-value" style="font-size:1.22rem; color:#6d28d9;">峰值 ${formatBytes(hw.clipto_memory_bytes.max)}</div>
+            <div class="stat-sub">内存均值 ${formatBytes(hw.clipto_memory_bytes.avg)} ｜ P95 ${formatBytes(hw.clipto_memory_bytes.p95)}</div>
+            <div class="stat-detail">
+              <div>CPU：均值 <strong>${formatPct(hw.clipto_cpu_percent.avg)}</strong> / 峰值 <strong>${formatPct(hw.clipto_cpu_percent.max)}</strong></div>
+              <div>GPU：均值 <strong>${formatPct(hw.clipto_gpu_percent.avg)}</strong> / 峰值 <strong>${formatPct(hw.clipto_gpu_percent.max)}</strong></div>
+            </div>
+          </div>
+
+          <div class="stat-card" style="box-shadow:none; background:#f8fafc;">
+            <div class="stat-label"><span>CMS 进程组水位</span><span>${hw.cms_frame_count} 采样帧</span></div>
+            <div class="stat-value" style="font-size:1.22rem; color:#0e7490;">峰值 ${formatBytes(hw.cms_total_memory_bytes.max)}</div>
+            <div class="stat-sub">内存均值 ${formatBytes(hw.cms_total_memory_bytes.avg)} ｜ P95 ${formatBytes(hw.cms_total_memory_bytes.p95)}</div>
+            <div class="stat-detail">
+              <div>总 CPU(单核=100%)：均值 <strong>${formatPct(hw.cms_total_cpu_percent.avg)}</strong> / 峰值 <strong>${formatPct(hw.cms_total_cpu_percent.max)}</strong></div>
+              <div>识别子进程种类：<strong>${(hw.cms_processes || []).length} 类</strong></div>
+            </div>
+          </div>
+
+          <div class="stat-card" style="box-shadow:none; background:#f8fafc;">
+            <div class="stat-label"><span>整机算力与内存</span><span>CPU / GPU / ANE</span></div>
+            <div class="stat-value" style="font-size:1.22rem; color:#1d4ed8;">CPU 均值 ${formatPct(hw.sys_cpu.avg)}</div>
+            <div class="stat-sub">CPU P95 ${formatPct(hw.sys_cpu.p95)} ｜ 峰值 ${formatPct(hw.sys_cpu.max)}</div>
+            <div class="stat-detail">
+              <div>GPU 均值/峰值：<strong>${formatPct(hw.sys_gpu.avg)} / ${formatPct(hw.sys_gpu.max)}</strong> ｜ ANE 峰值：<strong>${formatPct(hw.ane_usage.max)}</strong></div>
+              <div>整机内存峰值：<strong>${formatBytes(hw.sys_mem_bytes.max)}</strong> ｜ Swap 峰值：<strong>${formatBytes(hw.swap_used_bytes.max)}</strong></div>
+            </div>
+          </div>
+
+          <div class="stat-card" style="box-shadow:none; background:#f8fafc;">
+            <div class="stat-label"><span>功耗、能耗与热状态</span><span>最高热态: ${thermalText(hw.worst_thermal_state)}</span></div>
+            <div class="stat-value" style="font-size:1.22rem; color:#e11d48;">均值 ${formatWatts(hw.sys_power_watts.avg)}</div>
+            <div class="stat-sub">整机峰值 ${formatWatts(hw.sys_power_watts.max)} ｜ 累计耗电 ${energyStr}</div>
+            <div class="stat-detail">
+              <div>分项均值：CPU ${formatWatts(hw.cpu_power_watts.avg)} / GPU ${formatWatts(hw.gpu_power_watts.avg)} / ANE ${formatWatts(hw.ane_power_watts.avg)}</div>
+              <div>DRAM 读/写峰值：<strong>${hw.dram_read_gbps.max != null ? hw.dram_read_gbps.max.toFixed(2) : "—"} / ${hw.dram_write_gbps.max != null ? hw.dram_write_gbps.max.toFixed(2) : "—"} GB/s</strong></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderDAGSCAll() {
+      if (!dagscData) return;
+      renderSliceControls();
+
+      document.getElementById("dagsc-app-ver").textContent = dagscData.app_version || "未知版本";
+      document.getElementById("dagsc-tpl-badge").textContent = dagscData.template_version ? `分析模板 ${dagscData.template_version}` : "模板 —";
+      document.getElementById("meta-slice-label").textContent = dagscData.slice_label || "—";
+      document.getElementById("meta-db-path").textContent = dagscData.db_path || "—";
+      document.getElementById("meta-db-size").textContent = formatBytes(dagscData.db_size_bytes);
+      document.getElementById("meta-db-mtime").textContent = dagscData.db_mtime_text || "—";
+
+      const scopeObj = dagscData.scopes.asset_analysis;
+
+      const mediaMs = dagscData.total_media_duration_ms || 0;
+      const vCnt = dagscData.video_assets_count || 0;
+      const iCnt = dagscData.image_assets_count || 0;
+      document.getElementById("card-media-human").textContent = formatDurationHuman(mediaMs);
+      document.getElementById("card-media-ms").textContent = `${formatSec(mediaMs)} (${formatInt(mediaMs)} ms)`;
+      document.getElementById("card-media-breakdown").textContent = `共 ${dagscData.assets_total} 个 (${vCnt} 视频 + ${iCnt} 图片)`;
+      document.getElementById("card-media-size").textContent = formatBytes(dagscData.total_media_size_bytes);
+      document.getElementById("card-media-avg").textContent = vCnt > 0 ? formatDurationHuman(mediaMs / vCnt) : "—";
+
+      document.getElementById("card-wall-title").textContent = "实际处理总耗时";
+      document.getElementById("card-wall-mode-hint").textContent = scopeObj.batch_count_in_scope > 1
+        ? `${scopeObj.batch_count_in_scope} 活跃批次拼接 (与下方泳道 1:1 对齐)`
+        : "与下方泳道起止 1:1 对齐";
+      document.getElementById("card-wall-human").textContent = formatDurationHuman(scopeObj.wall_clock_ms);
+      document.getElementById("card-wall-ms").textContent = `${formatSec(scopeObj.wall_clock_ms)}`;
+      document.getElementById("card-wall-speedup").textContent = formatSpeedup(scopeObj.wall_speedup);
+
+      const ft = scopeObj.first_task;
+      const lt = scopeObj.last_task;
+      if (ft && lt) {
+        const sameDay = ft.timestamp_text.slice(0, 10) === lt.timestamp_text.slice(0, 10);
+        document.getElementById("card-wall-range").textContent = sameDay
+          ? `${ft.timestamp_text.slice(11)} → ${lt.timestamp_text.slice(11)}`
+          : `${ft.timestamp_text.slice(5)} → ${lt.timestamp_text.slice(5)}`;
+      } else {
+        document.getElementById("card-wall-range").textContent = "—";
+      }
+      document.getElementById("card-first-node").textContent = ft ? (ft.template_node_id || ft.node_type) : "—";
+      document.getElementById("card-first-time").textContent = ft ? ft.timestamp_text : "—";
+      document.getElementById("card-last-node").textContent = lt ? (lt.template_node_id || lt.node_type) : "—";
+      document.getElementById("card-last-time").textContent = lt ? lt.timestamp_text : "—";
+
+      document.getElementById("card-task-count").textContent = `${formatInt(scopeObj.total_tasks)} 个任务`;
+      document.getElementById("card-task-status-sub").textContent = `成功 ${formatInt(scopeObj.succeeded_tasks)} / 失败 ${formatInt(scopeObj.failed_tasks)}`;
+      document.getElementById("card-concurrency").textContent = `${scopeObj.concurrency.toFixed(2)}x`;
+      document.getElementById("card-wf-total").textContent = `${formatInt(dagscData.workflows_total)} 个`;
+
+      renderAlignedHardwarePanel();
+      renderStackedBar(scopeObj);
+      populateAssetFilterDropdown();
+      renderNsysCanvas();
+      renderTable(scopeObj);
+    }
+
+    function renderStackedBar(scopeObj) {
+      const barEl = document.getElementById("stacked-bar");
+      const legendEl = document.getElementById("stacked-legend");
+      barEl.innerHTML = "";
+      legendEl.innerHTML = "";
+      const list = scopeObj.by_node_type || [];
+      list.forEach((item, idx) => {
+        const color = PALETTE[idx % PALETTE.length];
+        const pct = item.pct_cumulative;
+        if (pct > 0) {
+          const seg = document.createElement("div");
+          seg.className = "stacked-seg";
+          seg.style.width = `${Math.max(pct, 0.15)}%`;
+          seg.style.background = color;
+          seg.title = `${item.node_type}: 占总耗时 ${pct.toFixed(2)}% | 累计 ${formatSec(item.sum_ms)} | 实时倍速 ${formatSpeedup(item.speedup)}`;
+          barEl.appendChild(seg);
+        }
+        if (idx < 12 || pct >= 1.0) {
+          const leg = document.createElement("div");
+          leg.className = "legend-item";
+          leg.innerHTML = `<span class="legend-swatch" style="background:${color}"></span><span><strong>${escHtml(item.node_type)}</strong> ${pct.toFixed(2)}% (${formatSpeedup(item.speedup)})</span>`;
+          legendEl.appendChild(leg);
+        }
+      });
+    }
+
+    function execBadge(execStr) {
+      if (!execStr) return "";
+      return execStr.split("/").map(e => {
+        const cls = e === "cbs" ? "exec-cbs" : (e === "host" ? "exec-host" : "exec-script");
+        return `<span class="exec-tag ${cls}">${escHtml(e)}</span>`;
+      }).join(" ");
+    }
+
+    // ==================== Upgraded Nsight Swimlane + Synchronized Hardware Tracks ====================
+    function getAssetColor(assetId) {
+      if (!assetId) return "#64748b";
+      const n = parseInt(assetId, 10) || 0;
+      const vivid = [
+        "#38bdf8", "#f43f5e", "#a855f7", "#10b981", "#f59e0b",
+        "#3b82f6", "#ec4899", "#14b8a6", "#eab308", "#8b5cf6",
+        "#06b6d4", "#ef4444", "#22c55e", "#f97316", "#6366f1",
+        "#d946ef", "#0ea5e9", "#84cc16", "#fb7185", "#2dd4bf"
+      ];
+      return vivid[(n * 7 + 3) % vivid.length];
+    }
+
+    function populateAssetFilterDropdown() {
+      const sel = document.getElementById("nsys-asset-filter");
+      if (!sel || !dagscData) return;
+      const prev = sel.value || "all";
+      const assets = [...(dagscData.by_asset || [])];
+      let html = `<option value="all">全部媒体素材 (共 ${assets.length} 个)</option>`;
+      assets.forEach(a => {
+        const shortName = (a.filename || "").length > 24 ? a.filename.slice(0, 22) + "…" : (a.filename || "");
+        html += `<option value="${escHtml(a.asset_id)}">#${escHtml(a.asset_id)} - ${escHtml(shortName)} (${formatSec(a.wall_span_ms)})</option>`;
+      });
+      sel.innerHTML = html;
+      if ([...sel.options].some(o => o.value === prev)) {
+        sel.value = prev;
+      } else {
+        sel.value = "all";
+        nsysAssetFilter = "all";
+      }
+    }
+
+    function resetNsysZoom() {
+      if (!dagscData) return;
+      const s = dagscData.scopes.asset_analysis;
+      nsysMaxWallMs = Math.max((s && s.wall_clock_ms) || 1000, 1000);
+      nsysViewStartMs = 0;
+      nsysViewEndMs = nsysMaxWallMs;
+    }
+
+    function renderNsysCanvas(hoverX = null) {
+      if (!dagscData) return;
+      const scopeObj = dagscData.scopes.asset_analysis;
+      if (!scopeObj) return;
+
+      const spanCap = Math.max(scopeObj.wall_clock_ms || 1000, 1000);
+      if (nsysViewEndMs <= 0 || nsysMaxWallMs !== spanCap) {
+        nsysMaxWallMs = spanCap;
+        nsysViewStartMs = 0;
+        nsysViewEndMs = nsysMaxWallMs;
+      }
+
+      document.getElementById("nsys-timeline-ctrls").style.display = chartMode === "nsys_timeline" ? "flex" : "none";
+      document.getElementById("nsys-zoom-ctrls").style.display = chartMode === "nsys_timeline" ? "flex" : "none";
+
+      if (chartMode === "nsys_timeline") {
+        drawNsysTimeline(scopeObj, hoverX);
+      } else {
+        drawBubbleChart2D(scopeObj);
+      }
+    }
+
+    function drawNsysTimeline(scopeObj, hoverX = null) {
+      const canvas = document.getElementById("nsys-canvas");
+      const wrap = document.getElementById("nsys-canvas-wrap");
+      if (!canvas || !wrap) return;
+
+      const list = scopeObj.by_node_type || [];
+      const spansByNode = scopeObj.timeline_spans || {};
+      const activeSegs = scopeObj.active_segments || [];
+      const multiSeg = activeSegs.length > 1;
+      const hw = dagscData.aligned_hardware;
+      const hwSeries = (nsysShowHwTracks && hw && hw.has_data && hw.series && hw.series.length >= 2) ? hw.series : [];
+      const hasHwTracks = hwSeries.length >= 2;
+
+      const dpr = window.devicePixelRatio || 1;
+      const cssWidth = Math.max(wrap.clientWidth || 960, 640);
+      const lanesHeight = list.length * NSYS_LANE_H;
+      const hwBlockHeight = hasHwTracks ? (NSYS_HW_HEADER_H + 3 * NSYS_HW_TRACK_H) : 0;
+      const cssHeight = NSYS_TOP_RULER + Math.max(lanesHeight, 56) + hwBlockHeight + NSYS_BOTTOM_PAD;
+
+      canvas.style.height = `${cssHeight}px`;
+      canvas.width = Math.floor(cssWidth * dpr);
+      canvas.height = Math.floor(cssHeight * dpr);
+
+      const ctx = canvas.getContext("2d");
+      ctx.save();
+      ctx.scale(dpr, dpr);
+
+      ctx.fillStyle = "#0b1120";
+      ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+      const plotX = NSYS_LEFT_PAD;
+      const plotW = Math.max(cssWidth - NSYS_LEFT_PAD - NSYS_RIGHT_PAD, 100);
+      const viewSpanMs = Math.max(nsysViewEndMs - nsysViewStartMs, 10);
+
+      const zoomPct = ((nsysMaxWallMs / viewSpanMs) * 100).toFixed(0);
+      const viewWallStart = virtualMsToWallMs(nsysViewStartMs, scopeObj);
+      const viewWallEnd = virtualMsToWallMs(nsysViewEndMs, scopeObj);
+      const spanDifferentDays = multiSeg && activeSegs[0].wall_start_text.slice(0, 10) !== activeSegs[activeSegs.length - 1].wall_end_text.slice(0, 10);
+      document.getElementById("nsys-view-range-label").textContent =
+        `${formatWallClockMs(viewWallStart, spanDifferentDays, true)} → ${formatWallClockMs(viewWallEnd, spanDifferentDays, true)} ｜ 有效长 ${formatDurationHuman(viewSpanMs)} (缩放 ${zoomPct}%)`;
+
+      // Top ruler
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(0, 0, cssWidth, NSYS_TOP_RULER);
+      ctx.strokeStyle = "#1e293b";
+      ctx.beginPath();
+      ctx.moveTo(0, NSYS_TOP_RULER + 0.5);
+      ctx.lineTo(cssWidth, NSYS_TOP_RULER + 0.5);
+      ctx.stroke();
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "600 11px -apple-system, BlinkMacSystemFont, monospace";
+      ctx.fillText("算法服务泳道 (node_type)", 12, 21);
+      ctx.fillStyle = "#64748b";
+      ctx.font = "500 10px ui-monospace, monospace";
+      ctx.textAlign = "right";
+      ctx.fillText("Busy%", NSYS_LEFT_PAD - 10, 21);
+      ctx.textAlign = "left";
+
+      // Time grid ticks (human elapsed + wall-clock HH:MM:SS)
+      const rawStepSec = (viewSpanMs / 1000) / 8;
+      const niceSteps = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+      const stepSec = niceSteps.find(s => s >= rawStepSec) || 3600;
+      const firstTickSec = Math.ceil((nsysViewStartMs / 1000) / stepSec) * stepSec;
+
+      ctx.font = "500 9.5px ui-monospace, monospace";
+      let lastLabelRight = plotX - 10;
+      for (let tSec = firstTickSec; tSec <= nsysViewEndMs / 1000 + 1e-6; tSec += stepSec) {
+        const tMs = tSec * 1000;
+        const x = plotX + ((tMs - nsysViewStartMs) / viewSpanMs) * plotW;
+        if (x < plotX || x > plotX + plotW) continue;
+        ctx.strokeStyle = "#172033";
+        ctx.beginPath();
+        ctx.moveTo(x, NSYS_TOP_RULER);
+        ctx.lineTo(x, cssHeight - NSYS_BOTTOM_PAD);
+        ctx.stroke();
+
+        ctx.strokeStyle = "#475569";
+        ctx.beginPath();
+        ctx.moveTo(x, NSYS_TOP_RULER - 6);
+        ctx.lineTo(x, NSYS_TOP_RULER);
+        ctx.stroke();
+
+        const elapsedLbl = formatAxisElapsed(tSec, stepSec);
+        const clockLbl = formatWallClockMs(virtualMsToWallMs(tMs, scopeObj), false, false);
+        const fullLbl = `${elapsedLbl} (${clockLbl})`;
+        const lblW = ctx.measureText(fullLbl).width;
+        if (x + 3 > lastLabelRight + 8 && x + 3 + lblW <= plotX + plotW + 6) {
+          ctx.fillStyle = "#94a3b8";
+          ctx.fillText(fullLbl, x + 3, NSYS_TOP_RULER - 8);
+          lastLabelRight = x + 3 + lblW;
+        } else if (x + 3 > lastLabelRight + 8) {
+          ctx.fillStyle = "#94a3b8";
+          ctx.fillText(elapsedLbl, x + 3, NSYS_TOP_RULER - 8);
+          lastLabelRight = x + 3 + ctx.measureText(elapsedLbl).width;
+        }
+      }
+
+      nsysHitBoxes = [];
+      nsysGapBoxes = [];
+      const assetMap = {};
+      (dagscData.by_asset || []).forEach(a => { assetMap[String(a.asset_id)] = a; });
+
+      // Draw algorithm lanes
+      list.forEach((item, laneIdx) => {
+        const laneY = NSYS_TOP_RULER + laneIdx * NSYS_LANE_H;
+        const serviceColor = PALETTE[laneIdx % PALETTE.length];
+
+        ctx.fillStyle = laneIdx % 2 === 0 ? "#0b1120" : "#0e1628";
+        ctx.fillRect(0, laneY, cssWidth, NSYS_LANE_H);
+        ctx.strokeStyle = "#162032";
+        ctx.beginPath();
+        ctx.moveTo(0, laneY + NSYS_LANE_H + 0.5);
+        ctx.lineTo(cssWidth, laneY + NSYS_LANE_H + 0.5);
+        ctx.stroke();
+
+        ctx.fillStyle = serviceColor;
+        ctx.fillRect(10, laneY + 8, 8, 10);
+        ctx.fillStyle = "#e2e8f0";
+        ctx.font = "600 11px ui-monospace, monospace";
+        const shortService = item.node_type.length > 21 ? item.node_type.slice(0, 20) + "…" : item.node_type;
+        ctx.fillText(shortService, 24, laneY + 17);
+
+        const busyPct = item.busy_pct != null ? item.busy_pct : 0;
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(NSYS_LEFT_PAD - 54, laneY + 6, 46, 14);
+        ctx.fillStyle = busyPct >= 30 ? "#0284c7" : (busyPct >= 10 ? "#0d9488" : "#475569");
+        ctx.fillRect(NSYS_LEFT_PAD - 54, laneY + 6, Math.max((Math.min(busyPct, 100) / 100) * 46, 2), 14);
+        ctx.fillStyle = "#f8fafc";
+        ctx.font = "600 9.5px ui-monospace, monospace";
+        ctx.textAlign = "right";
+        ctx.fillText(`${busyPct.toFixed(1)}%`, NSYS_LEFT_PAD - 11, laneY + 16);
+        ctx.textAlign = "left";
+
+        const rawSpans = spansByNode[item.node_type] || [];
+        if (!rawSpans.length) return;
+
+        const filteredSpans = nsysAssetFilter === "all"
+          ? rawSpans
+          : rawSpans.filter(sp => String(sp[2]) === String(nsysAssetFilter));
+
+        // Intra-batch pipeline bubble detection (never across stitched batch boundaries)
+        if (nsysShowBubbles && filteredSpans.length > 1) {
+          const sorted = [...filteredSpans].sort((a, b) => a[0] - b[0]);
+          let curEnd = sorted[0][0] + sorted[0][1];
+          let prevAsset = sorted[0][2];
+          let prevSeg = sorted[0][4] || 0;
+          for (let i = 1; i < sorted.length; i++) {
+            const s = sorted[i][0];
+            const e = s + sorted[i][1];
+            const curSeg = sorted[i][4] || 0;
+            if (curSeg !== prevSeg) {
+              curEnd = e;
+              prevAsset = sorted[i][2];
+              prevSeg = curSeg;
+              continue;
+            }
+            if (s > curEnd) {
+              const gapMs = s - curEnd;
+              if (gapMs >= Math.min(5000, viewSpanMs * 0.03) && curEnd < nsysViewEndMs && s > nsysViewStartMs) {
+                const gx1 = Math.max(plotX, plotX + ((curEnd - nsysViewStartMs) / viewSpanMs) * plotW);
+                const gx2 = Math.min(plotX + plotW, plotX + ((s - nsysViewStartMs) / viewSpanMs) * plotW);
+                const gw = gx2 - gx1;
+                if (gw >= 6) {
+                  ctx.fillStyle = "rgba(148, 163, 184, 0.06)";
+                  ctx.fillRect(gx1, laneY + 4, gw, NSYS_LANE_H - 8);
+                  ctx.strokeStyle = "rgba(148, 163, 184, 0.3)";
+                  ctx.setLineDash([3, 3]);
+                  ctx.strokeRect(gx1 + 0.5, laneY + 4.5, gw - 1, NSYS_LANE_H - 9);
+                  ctx.setLineDash([]);
+                  if (gw >= 52) {
+                    ctx.fillStyle = "rgba(148, 163, 184, 0.68)";
+                    ctx.font = "500 9px ui-monospace, monospace";
+                    ctx.fillText(`空泡 ${formatDurationHuman(gapMs)}`, gx1 + 4, laneY + 16);
+                  }
+                  nsysGapBoxes.push({
+                    x: gx1, y: laneY + 3, w: gw, h: NSYS_LANE_H - 6,
+                    node_type: item.node_type, start_ms: curEnd, end_ms: s, gap_ms: gapMs,
+                    prev_asset: prevAsset, next_asset: sorted[i][2]
+                  });
+                }
+              }
+              curEnd = e;
+              prevAsset = sorted[i][2];
+            } else if (e > curEnd) {
+              curEnd = e;
+              prevAsset = sorted[i][2];
+            }
+          }
+        }
+
+        let lastEndMs = null;
+        let lastSeg = null;
+        rawSpans.forEach(sp => {
+          const [relStart, durMs, assetId, tplNode, segIdx = 0] = sp;
+          const relEnd = relStart + durMs;
+          const prevGapMs = (lastEndMs !== null && lastSeg === segIdx && relStart > lastEndMs) ? (relStart - lastEndMs) : 0;
+          if (lastEndMs === null || lastSeg !== segIdx || relEnd > lastEndMs) {
+            lastEndMs = relEnd;
+            lastSeg = segIdx;
+          }
+          if (relEnd < nsysViewStartMs || relStart > nsysViewEndMs) return;
+
+          const isDimmed = (nsysAssetFilter !== "all" && String(assetId) !== String(nsysAssetFilter));
+          const x1 = Math.max(plotX, plotX + ((relStart - nsysViewStartMs) / viewSpanMs) * plotW);
+          const x2 = Math.min(plotX + plotW, plotX + ((relEnd - nsysViewStartMs) / viewSpanMs) * plotW);
+          const barW = Math.max(x2 - x1, 2.0);
+          const barY = laneY + 4;
+          const barH = NSYS_LANE_H - 8;
+
+          const fillColor = nsysColorMode === "asset" ? getAssetColor(assetId) : serviceColor;
+          ctx.globalAlpha = isDimmed ? 0.12 : 0.92;
+          ctx.fillStyle = fillColor;
+          ctx.fillRect(x1, barY, barW, barH);
+          ctx.globalAlpha = 1.0;
+
+          if (!isDimmed && barW >= 36) {
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "700 9px ui-monospace, monospace";
+            const tag = assetId ? `#${assetId} (${(durMs / 1000).toFixed(1)}s)` : `${(durMs / 1000).toFixed(1)}s`;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x1 + 2, barY, barW - 4, barH);
+            ctx.clip();
+            ctx.fillText(tag, x1 + 4, barY + 13);
+            ctx.restore();
+          }
+
+          if (!isDimmed) {
+            const aInfo = assetMap[String(assetId)];
+            nsysHitBoxes.push({
+              x: x1, y: barY, w: barW, h: barH,
+              node_type: item.node_type, template_node_id: tplNode,
+              asset_id: assetId, filename: aInfo ? aInfo.filename : "",
+              start_ms: relStart, end_ms: relEnd, dur_ms: durMs, prev_gap_ms: prevGapMs,
+              wall_start_ms: virtualMsToWallMs(relStart, scopeObj),
+              wall_end_ms: virtualMsToWallMs(relEnd, scopeObj)
+            });
+          }
+        });
+      });
+
+      // Draw folded idle-gap dividers when multiple batches are stitched together
+      if (multiSeg) {
+        activeSegs.forEach(seg => {
+          if (!seg.gap_before_ms || seg.gap_before_ms <= 0) return;
+          const bx = plotX + ((seg.virtual_start_ms - nsysViewStartMs) / viewSpanMs) * plotW;
+          if (bx < plotX || bx > plotX + plotW) return;
+          ctx.save();
+          ctx.strokeStyle = "#c084fc";
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(bx, NSYS_TOP_RULER);
+          ctx.lineTo(bx, cssHeight - NSYS_BOTTOM_PAD);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          const note = `✂ 折叠空闲 ${formatDurationHuman(seg.gap_before_ms)} → ${seg.wall_start_text.slice(5, 19)}`;
+          const nw = ctx.measureText(note).width + 10;
+          const nx = Math.min(Math.max(plotX + 2, bx - nw / 2), plotX + plotW - nw - 2);
+          ctx.fillStyle = "rgba(88, 28, 135, 0.92)";
+          ctx.fillRect(nx, NSYS_TOP_RULER + 3, nw, 16);
+          ctx.fillStyle = "#f3e8ff";
+          ctx.font = "600 9.5px ui-monospace, monospace";
+          ctx.fillText(note, nx + 5, NSYS_TOP_RULER + 14);
+          ctx.restore();
+        });
+      }
+
+      // Draw Synchronized Hardware Sub-Tracks beneath algorithm lanes
+      nsysHwTrackMeta = null;
+      if (hasHwTracks) {
+        const hwTopY = NSYS_TOP_RULER + Math.max(lanesHeight, 56);
+
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(0, hwTopY, cssWidth, NSYS_HW_HEADER_H);
+        ctx.strokeStyle = "#38bdf8";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, hwTopY + 0.5);
+        ctx.lineTo(cssWidth, hwTopY + 0.5);
+        ctx.stroke();
+
+        ctx.fillStyle = "#38bdf8";
+        ctx.font = "700 11px -apple-system, BlinkMacSystemFont, sans-serif";
+        ctx.fillText("⚡ 同轴对齐硬件与内存曲线 (PulseBoard 历史同步缩放)", 12, hwTopY + 17);
+
+        const GB = 1024 * 1024 * 1024;
+        let maxMemGB = 4;
+        let maxPowerW = 20;
+        hwSeries.forEach(p => {
+          const cm = (p.clipto_mem_bytes || 0) / GB;
+          const mm = (p.cms_mem_bytes || 0) / GB;
+          if (cm > maxMemGB) maxMemGB = cm;
+          if (mm > maxMemGB) maxMemGB = mm;
+          if ((p.sys_power || 0) > maxPowerW) maxPowerW = p.sys_power;
+        });
+        maxMemGB *= 1.18;
+        maxPowerW *= 1.18;
+
+        const cores = Math.max(1, (dagscData && dagscData.environment && dagscData.environment.logical_cores) || (liveData && liveData.environment && liveData.environment.logical_cores) || 10);
+        const tracks = [
+          {
+            title: "CPU / Clipto / ANE",
+            sub: "蓝:CPU 紫:Clipto(整机比) 橙:ANE",
+            maxY: 100,
+            lines: [
+              { color: "#3b82f6", get: p => p.sys_cpu },
+              { color: "#a855f7", get: p => p.clipto_cpu != null ? Math.min(100, p.clipto_cpu / cores) : null },
+              { color: "#f59e0b", get: p => p.ane_usage }
+            ]
+          },
+          {
+            title: "Clipto & CMS 内存",
+            sub: `紫:Clipto 青:CMS (Max ${maxMemGB.toFixed(1)}G)`,
+            maxY: maxMemGB,
+            lines: [
+              { color: "#a855f7", get: p => p.clipto_mem_bytes != null ? p.clipto_mem_bytes / GB : null },
+              { color: "#06b6d4", get: p => p.cms_mem_bytes != null ? p.cms_mem_bytes / GB : null }
+            ]
+          },
+          {
+            title: "整机与芯片功耗 (W)",
+            sub: `红:整机 绿:GPU (Max ${maxPowerW.toFixed(0)}W)`,
+            maxY: maxPowerW,
+            lines: [
+              { color: "#f43f5e", get: p => p.sys_power },
+              { color: "#10b981", get: p => p.gpu_power }
+            ]
+          }
+        ];
+
+        tracks.forEach((tr, idx) => {
+          const ty = hwTopY + NSYS_HW_HEADER_H + idx * NSYS_HW_TRACK_H;
+          ctx.fillStyle = idx % 2 === 0 ? "#09101d" : "#0c1526";
+          ctx.fillRect(0, ty, cssWidth, NSYS_HW_TRACK_H);
+          ctx.strokeStyle = "#1e293b";
+          ctx.beginPath();
+          ctx.moveTo(0, ty + NSYS_HW_TRACK_H + 0.5);
+          ctx.lineTo(cssWidth, ty + NSYS_HW_TRACK_H + 0.5);
+          ctx.stroke();
+
+          ctx.fillStyle = "#e2e8f0";
+          ctx.font = "600 10.5px -apple-system, sans-serif";
+          ctx.fillText(tr.title, 12, ty + 20);
+          ctx.fillStyle = "#64748b";
+          ctx.font = "500 9.5px ui-monospace, monospace";
+          ctx.fillText(tr.sub, 12, ty + 36);
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(plotX, ty + 4, plotW, NSYS_HW_TRACK_H - 8);
+          ctx.clip();
+
+          tr.lines.forEach(ln => {
+            ctx.strokeStyle = ln.color;
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            let started = false;
+            let lastSegIdx = -1;
+            hwSeries.forEach(p => {
+              const v = ln.get(p);
+              const mapped = wallMsToVirtualPoint(p.ts_ms, scopeObj);
+              if (v == null || !isFinite(v) || !mapped) { started = false; return; }
+              const x = plotX + ((mapped.vMs - nsysViewStartMs) / viewSpanMs) * plotW;
+              const y = (ty + NSYS_HW_TRACK_H - 5) - Math.min(1, Math.max(0, v / tr.maxY)) * (NSYS_HW_TRACK_H - 10);
+              if (!started || mapped.segIdx !== lastSegIdx) {
+                ctx.moveTo(x, y);
+                started = true;
+                lastSegIdx = mapped.segIdx;
+              } else {
+                ctx.lineTo(x, y);
+              }
+            });
+            ctx.stroke();
+          });
+          ctx.restore();
+        });
+
+        nsysHwTrackMeta = { scopeObj, hwTopY, hwSeries };
+      }
+
+      // Left divider
+      ctx.strokeStyle = "#334155";
+      ctx.beginPath();
+      ctx.moveTo(NSYS_LEFT_PAD + 0.5, 0);
+      ctx.lineTo(NSYS_LEFT_PAD + 0.5, cssHeight);
+      ctx.stroke();
+
+      // Sync vertical hover hairline
+      if (hoverX !== null && hoverX >= plotX && hoverX <= plotX + plotW) {
+        ctx.strokeStyle = "rgba(56, 189, 248, 0.55)";
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(hoverX, NSYS_TOP_RULER);
+        ctx.lineTo(hoverX, cssHeight - NSYS_BOTTOM_PAD);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "500 10.5px -apple-system, sans-serif";
+      ctx.fillText(
+        `共 ${list.length} 类算法泳道 ｜ 有效耗时: ${formatDurationHuman(scopeObj.wall_clock_ms)} ｜ 平均并行加速比: ${scopeObj.concurrency.toFixed(2)}x`,
+        12,
+        cssHeight - 7
+      );
+
+      ctx.restore();
+    }
+
+    function drawBubbleChart2D(scopeObj) {
+      const canvas = document.getElementById("nsys-canvas");
+      const wrap = document.getElementById("nsys-canvas-wrap");
+      if (!canvas || !wrap) return;
+      const list = scopeObj.by_node_type || [];
+      const dpr = window.devicePixelRatio || 1;
+      const cssWidth = Math.max(wrap.clientWidth || 960, 640);
+      const cssHeight = 500;
+      canvas.style.height = `${cssHeight}px`;
+      canvas.width = Math.floor(cssWidth * dpr);
+      canvas.height = Math.floor(cssHeight * dpr);
+
+      const ctx = canvas.getContext("2d");
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.fillStyle = "#0b1120";
+      ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+      if (!list.length) {
+        ctx.fillStyle = "#94a3b8";
+        ctx.fillText("当前范围无算法节点数据", cssWidth / 2 - 60, cssHeight / 2);
+        ctx.restore();
+        return;
+      }
+
+      const padL = 82, padR = 45, padT = 36, padB = 50;
+      const plotW = cssWidth - padL - padR;
+      const plotH = cssHeight - padT - padB;
+
+      const minAvg = Math.max(Math.min(...list.map(d => d.avg_ms || 1)), 10);
+      const maxAvg = Math.max(...list.map(d => d.avg_ms || 1000), 1000);
+      const minSum = Math.max(Math.min(...list.map(d => d.sum_ms || 100)), 50);
+      const maxSum = Math.max(...list.map(d => d.sum_ms || 10000), 5000);
+
+      const logXMin = Math.log10(minAvg * 0.6);
+      const logXMax = Math.log10(maxAvg * 1.6);
+      const logYMin = Math.log10(minSum * 0.55);
+      const logYMax = Math.log10(maxSum * 1.6);
+
+      const mapX = ms => padL + ((Math.log10(Math.max(ms, 1)) - logXMin) / Math.max(0.1, logXMax - logXMin)) * plotW;
+      const mapY = ms => padT + plotH - ((Math.log10(Math.max(ms, 1)) - logYMin) / Math.max(0.1, logYMax - logYMin)) * plotH;
+
+      ctx.strokeStyle = "#334155";
+      ctx.strokeRect(padL, padT, plotW, plotH);
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = "600 12px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("X 轴：单次平均耗时 avg_ms (对数坐标) ｜ 气泡面积 = 累计耗时占比%", padL + plotW / 2, cssHeight - 12);
+
+      nsysBubble2dNodes = [];
+      list.forEach((item, idx) => {
+        const cx = mapX(item.avg_ms || 1);
+        const cy = mapY(item.sum_ms || 1);
+        const r = Math.max(7, Math.min(42, Math.sqrt(item.pct_cumulative || 0.1) * 9.5));
+        const color = PALETTE[idx % PALETTE.length];
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.8;
+        ctx.fill();
+        ctx.strokeStyle = "#f8fafc";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.fillStyle = "#f8fafc";
+        ctx.font = "600 11px ui-monospace, monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(`${item.node_type} (${item.pct_cumulative.toFixed(1)}%)`, cx, cy - r - 6);
+        nsysBubble2dNodes.push({ cx, cy, r, item });
+      });
+
+      ctx.restore();
+    }
+
+    function findNearestHwPoint(absMs) {
+      if (!nsysHwTrackMeta || !nsysHwTrackMeta.hwSeries.length) return null;
+      const arr = nsysHwTrackMeta.hwSeries;
+      let lo = 0, hi = arr.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (arr[mid].ts_ms < absMs) lo = mid + 1;
+        else hi = mid;
+      }
+      const cand1 = arr[lo];
+      const cand2 = lo > 0 ? arr[lo - 1] : cand1;
+      const best = Math.abs(cand1.ts_ms - absMs) < Math.abs(cand2.ts_ms - absMs) ? cand1 : cand2;
+      return Math.abs(best.ts_ms - absMs) <= 15000 ? best : null;
+    }
+
+    // Canvas mouse interactions
+    (function bindNsysEvents() {
+      const canvas = document.getElementById("nsys-canvas");
+      const tooltip = document.getElementById("floating-tooltip");
+
+      canvas.addEventListener("wheel", e => {
+        if (chartMode !== "nsys_timeline") return;
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const plotW = Math.max(rect.width - NSYS_LEFT_PAD - NSYS_RIGHT_PAD, 100);
+        const relRatio = Math.min(1, Math.max(0, (mouseX - NSYS_LEFT_PAD) / plotW));
+        const curSpan = nsysViewEndMs - nsysViewStartMs;
+        const zoomFactor = e.deltaY < 0 ? 0.78 : 1.28;
+        const newSpan = Math.min(nsysMaxWallMs, Math.max(1000, curSpan * zoomFactor));
+        const anchorMs = nsysViewStartMs + relRatio * curSpan;
+        let newStart = Math.max(0, anchorMs - relRatio * newSpan);
+        let newEnd = newStart + newSpan;
+        if (newEnd > nsysMaxWallMs) {
+          newEnd = nsysMaxWallMs;
+          newStart = Math.max(0, newEnd - newSpan);
+        }
+        nsysViewStartMs = newStart;
+        nsysViewEndMs = newEnd;
+        renderNsysCanvas();
+      }, { passive: false });
+
+      canvas.addEventListener("mousedown", e => {
+        if (chartMode !== "nsys_timeline") return;
+        nsysIsDragging = true;
+        nsysDragStartX = e.clientX;
+        nsysDragStartRange = [nsysViewStartMs, nsysViewEndMs];
+      });
+
+      window.addEventListener("mouseup", () => { nsysIsDragging = false; });
+
+      window.addEventListener("mousemove", e => {
+        if (activeTab !== "dagsc") return;
+        const rect = canvas.getBoundingClientRect();
+        if (nsysIsDragging && chartMode === "nsys_timeline") {
+          const plotW = Math.max(rect.width - NSYS_LEFT_PAD - NSYS_RIGHT_PAD, 100);
+          const dx = e.clientX - nsysDragStartX;
+          const span = nsysDragStartRange[1] - nsysDragStartRange[0];
+          let s = nsysDragStartRange[0] - (dx / plotW) * span;
+          let end = s + span;
+          if (s < 0) { s = 0; end = span; }
+          if (end > nsysMaxWallMs) { end = nsysMaxWallMs; s = Math.max(0, end - span); }
+          nsysViewStartMs = s;
+          nsysViewEndMs = end;
+          renderNsysCanvas();
+          return;
+        }
+
+        if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+          tooltip.style.display = "none";
+          return;
+        }
+
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        if (chartMode === "nsys_timeline") {
+          renderNsysCanvas(mx);
+          const scopeObj = dagscData ? dagscData.scopes.asset_analysis : null;
+          const plotW = Math.max(rect.width - NSYS_LEFT_PAD - NSYS_RIGHT_PAD, 100);
+          const viewSpanMs = Math.max(nsysViewEndMs - nsysViewStartMs, 10);
+          const cursorRelMs = nsysViewStartMs + ((mx - NSYS_LEFT_PAD) / plotW) * viewSpanMs;
+          const cursorWallMs = virtualMsToWallMs(cursorRelMs, scopeObj);
+          const hwPt = nsysHwTrackMeta ? findNearestHwPoint(cursorWallMs) : null;
+          const hwHtml = hwPt ? `
+            <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #334155; font-size:0.74rem; color:#cbd5e1;">
+              ⚡ <strong>同刻硬件水位</strong>：CPU ${formatPct(hwPt.sys_cpu, 0)} ｜ Clipto ${formatBytes(hwPt.clipto_mem_bytes)} (${formatPct(hwPt.clipto_cpu, 0)}) ｜ CMS ${formatBytes(hwPt.cms_mem_bytes)} ｜ 整机 ${formatWatts(hwPt.sys_power)}
+            </div>
+          ` : "";
+
+          let hit = null;
+          for (let i = nsysHitBoxes.length - 1; i >= 0; i--) {
+            const b = nsysHitBoxes[i];
+            if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) { hit = b; break; }
+          }
+          if (hit) {
+            tooltip.innerHTML = `
+              <div style="font-weight:700; color:#38bdf8; margin-bottom:3px;">[${escHtml(hit.node_type)}] <code>${escHtml(hit.template_node_id)}</code></div>
+              <div>媒体素材：<strong>${hit.asset_id ? `#${escHtml(hit.asset_id)} ${escHtml(hit.filename)}` : "媒体任务"}</strong></div>
+              <div>真实时刻：<code>${formatWallClockMs(hit.wall_start_ms, true, true)} → ${formatWallClockMs(hit.wall_end_ms, false, true)}</code></div>
+              <div>单次耗时：<strong style="color:#4ade80;">${formatSec(hit.dur_ms)} (${formatDurationHuman(hit.dur_ms)})</strong></div>
+              ${hwHtml}
+            `;
+            tooltip.style.display = "block";
+            tooltip.style.left = `${Math.min(e.clientX + 14, window.innerWidth - 395)}px`;
+            tooltip.style.top = `${Math.min(e.clientY + 14, window.innerHeight - 190)}px`;
+            return;
+          }
+
+          let gapHit = null;
+          for (let i = nsysGapBoxes.length - 1; i >= 0; i--) {
+            const g = nsysGapBoxes[i];
+            if (mx >= g.x && mx <= g.x + g.w && my >= g.y && my <= g.y + g.h) { gapHit = g; break; }
+          }
+          if (gapHit) {
+            tooltip.innerHTML = `
+              <div style="font-weight:700; color:#fbbf24; margin-bottom:3px;">流水线空闲气泡 · <code>${escHtml(gapHit.node_type)}</code></div>
+              <div>空泡持续：<strong style="color:#f87171;">${formatSec(gapHit.gap_ms)} (${formatDurationHuman(gapHit.gap_ms)})</strong></div>
+              <div>前序资产 #${escHtml(gapHit.prev_asset || "—")} → 下一资产 #${escHtml(gapHit.next_asset || "—")}</div>
+              ${hwHtml}
+            `;
+            tooltip.style.display = "block";
+            tooltip.style.left = `${Math.min(e.clientX + 14, window.innerWidth - 395)}px`;
+            tooltip.style.top = `${Math.min(e.clientY + 14, window.innerHeight - 170)}px`;
+            return;
+          }
+
+          if (hwPt && nsysHwTrackMeta && my >= nsysHwTrackMeta.hwTopY) {
+            tooltip.innerHTML = `
+              <div style="font-weight:700; color:#38bdf8; margin-bottom:3px;">${formatWallClockMs(cursorWallMs, true, false)} 硬件采样读数</div>
+              <div>系统 CPU: <strong>${formatPct(hwPt.sys_cpu)}</strong> ｜ GPU: <strong>${formatPct(hwPt.sys_gpu)}</strong> ｜ ANE: <strong>${formatPct(hwPt.ane_usage)}</strong></div>
+              <div>Clipto 内存: <strong style="color:#c084fc;">${formatBytes(hwPt.clipto_mem_bytes)}</strong> (CPU ${formatPct(hwPt.clipto_cpu)})</div>
+              <div>CMS 总内存: <strong style="color:#22d3ee;">${formatBytes(hwPt.cms_mem_bytes)}</strong> (CPU ${formatPct(hwPt.cms_cpu)})</div>
+              <div>整机功耗: <strong style="color:#fb7185;">${formatWatts(hwPt.sys_power)}</strong></div>
+            `;
+            tooltip.style.display = "block";
+            tooltip.style.left = `${Math.min(e.clientX + 14, window.innerWidth - 395)}px`;
+            tooltip.style.top = `${Math.min(e.clientY + 14, window.innerHeight - 170)}px`;
+            return;
+          }
+
+          tooltip.style.display = "none";
+        } else {
+          let hitB = null;
+          for (let i = nsysBubble2dNodes.length - 1; i >= 0; i--) {
+            const b = nsysBubble2dNodes[i];
+            if (Math.hypot(mx - b.cx, my - b.cy) <= b.r + 3) { hitB = b; break; }
+          }
+          if (hitB) {
+            const it = hitB.item;
+            tooltip.innerHTML = `
+              <div style="font-weight:700; color:#38bdf8;"><code>${escHtml(it.node_type)}</code> (${escHtml(it.executor)})</div>
+              <div>执行次数：<strong>${formatInt(it.count)} 次</strong> ｜ 累计：<strong>${formatSec(it.sum_ms)}</strong></div>
+              <div>平均耗时：<strong>${formatSec(it.avg_ms)}</strong> ｜ 单服务倍速：<strong>${formatSpeedup(it.speedup)}</strong></div>
+              <div>耗时占比：<strong>${it.pct_cumulative.toFixed(2)}%</strong> ｜ 泳道 Busy%：<strong>${it.busy_pct.toFixed(1)}%</strong></div>
+            `;
+            tooltip.style.display = "block";
+            tooltip.style.left = `${Math.min(e.clientX + 14, window.innerWidth - 380)}px`;
+            tooltip.style.top = `${Math.min(e.clientY + 14, window.innerHeight - 160)}px`;
+          } else {
+            tooltip.style.display = "none";
+          }
+        }
+      });
+    })();
+
+    // ==================== DAGSC Breakdown Table ====================
+    function sortRows(rows) {
+      rows.sort((a, b) => {
+        let va = a[sortKey], vb = b[sortKey];
+        if (sortKey === "asset_id") { va = Number(va) || 0; vb = Number(vb) || 0; }
+        if (typeof va === "string" && typeof vb === "string") {
+          return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+        }
+        return sortAsc ? ((va || 0) - (vb || 0)) : ((vb || 0) - (va || 0));
+      });
+    }
+
+    function renderTable(scopeObj) {
+      const headEl = document.getElementById("table-head");
+      const bodyEl = document.getElementById("table-body");
+      const footEl = document.getElementById("table-foot");
+      const q = searchQuery.trim().toLowerCase();
+      const mediaMs = dagscData.total_media_duration_ms || 0;
+
+      if (currentView === "node_type") {
+        headEl.innerHTML = `
+          <tr>
+            <th style="width:44px;">#</th>
+            <th data-sort="node_type">算法服务种类 (node_type)</th>
+            <th data-sort="executor">执行器</th>
+            <th class="num" data-sort="count">任务次数</th>
+            <th class="num" data-sort="sum_ms">累计耗时 (秒)</th>
+            <th class="num" data-sort="speedup">实时处理倍速</th>
+            <th class="num" data-sort="avg_ms">平均耗时</th>
+            <th class="num" data-sort="max_ms">最大耗时</th>
+            <th class="num" data-sort="busy_pct">泳道 Busy%</th>
+            <th class="pct-cell" data-sort="sum_ms">占累计耗时比</th>
+          </tr>
+        `;
+        let rows = [...(scopeObj.by_node_type || [])];
+        if (q) rows = rows.filter(r => r.node_type.toLowerCase().includes(q) || r.executor.toLowerCase().includes(q));
+        sortRows(rows);
+        bodyEl.innerHTML = rows.map((r, idx) => {
+          const color = PALETTE[idx % PALETTE.length];
+          return `
+            <tr>
+              <td class="num" style="color:var(--muted);">${idx + 1}</td>
+              <td><span class="node-pill"><span class="legend-swatch" style="background:${color}"></span>${escHtml(r.node_type)}</span></td>
+              <td>${execBadge(r.executor)}</td>
+              <td class="num">${formatInt(r.count)}</td>
+              <td class="num"><strong>${formatSec(r.sum_ms)}</strong></td>
+              <td class="num"><span class="ratio-pill speedup">${formatSpeedup(r.speedup)}</span></td>
+              <td class="num">${formatSec(r.avg_ms)}</td>
+              <td class="num">${formatSec(r.max_ms)}</td>
+              <td class="num">${r.busy_pct.toFixed(1)}%</td>
+              <td class="pct-cell">
+                <div class="pct-bar-wrap">
+                  <div class="pct-bar-bg"><div class="pct-bar-fill" style="width:${Math.min(r.pct_cumulative * 4, 100)}%; background:${color};"></div></div>
+                  <span class="pct-text">${r.pct_cumulative.toFixed(2)}%</span>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join("");
+        footEl.innerHTML = `
+          <tr>
+            <td class="num">总计</td>
+            <td><strong>切片有效处理总耗时</strong></td>
+            <td>—</td>
+            <td class="num">${formatInt(scopeObj.total_tasks)}</td>
+            <td class="num">${formatSec(scopeObj.wall_clock_ms)} (${formatDurationHuman(scopeObj.wall_clock_ms)})</td>
+            <td class="num"><span class="ratio-pill speedup">${formatSpeedup(scopeObj.wall_speedup)}</span></td>
+            <td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">100.00%</td>
+          </tr>
+        `;
+      } else if (currentView === "template_node") {
+        headEl.innerHTML = `
+          <tr>
+            <th style="width:44px;">#</th>
+            <th data-sort="template_node_id">具体业务节点 (template_node_id)</th>
+            <th data-sort="node_type">所属服务</th>
+            <th data-sort="executor">执行器</th>
+            <th class="num" data-sort="count">执行次数</th>
+            <th class="num" data-sort="sum_ms">累计耗时</th>
+            <th class="num" data-sort="speedup">实时处理倍速</th>
+            <th class="num" data-sort="avg_ms">平均耗时</th>
+            <th class="pct-cell" data-sort="sum_ms">占累计耗时比</th>
+          </tr>
+        `;
+        let rows = [...(scopeObj.by_template_node || [])];
+        if (q) rows = rows.filter(r => r.template_node_id.toLowerCase().includes(q) || r.node_type.toLowerCase().includes(q));
+        sortRows(rows);
+        bodyEl.innerHTML = rows.map((r, idx) => {
+          const color = PALETTE[idx % PALETTE.length];
+          return `
+            <tr>
+              <td class="num" style="color:var(--muted);">${idx + 1}</td>
+              <td><span class="node-pill">${escHtml(r.template_node_id)}</span></td>
+              <td><code>${escHtml(r.node_type)}</code></td>
+              <td>${execBadge(r.executor)}</td>
+              <td class="num">${formatInt(r.count)}</td>
+              <td class="num"><strong>${formatSec(r.sum_ms)}</strong></td>
+              <td class="num"><span class="ratio-pill speedup">${formatSpeedup(r.speedup)}</span></td>
+              <td class="num">${formatSec(r.avg_ms)}</td>
+              <td class="pct-cell">
+                <div class="pct-bar-wrap">
+                  <div class="pct-bar-bg"><div class="pct-bar-fill" style="width:${Math.min(r.pct_cumulative * 4, 100)}%; background:${color};"></div></div>
+                  <span class="pct-text">${r.pct_cumulative.toFixed(2)}%</span>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join("");
+        footEl.innerHTML = "";
+      } else {
+        headEl.innerHTML = `
+          <tr>
+            <th data-sort="asset_id">资产 ID</th>
+            <th data-sort="filename">素材文件名</th>
+            <th class="num" data-sort="media_duration_ms">素材时长</th>
+            <th class="num" data-sort="wall_span_ms">单资产处理耗时</th>
+            <th class="num" data-sort="wall_speedup">实时处理倍速</th>
+            <th data-sort="top_node_ms">最耗时服务</th>
+          </tr>
+        `;
+        let rows = [...(dagscData.by_asset || [])];
+        if (q) rows = rows.filter(r => String(r.asset_id).toLowerCase().includes(q) || (r.filename || "").toLowerCase().includes(q) || (r.top_node_type || "").toLowerCase().includes(q));
+        sortRows(rows);
+        bodyEl.innerHTML = rows.map(r => {
+          const isImg = r.asset_type === "image" || !r.media_duration_ms;
+          return `
+            <tr>
+              <td><strong>#${escHtml(r.asset_id)}</strong></td>
+              <td style="max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escHtml(r.filename)}">${escHtml(r.filename)}</td>
+              <td class="num">${isImg ? "图片 (0s)" : `${formatSec(r.media_duration_ms)} (${formatDurationHuman(r.media_duration_ms)})`}</td>
+              <td class="num">${formatSec(r.wall_span_ms)} (${formatDurationHuman(r.wall_span_ms)})</td>
+              <td class="num">${isImg ? "—" : `<span class="ratio-pill speedup">${formatSpeedup(r.wall_speedup)}</span>`}</td>
+              <td><code>${escHtml(r.top_node_type)}</code> <span style="color:var(--muted);">(${formatSec(r.top_node_ms)})</span></td>
+            </tr>
+          `;
+        }).join("");
+        footEl.innerHTML = `
+          <tr>
+            <td>合计</td>
+            <td><strong>共 ${rows.length} 个素材</strong></td>
+            <td class="num">${formatDurationHuman(mediaMs)}</td>
+            <td class="num">${formatDurationHuman(dagscData.scopes.asset_analysis.wall_clock_ms)}</td>
+            <td class="num"><span class="ratio-pill speedup">${formatSpeedup(dagscData.scopes.asset_analysis.wall_speedup)}</span></td>
+            <td>—</td>
+          </tr>
+        `;
+      }
+
+      headEl.querySelectorAll("th[data-sort]").forEach(th => {
+        th.addEventListener("click", () => {
+          const key = th.getAttribute("data-sort");
+          if (sortKey === key) sortAsc = !sortAsc;
+          else { sortKey = key; sortAsc = ["node_type", "template_node_id", "asset_id", "filename"].includes(key); }
+          renderTable(scopeObj);
+        });
+      });
+    }
+
+    // Export current table CSV
+    document.getElementById("export-dagsc-csv-btn").addEventListener("click", () => {
+      const table = document.getElementById("data-table");
+      const rows = [
+        ...table.querySelectorAll("thead tr"),
+        ...table.querySelectorAll("tbody tr"),
+        ...table.querySelectorAll("tfoot tr")
+      ];
+      const lines = rows.map(row =>
+        Array.from(row.querySelectorAll("th, td")).map(c => `"${c.innerText.replace(/\s+/g, " ").trim().replace(/"/g, '""')}"`).join(",")
+      );
+      const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `clipto_dagsc_${sliceMode}_${currentView}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // ==================== Clipto Daily Report Studio (Markdown) ====================
+    function escMdCell(s) {
+      return String(s == null ? "" : s).replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+    }
+
+    // Mirrors MarkdownReportGenerator.generate (Swift) — keep both in sync.
+    // Layout contract for the PNG card: # title → > meta → ## 🎯 头条指标 (3-row table) → numbered sections.
+    function buildMarkdownFromCurrentState() {
+      if (!dagscData) return "# 暂未加载有效的 Clipto DAGSC 数据\n\n> 请在「🔬 DAGSC 联动分析」页签确认数据库路径有效后点击「加载并分析」。\n";
+      const d = dagscData;
+      const env = d.environment || {};
+      const primary = d.scopes.asset_analysis;
+      const hw = d.aligned_hardware && d.aligned_hardware.has_data ? d.aligned_hardware : null;
+
+      const reporter = document.getElementById("rpt-reporter").value.trim();
+      const changes = document.getElementById("rpt-changes").value.trim();
+      const notes = document.getElementById("rpt-notes").value.trim();
+      const incHw = document.getElementById("rpt-opt-hw").checked;
+      const incCms = document.getElementById("rpt-opt-cms").checked;
+
+      document.getElementById("rpt-filename-badge").textContent = `${reportFileStem(d)}.png`;
+
+      const pct = v => (v == null || !isFinite(v)) ? "—" : `${Number(v).toFixed(1)}%`;
+      const bytes = v => (v == null || !isFinite(v)) ? "—" : formatBytes(v);
+      const watts = v => (v == null || !isFinite(v)) ? "—" : formatWatts(v);
+      const m = (o, k) => (o && o[k]) ? o[k] : {};
+
+      let sliceSummary = d.slice_label;
+      if (d.slice_mode === "batch") {
+        const b = (d.available_batches || []).find(x => x.batch_id === d.selected_batch_id);
+        if (b) sliceSummary = `批次 #${b.index} · ${b.asset_count} 素材 · ${b.task_count} 任务`;
+      }
+      const version = d.app_version && d.app_version !== "未知版本" ? ` ${d.app_version}` : "";
+
+      const out = [];
+      out.push(`# Clipto Mac${version} 离线分析性能晨报`);
+      out.push("");
+      out.push(`> - **运行时段**：${reportTitleRange(d)}（${escMdCell(sliceSummary)}）`);
+      out.push(`> - **测试平台**：Clipto **macOS 版** · ${env.chip_model || "Mac"} · ${env.physical_memory_text || "—"} 统一内存 · ${env.logical_cores || "—"} 核 · ${env.macos_version || "macOS"}`);
+      out.push(`> - **分析模板**：${d.template_version || "—"} ｜ 生成于 ${d.analyzed_at_text}`);
+      if (reporter) out.push(`> - **评测人**：${escMdCell(reporter)}`);
+      if (changes) out.push(`> - **本轮改动**：${escMdCell(changes)}`);
+      const lanHost = effectiveLanHost();
+      if (lanHost) out.push(`> - **查看详情**：同一局域网内用浏览器打开 http://${lanHost}:${env.web_port || reportProfile.web_port}（DAGSC 泳道、硬件曲线与历史监控）`);
+      out.push("");
+
+      out.push("## 🎯 头条指标");
+      out.push("");
+      out.push("| 端到端分析速度 | 全 CMS 内存峰值 | 全 CMS CPU P95 | 全 CMS GPU P95 |");
+      out.push("| :---: | :---: | :---: | :---: |");
+      out.push(`| **${formatSpeedup(primary.wall_speedup)}** | **${bytes(m(hw, "cms_total_memory_bytes").max)}** | **${pct(m(hw, "cms_total_cpu_percent").p95)}** | **${pct(m(hw, "cms_total_gpu_percent").p95)}** |`);
+      out.push(`| 素材 ${formatDurationShort(d.total_media_duration_ms)} ÷ 端到端 ${formatDurationShort(primary.wall_clock_ms)} | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） |`);
+      out.push("");
+
+      out.push("## 一、吞吐概览");
+      out.push("");
+      out.push("| 指标项 | 数值结果 | 口径与说明 |");
+      out.push("| :--- | :--- | :--- |");
+      out.push(`| **处理媒体素材** | **${d.assets_total} 个**（${d.video_assets_count} 视频 + ${d.image_assets_count} 图片） | 总时长 **${formatDurationHuman(d.total_media_duration_ms)}** · 总体积 **${formatBytes(d.total_media_size_bytes)}** |`);
+      const segHint = primary.batch_count_in_scope > 1 ? `，含 ${primary.batch_count_in_scope} 个活跃段（已剔除长空闲）` : "";
+      out.push(`| **端到端处理耗时** | **${formatDurationHuman(primary.wall_clock_ms)}** | 媒体资产分析 (\`clipto_asset_analysis\`)${segHint} |`);
+      out.push(`| **端到端分析速度** | **${formatSpeedup(primary.wall_speedup)}** | 素材总时长 ÷ 端到端处理耗时（越大越快；RTF = \`${primary.wall_rtf.toFixed(4)}\`） |`);
+      out.push(`| **任务成功率** | **${primary.succeeded_tasks} / ${primary.total_tasks}**（失败 **${primary.failed_tasks}**） | 工作流 ${d.workflows_total} 个；平均并行度 **${primary.concurrency.toFixed(2)}x** |`);
+      out.push("");
+
+      if (incHw) {
+        out.push("## 二、运行期硬件与进程资源水位");
+        out.push("");
+        if (hw) {
+          out.push(`自动对齐分析活跃时段（${formatInt(hw.sample_count)} 个系统采样点 · ${formatInt(hw.cms_frame_count)} 帧 CMS 采样 · 覆盖率 **${hw.coverage_percent.toFixed(1)}%**）`);
+          out.push("");
+          if (hw.coverage_percent < 90) {
+            out.push(`> ⚠️ 硬件采样覆盖率仅 ${hw.coverage_percent.toFixed(1)}%（运行期间 CliptoPulse 未全程采集），以下硬件数据只代表部分时段。`);
+            out.push("");
+          }
+          const cg = m(hw, "cms_total_gpu_percent");
+          out.push("| 监控对象与指标 | 平均值 | P95 | 峰值 | 补充信息 |");
+          out.push("| :--- | :---: | :---: | :---: | :--- |");
+          out.push(`| **全 CMS 物理内存** | ${bytes(hw.cms_total_memory_bytes.avg)} | ${bytes(hw.cms_total_memory_bytes.p95)} | **${bytes(hw.cms_total_memory_bytes.max)}** | \`phys_footprint\`，${(hw.cms_processes || []).length} 类 cms 进程 |`);
+          out.push(`| **全 CMS CPU（单核=100%）** | ${pct(hw.cms_total_cpu_percent.avg)} | ${pct(hw.cms_total_cpu_percent.p95)} | **${pct(hw.cms_total_cpu_percent.max)}** | 名称含 \`cms\` 的进程合计 |`);
+          out.push(`| **全 CMS GPU** | ${pct(cg.avg)} | ${pct(cg.p95)} | **${pct(cg.max)}** | 按进程 GPU 时间统计（不含 ANE） |`);
+          out.push(`| **Clipto 进程组 CPU / 内存** | ${pct(hw.clipto_cpu_percent.avg)} / ${bytes(hw.clipto_memory_bytes.avg)} | ${pct(hw.clipto_cpu_percent.p95)} / ${bytes(hw.clipto_memory_bytes.p95)} | **${pct(hw.clipto_cpu_percent.max)}** / **${bytes(hw.clipto_memory_bytes.max)}** | 最多 ${hw.clipto_max_processes} 个子进程 |`);
+          out.push(`| **Clipto 进程组 GPU** | ${pct(hw.clipto_gpu_percent.avg)} | ${pct(hw.clipto_gpu_percent.p95)} | **${pct(hw.clipto_gpu_percent.max)}** | 磁盘读峰值 ${formatRate(hw.clipto_disk_read_bps.max)} / 写峰值 ${formatRate(hw.clipto_disk_write_bps.max)} |`);
+          out.push(`| **整机 CPU / GPU / ANE** | ${pct(hw.sys_cpu.avg)} / ${pct(hw.sys_gpu.avg)} / ${pct(hw.ane_usage.avg)} | ${pct(hw.sys_cpu.p95)} / ${pct(hw.sys_gpu.p95)} / ${pct(hw.ane_usage.p95)} | **${pct(hw.sys_cpu.max)}** / **${pct(hw.sys_gpu.max)}** / **${pct(hw.ane_usage.max)}** | 系统级利用率 |`);
+          out.push(`| **整机内存 / Swap** | ${bytes(hw.sys_mem_bytes.avg)} | ${bytes(hw.sys_mem_bytes.p95)} | **${bytes(hw.sys_mem_bytes.max)}** | Swap 峰值 **${bytes(hw.swap_used_bytes.max)}** |`);
+          const whStr = hw.estimated_energy_wh != null ? `累计耗电约 **${hw.estimated_energy_wh.toFixed(2)} Wh**` : "—";
+          out.push(`| **整机功耗** | ${watts(hw.sys_power_watts.avg)} | ${watts(hw.sys_power_watts.p95)} | **${watts(hw.sys_power_watts.max)}** | ${whStr}；最高热状态 **${thermalText(hw.worst_thermal_state)}** |`);
+          out.push("");
+
+          if (incCms && hw.cms_processes && hw.cms_processes.length > 0) {
+            out.push("### CMS 子进程明细");
+            out.push("");
+            out.push("| CMS 进程名 | 实例数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |");
+            out.push("| :--- | :---: | :---: | :---: | :---: | :---: |");
+            hw.cms_processes.slice(0, 12).forEach(p => {
+              out.push(`| \`${escMdCell(p.name)}\` | ${p.instance_count} | ${pct(p.avg_cpu_percent)} | **${pct(p.max_cpu_percent)}** | ${bytes(p.avg_memory_bytes)} | **${bytes(p.max_memory_bytes)}** |`);
+            });
+            out.push("");
+          }
+        } else {
+          out.push("> 该分析区间内没有 CliptoPulse 硬件采样记录（采集未开启或早于历史保留期）。测试期间请保持菜单栏 CliptoPulse 常驻运行。");
+          out.push("");
+        }
+      }
+
+      out.push("## 三、异常诊断与开发记录");
+      out.push("");
+      if (d.failed_task_samples && d.failed_task_samples.length > 0) {
+        out.push("| 时间 | 资产 ID | 算法节点 | 状态 | 错误摘要 |");
+        out.push("| :--- | :---: | :--- | :---: | :--- |");
+        d.failed_task_samples.forEach(f => {
+          out.push(`| \`${f.timestamp_text}\` | \`#${escMdCell(f.asset_id)}\` | \`${escMdCell(f.template_node_id)}\` (\`${escMdCell(f.node_type)}\`) | ${escMdCell(f.status_text)} | ${escMdCell(f.error_summary || "—")} |`);
+        });
+        out.push("");
+      } else {
+        const thNote = hw ? `，运行期间最高热状态「**${thermalText(hw.worst_thermal_state)}**」` : "";
+        out.push(`- **任务健康度**：全部 **${primary.total_tasks}** 个任务执行成功（**0 失败**）${thNote}。`);
+      }
+
+      if (notes) {
+        out.push("");
+        out.push("### 开发备注与跟进事项");
+        out.push("");
+        out.push(notes);
+      }
+      out.push("");
+      return out.join("\n");
+    }
+
+    // "7h29m" / "15.4s" (mirrors MarkdownReportGenerator.fmtDurationShort)
+    function formatDurationShort(ms) {
+      const totalSec = Math.max(0, ms || 0) / 1000;
+      const h = Math.floor(totalSec / 3600);
+      const mi = Math.floor((totalSec % 3600) / 60);
+      if (h > 0) return `${h}h${String(mi).padStart(2, "0")}m`;
+      if (mi > 0) return `${mi}m${String(Math.floor(totalSec % 60)).padStart(2, "0")}s`;
+      return `${totalSec.toFixed(1)}s`;
+    }
+
+    function pad2(n) { return String(n).padStart(2, "0"); }
+    function formatLocalMinute(ms, withYear) {
+      const t = new Date(ms);
+      const md = `${pad2(t.getMonth() + 1)}-${pad2(t.getDate())} ${pad2(t.getHours())}:${pad2(t.getMinutes())}`;
+      return withYear ? `${t.getFullYear()}-${md}` : md;
+    }
+    // "2026-10-26 20:15 → 23:40" or "10-26 20:15 → 10-27 03:40" (mirrors MarkdownReportGenerator.titleRange)
+    function reportTitleRange(d) {
+      if (!(d.slice_start_ms > 0)) return (d.analyzed_at_text || "").slice(0, 16);
+      const s = new Date(d.slice_start_ms);
+      const e = new Date(Math.max(d.slice_end_ms || 0, d.slice_start_ms));
+      const sameDay = s.toDateString() === e.toDateString();
+      if (sameDay) return `${formatLocalMinute(d.slice_start_ms, true)} → ${pad2(e.getHours())}:${pad2(e.getMinutes())}`;
+      return `${formatLocalMinute(d.slice_start_ms, false)} → ${formatLocalMinute(e.getTime(), false)}`;
+    }
+    function reportFileStem(d) {
+      const t = new Date(d && d.slice_start_ms > 0 ? d.slice_start_ms : Date.now());
+      return `Clipto离线分析晨报_${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}-${pad2(t.getHours())}${pad2(t.getMinutes())}`;
+    }
+
+    // Lightweight, zero-dependency GFM Markdown Renderer for instant preview
+    function renderGFMToHTML(md) {
+      function inlineFmt(text) {
+        return escHtml(text)
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      }
+
+      const lines = md.split("\n");
+      let html = "";
+      let i = 0;
+
+      while (i < lines.length) {
+        const line = lines[i];
+        if (!line.trim()) { i++; continue; }
+
+        if (line.startsWith("# ")) {
+          html += `<h1>${inlineFmt(line.slice(2))}</h1>`;
+          i++; continue;
+        }
+        if (line.startsWith("## ")) {
+          html += `<h2>${inlineFmt(line.slice(3))}</h2>`;
+          i++; continue;
+        }
+        if (line.startsWith("### ")) {
+          html += `<h3>${inlineFmt(line.slice(4))}</h3>`;
+          i++; continue;
+        }
+        if (line.startsWith(">")) {
+          const bqLines = [];
+          while (i < lines.length && lines[i].startsWith(">")) {
+            bqLines.push(lines[i].replace(/^>\s?/, ""));
+            i++;
+          }
+          const items = bqLines.filter(l => l.startsWith("- ")).map(l => `<li>${inlineFmt(l.slice(2))}</li>`);
+          if (items.length === bqLines.length && items.length > 0) {
+            html += `<blockquote><ul>${items.join("")}</ul></blockquote>`;
+          } else {
+            html += `<blockquote>${bqLines.map(inlineFmt).join("<br>")}</blockquote>`;
+          }
+          continue;
+        }
+        if (line.startsWith("|") && i + 1 < lines.length && lines[i + 1].includes("---")) {
+          const splitCells = row => row.trim().replace(/^\||\|$/g, "").split(/(?<!\\)\|/).map(c => c.replace(/\\\|/g, "|").trim());
+          const headers = splitCells(lines[i]);
+          const aligns = splitCells(lines[i + 1]).map(a => {
+            if (a.startsWith(":") && a.endsWith(":")) return "center";
+            if (a.endsWith(":")) return "right";
+            return "left";
+          });
+          i += 2;
+          let tHtml = "<table><thead><tr>" + headers.map((h, idx) => `<th style="text-align:${aligns[idx] || "left"}">${inlineFmt(h)}</th>`).join("") + "</tr></thead><tbody>";
+          while (i < lines.length && lines[i].startsWith("|")) {
+            const cells = splitCells(lines[i]);
+            tHtml += "<tr>" + headers.map((_, idx) => `<td style="text-align:${aligns[idx] || "left"}">${inlineFmt(cells[idx] || "")}</td>`).join("") + "</tr>";
+            i++;
+          }
+          tHtml += "</tbody></table>";
+          html += tHtml;
+          continue;
+        }
+        if (line.startsWith("- ")) {
+          let ul = "<ul>";
+          while (i < lines.length && lines[i].startsWith("- ")) {
+            ul += `<li>${inlineFmt(lines[i].slice(2))}</li>`;
+            i++;
+          }
+          ul += "</ul>";
+          html += ul;
+          continue;
+        }
+        html += `<p>${inlineFmt(line)}</p>`;
+        i++;
+      }
+      return html;
+    }
+
+    function rebuildMarkdownReport() {
+      // Persist developer fields
+      try {
+        localStorage.setItem("cliptopulse.changes", document.getElementById("rpt-changes").value);
+        localStorage.setItem("cliptopulse.notes", document.getElementById("rpt-notes").value);
+      } catch (_) {}
+
+      const md = buildMarkdownFromCurrentState();
+      document.getElementById("md-raw-output").value = md;
+      document.getElementById("md-rendered-preview").innerHTML = renderGFMToHTML(md);
+    }
+
+    // ==================== Event Listeners ====================
+    document.getElementById("dagsc-path-form").addEventListener("submit", e => {
+      e.preventDefault();
+      fetchDAGSCAnalysis({ sliceMode: "auto" });
+    });
+
+    document.getElementById("reset-dagsc-path-btn").addEventListener("click", () => {
+      const def = (dagscData && dagscData.default_dagsc_dir) || (liveData && liveData.environment && liveData.environment.default_dagsc_dir) || "";
+      document.getElementById("dagsc-path-input").value = def;
+      fetchDAGSCAnalysis({ sliceMode: "auto" });
+    });
+
+    document.getElementById("slice-mode-seg").addEventListener("click", e => {
+      const btn = e.target.closest(".seg-btn");
+      if (!btn) return;
+      const mode = btn.getAttribute("data-slice");
+      sliceMode = mode;
+      updateSliceControlVisibility();
+      if (mode === "batch") {
+        fetchDAGSCAnalysis({ sliceMode: "batch", batchId: document.getElementById("batch-select").value });
+      } else if (mode === "all") {
+        fetchDAGSCAnalysis({ sliceMode: "all" });
+      } else if (mode === "custom") {
+        if (!customSliceFromMs && dagscData && dagscData.slice_start_ms > 0) {
+          customSliceFromMs = dagscData.slice_start_ms;
+          customSliceToMs = dagscData.slice_end_ms;
+          document.getElementById("dagsc-custom-from").value = toDatetimeLocalValue(customSliceFromMs);
+          document.getElementById("dagsc-custom-to").value = toDatetimeLocalValue(customSliceToMs);
+        }
+      }
+    });
+
+    document.getElementById("batch-select").addEventListener("change", e => {
+      selectedBatchId = e.target.value;
+      fetchDAGSCAnalysis({ sliceMode: "batch", batchId: selectedBatchId });
+    });
+
+    document.getElementById("dagsc-custom-apply").addEventListener("click", () => {
+      const f = new Date(document.getElementById("dagsc-custom-from").value).getTime();
+      const t = new Date(document.getElementById("dagsc-custom-to").value).getTime();
+      if (f > 0 && t >= f) {
+        customSliceFromMs = f;
+        customSliceToMs = t;
+        fetchDAGSCAnalysis({ sliceMode: "custom" });
+      }
+    });
+
+    document.getElementById("chart-mode-seg").addEventListener("click", e => {
+      const btn = e.target.closest(".seg-btn");
+      if (!btn) return;
+      document.querySelectorAll("#chart-mode-seg .seg-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      chartMode = btn.getAttribute("data-chart-mode");
+      renderNsysCanvas();
+    });
+
+    document.getElementById("nsys-color-mode").addEventListener("change", e => { nsysColorMode = e.target.value; renderNsysCanvas(); });
+    document.getElementById("nsys-asset-filter").addEventListener("change", e => { nsysAssetFilter = e.target.value; renderNsysCanvas(); });
+    document.getElementById("nsys-show-bubbles").addEventListener("change", e => { nsysShowBubbles = e.target.checked; renderNsysCanvas(); });
+    document.getElementById("nsys-show-hw-tracks").addEventListener("change", e => { nsysShowHwTracks = e.target.checked; renderNsysCanvas(); });
+
+    document.getElementById("nsys-zoom-in").addEventListener("click", () => {
+      const mid = (nsysViewStartMs + nsysViewEndMs) / 2;
+      const half = Math.max(500, (nsysViewEndMs - nsysViewStartMs) * 0.35);
+      nsysViewStartMs = Math.max(0, mid - half);
+      nsysViewEndMs = Math.min(nsysMaxWallMs, mid + half);
+      renderNsysCanvas();
+    });
+    document.getElementById("nsys-zoom-out").addEventListener("click", () => {
+      const mid = (nsysViewStartMs + nsysViewEndMs) / 2;
+      const half = Math.min(nsysMaxWallMs / 2, (nsysViewEndMs - nsysViewStartMs) * 0.75);
+      nsysViewStartMs = Math.max(0, mid - half);
+      nsysViewEndMs = Math.min(nsysMaxWallMs, mid + half);
+      renderNsysCanvas();
+    });
+    document.getElementById("nsys-zoom-reset").addEventListener("click", () => {
+      resetNsysZoom();
+      renderNsysCanvas();
+    });
+
+    document.getElementById("view-seg").addEventListener("click", e => {
+      const btn = e.target.closest(".seg-btn");
+      if (!btn) return;
+      document.querySelectorAll("#view-seg .seg-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentView = btn.getAttribute("data-view");
+      sortKey = currentView === "asset" ? "asset_id" : "sum_ms";
+      sortAsc = currentView === "asset";
+      if (dagscData) renderTable(dagscData.scopes.asset_analysis);
+    });
+
+    document.getElementById("table-search").addEventListener("input", e => {
+      searchQuery = e.target.value;
+      if (dagscData) renderTable(dagscData.scopes.asset_analysis);
+    });
+
+    // Report Studio bindings
+    document.getElementById("report-quick-slice").addEventListener("change", e => {
+      const [mode, val] = (e.target.value || "").split(":");
+      if (mode === "batch") {
+        sliceMode = "batch"; selectedBatchId = val;
+        fetchDAGSCAnalysis({ sliceMode: "batch", batchId: val });
+      } else if (mode === "all") {
+        sliceMode = "all";
+        fetchDAGSCAnalysis({ sliceMode: "all" });
+      }
+    });
+
+    ["rpt-reporter", "rpt-lan-host"].forEach(id => {
+      document.getElementById(id).addEventListener("input", scheduleProfileSave);
+    });
+    ["rpt-reporter", "rpt-lan-host", "rpt-changes", "rpt-notes", "rpt-opt-hw", "rpt-opt-cms"].forEach(id => {
+      const el = document.getElementById(id);
+      el.addEventListener("input", rebuildMarkdownReport);
+      el.addEventListener("change", rebuildMarkdownReport);
+    });
+
+    async function handleCopyMarkdown() {
+      const md = document.getElementById("md-raw-output").value;
+      await copyTextSafe(md);
+      showToast("✓ 已复制 Markdown 晨报！可直接粘贴至飞书文档 / Notion");
+    }
+
+    // Renders exactly the Markdown shown in the editor into a PNG card on the CliptoPulse server.
+    function requestReportImage() {
+      const md = document.getElementById("md-raw-output").value;
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.md").replace(/\.md$/, ".png");
+      return fetch("/api/report/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markdown: md, filename: fn })
+      }).then(async resp => {
+        if (!resp.ok || !(resp.headers.get("Content-Type") || "").startsWith("image/png")) {
+          let msg = `图片生成失败 (${resp.status})`;
+          try { const j = await resp.json(); if (j.error) msg = j.error; } catch (_) {}
+          throw new Error(msg);
+        }
+        return resp.blob();
+      });
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    document.getElementById("copy-img-btn").addEventListener("click", async () => {
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.md").replace(/\.md$/, ".png");
+      const blobPromise = requestReportImage();
+      try {
+        if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
+          // Pass the promise directly so Safari keeps the user-gesture permission.
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
+          showToast("✓ 已复制晨报图片，可直接粘贴到飞书 / 微信群");
+          return;
+        }
+        throw new Error("当前浏览器不支持写入图片到剪贴板（局域网 http 访问时常见）");
+      } catch (err) {
+        try {
+          const blob = await blobPromise;
+          downloadBlob(blob, fn);
+          showToast(`无法直接复制图片，已改为下载 ${fn}`);
+        } catch (e2) {
+          showToast(`✗ ${e2.message || e2}`);
+        }
+      }
+    });
+
+    async function fetchReportCSV(extra) {
+      if (!dagscData) throw new Error("请先加载 DAGSC 分析数据");
+      const params = buildSliceParams();
+      Object.entries(extra || {}).forEach(([k, v]) => params.set(k, v));
+      const resp = await fetch(`/api/report/csv?${params.toString()}`);
+      if (!resp.ok) {
+        let msg = `CSV 生成失败 (${resp.status})`;
+        try { const j = await resp.json(); if (j.error) msg = j.error; } catch (_) {}
+        throw new Error(msg);
+      }
+      return resp;
+    }
+
+    document.getElementById("download-csv-btn").addEventListener("click", async () => {
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.png").replace(/\.png$/, ".csv");
+      try {
+        downloadBlob(await (await fetchReportCSV()).blob(), fn);
+        showToast(`✓ 已导出 ${fn}`);
+      } catch (err) {
+        showToast(`✗ ${err.message || err}`);
+      }
+    });
+
+    document.getElementById("copy-csv-btn").addEventListener("click", async () => {
+      try {
+        const text = await (await fetchReportCSV({ format: "column" })).text();
+        await copyTextSafe(text);
+        showToast("✓ 已复制 CSV 列，可直接粘贴到表格的一列");
+      } catch (err) {
+        showToast(`✗ ${err.message || err}`);
+      }
+    });
+
+    document.getElementById("copy-csv-labels-btn").addEventListener("click", async () => {
+      try {
+        const text = await (await fetch("/api/report/csv-labels")).text();
+        await copyTextSafe(text);
+        showToast("✓ 已复制 CSV 行名（每行一个指标名）");
+      } catch (err) {
+        showToast(`✗ ${err.message || err}`);
+      }
+    });
+
+    document.getElementById("download-img-btn").addEventListener("click", async () => {
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.md").replace(/\.md$/, ".png");
+      try {
+        downloadBlob(await requestReportImage(), fn);
+        showToast(`✓ 已下载 ${fn}`);
+      } catch (err) {
+        showToast(`✗ ${err.message || err}`);
+      }
+    });
+    document.getElementById("copy-md-btn").addEventListener("click", handleCopyMarkdown);
+
+    document.getElementById("download-md-btn").addEventListener("click", () => {
+      const md = document.getElementById("md-raw-output").value;
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.png").replace(/\.png$/, ".md");
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fn;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`✓ 已下载 ${fn}`);
+    });
+
+    window.addEventListener("resize", () => {
+      if (activeTab === "dagsc") renderNsysCanvas();
+      else if (activeTab === "monitor") renderAllMonitorCharts();
+    });
+
+    // ==================== Initialization ====================
+    (function initApp() {
+      try {
+        document.getElementById("rpt-changes").value = localStorage.getItem("cliptopulse.changes") || "";
+        document.getElementById("rpt-notes").value = localStorage.getItem("cliptopulse.notes") || "";
+      } catch (_) {}
+
+      const initialHash = (window.location.hash || "").replace(/^#/, "");
+      if (["dagsc", "monitor", "report"].includes(initialHash)) {
+        switchTab(initialHash, false);
+      }
+
+      loadReportProfile();
+      pollLiveTelemetry();
+      setInterval(pollLiveTelemetry, 2000);
+      fetchDAGSCAnalysis({ sliceMode: "auto" });
+    })();
+  </script>
+</body>
+</html>
