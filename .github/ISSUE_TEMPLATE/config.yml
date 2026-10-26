@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题
+    url: https://github.com/mkbird/PulseBoard/security/advisories/new
+    about: 请私下报告可能被利用的安全漏洞

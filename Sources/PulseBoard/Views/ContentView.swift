@@ -1,0 +1,104 @@
+import SwiftUI
+
+private enum AppSection: CaseIterable, Identifiable {
+    case overview
+    case settings
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .overview: L10n.text("nav.overview")
+        case .settings: L10n.text("nav.settings")
+        }
+    }
+    var icon: String {
+        switch self {
+        case .overview: "square.grid.2x2"
+        case .settings: "gearshape"
+        }
+    }
+}
+
+struct ContentView: View {
+    @EnvironmentObject private var store: MonitorStore
+    @EnvironmentObject private var localization: LocalizationManager
+    @State private var selection: AppSection? = .overview
+
+    var body: some View {
+        NavigationSplitView {
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(PulseTheme.cyan)
+                        .frame(width: 30, height: 30)
+                        .background(PulseTheme.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(PulseTheme.stroke) }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("CliptoPulse").font(.headline)
+                        Text(L10n.text("app.subtitle")).font(.caption2).foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 17)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+                List(AppSection.allCases, selection: $selection) { section in
+                    Label(section.title, systemImage: section.icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .padding(.vertical, 5)
+                        .tag(section)
+                }
+                .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
+
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack(spacing: 7) {
+                        Circle().fill(.green).frame(width: 6, height: 6)
+                        Text(L10n.text("status.live")).font(.caption.weight(.semibold))
+                    }
+                    if store.webServerRunning {
+                        Button {
+                            store.openWebConsole()
+                        } label: {
+                            Label("网页控制台 (:\(store.webServerPort))", systemImage: "safari.fill")
+                                .font(.caption.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+
+                        Button {
+                            store.openWebConsole(hash: "report")
+                        } label: {
+                            Label("Clipto 日报中心", systemImage: "doc.richtext")
+                                .font(.caption)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                .padding(12)
+                .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(.white.opacity(0.07)) }
+                .padding(12)
+            }
+            .background(PulseTheme.sidebar)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 235)
+        } detail: {
+            switch selection ?? .overview {
+            case .overview: DashboardView()
+            case .settings: SettingsView()
+            }
+        }
+        .frame(minWidth: 1120, minHeight: 760)
+        .preferredColorScheme(.dark)
+        .tint(PulseTheme.cyan)
+        .environment(\.locale, localization.locale)
+        .alert("PulseBoard", isPresented: Binding(
+            get: { store.errorMessage != nil },
+            set: { if !$0 { store.dismissError() } }
+        )) { Button(L10n.text("common.ok"), role: .cancel) {} } message: { Text(store.errorMessage ?? "") }
+    }
+}

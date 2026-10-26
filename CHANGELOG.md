@@ -1,0 +1,60 @@
+# Changelog
+
+本项目遵循 [Semantic Versioning](https://semver.org/)。
+
+## [1.1.3] - 2026-09-28
+
+### Fixed
+
+- 修复 macOS 27 IOReport Energy Model 批量刷新造成的 CPU/ANE 功耗尖峰
+- 批量能量按两次有效更新之间的完整时间窗口计算平均功耗
+- Energy Model 与 Energy Counters 保持主备关系，不再重复累加
+- 使用 SMC 整机功耗交叉校验组件功耗，并过滤已有历史数据中的不可能值
+
+## [1.1.2] - 2026-09-28
+
+### Fixed
+
+- 修复在未安装开发构建目录的新 Mac 上因 SwiftPM 本地化资源包路径错误导致的启动崩溃
+- 本地化资源加载增加旧版安装包兼容与缺失资源安全降级
+- 构建脚本现在会校验资源包，并保持可通过 macOS 签名验证的标准资源布局
+
+## [1.1.1] - 2026-09-27
+
+### Added
+
+- 总览“处理器负载”下方新增系统内存与 Clipto 内存占用对比曲线
+- 内存占用组件支持实时窗口、自定义历史区间和中英文界面
+
+## [1.1.0] - 2026-09-27
+
+### Added
+
+- 简体中文与英文界面本地化，跟随 macOS 应用语言设置
+- 设置中新增“跟随系统 / 简体中文 / English”即时语言切换
+- 历史数据默认保留 120 天，并强制删除超过 120 天的记录
+- 完整的中英文双语 README 与英文界面截图
+
+### Changed
+
+- 将 Swift Package 本地化资源打入签名和公证的应用包
+- 热状态改用稳定内部值存储，同时兼容旧版中文历史记录
+- 清理已移除历史标签页遗留的不可达界面代码
+- 总览指标卡固定为 3 列 × 2 行，侧边栏收起时不改变排列
+
+## [1.0.0] - 2026-09-27
+
+### Added
+
+- 原生 SwiftUI macOS 性能总览与菜单栏状态
+- CPU、GPU、内存、Swap、网络、磁盘和热状态采样
+- ANE、系统与芯片分项功耗、DRAM 带宽增强指标
+- Clipto 进程组 CPU、GPU、内存和磁盘指标
+- SQLite 历史记录、自定义时间范围和 CSV 导出
+- Developer ID 签名、公证和可分发应用包脚本
+
+[1.1.3]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.3
+[1.1.2]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.2
+[1.1.1]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.1
+[1.1.0]: https://github.com/mkbird/PulseBoard/releases/tag/v1.1.0
+[1.0.0]: https://github.com/mkbird/PulseBoard/releases/tag/v1.0.0
