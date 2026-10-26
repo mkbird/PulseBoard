@@ -46,10 +46,10 @@ enum MarkdownReportGenerator {
         // Headline KPIs
         lines.append("## 🎯 头条指标")
         lines.append("")
-        lines.append("| 端到端分析速度 | 全 CMS 内存峰值 | 全 CMS CPU P95 | 全 CMS GPU P95 |")
-        lines.append("| :---: | :---: | :---: | :---: |")
-        lines.append("| **\(fmtSpeedup(primaryScope.wallSpeedup))** | **\(fmtBytesOpt(hw?.cmsTotalMemoryBytes.max))** | **\(fmtPct1(hw?.cmsTotalCPUPercent.p95))** | **\(fmtPct1(hw?.cmsTotalGPUPercent.p95))** |")
-        lines.append("| 素材 \(fmtDurationShort(analysis.totalMediaDurationMs)) ÷ 端到端 \(fmtDurationShort(primaryScope.wallClockMs)) | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） |")
+        lines.append("| 端到端分析速度 | 全 CMS 内存峰值 | 全 CMS CPU P95 | 全 CMS GPU P95 | Clipto 进程组内存峰值 |")
+        lines.append("| :---: | :---: | :---: | :---: | :---: |")
+        lines.append("| **\(fmtSpeedup(primaryScope.wallSpeedup))** | **\(fmtBytesOpt(hw?.cmsTotalMemoryBytes.max))** | **\(fmtPct1(hw?.cmsTotalCPUPercent.p95))** | **\(fmtPct1(hw?.cmsTotalGPUPercent.p95))** | **\(fmtBytesOpt(hw?.cliptoMemoryBytes.max))** |")
+        lines.append("| 素材 \(fmtDurationShort(analysis.totalMediaDurationMs)) ÷ 端到端 \(fmtDurationShort(primaryScope.wallClockMs)) | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） | Clipto.app 全部进程物理内存合计 |")
         lines.append("")
 
         // Section 1: Throughput overview

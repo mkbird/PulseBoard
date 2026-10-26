@@ -229,7 +229,8 @@ private enum Palette {
         Color(red: 0.02, green: 0.59, blue: 0.41),  // speed – emerald
         Color(red: 0.49, green: 0.23, blue: 0.93),  // memory – violet
         Color(red: 0.92, green: 0.35, blue: 0.05),  // CPU – orange
-        Color(red: 0.15, green: 0.39, blue: 0.92)   // GPU – blue
+        Color(red: 0.15, green: 0.39, blue: 0.92),  // GPU – blue
+        Color(red: 0.86, green: 0.15, blue: 0.47)   // Clipto memory – rose
     ]
 }
 
@@ -328,7 +329,7 @@ private struct ReportImageView: View {
                     .foregroundStyle(Palette.muted)
             }
             Text(ReportMarkdownParser.inline(kpi.value.replacingOccurrences(of: "**", with: "")))
-                .font(.system(size: 38, weight: .heavy, design: .rounded))
+                .font(.system(size: 34, weight: .heavy, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(color)
                 .lineLimit(1)

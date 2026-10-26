@@ -279,7 +279,7 @@ enum SelfTestSuite {
 
         try check(md.contains("# Clipto Mac ") && md.contains(" 离线分析性能晨报"), "Missing Markdown report H1 header")
         try check(md.contains("## 🎯 头条指标"), "Missing headline KPI section")
-        try check(md.contains("| **6.00x** | **2.50 GB** | **250.0%** | **40.0%** |"), "Headline KPI values mismatch")
+        try check(md.contains("| **6.00x** | **2.50 GB** | **250.0%** | **40.0%** | **4.00 GB** |"), "Headline KPI values mismatch")
         try check(!md.contains("算法服务耗时瓶颈") && !md.contains("长尾慢素材"), "Sections 3/4 should be removed")
         try check(md.contains("**评测人**：测试工程师 A"), "Missing reporter field in Markdown")
         try check(md.contains("http://192.168.1.23:8766"), "Missing LAN detail link (normalized host + port)")
@@ -295,7 +295,7 @@ enum SelfTestSuite {
         try check(csvRows.dropFirst().first == "6.00", "CSV row 2 must be end-to-end speedup, got \(String(describing: csvRows.dropFirst().first))")
         try check(!csvRows.contains(where: { $0.contains(",") && !$0.hasPrefix("\"") }), "CSV must stay single-column")
         let layout = ReportLayout(blocks: ReportMarkdownParser.parse(md))
-        try check(layout.kpis.count == 4 && layout.kpis[0].value.contains("6.00x"), "Headline KPI strip not detected by image layout")
+        try check(layout.kpis.count == 5 && layout.kpis[0].value.contains("6.00x"), "Headline KPI strip not detected by image layout")
         try check(md.contains("`cms_vlm_worker`"), "Missing CMS worker row in Markdown")
     }
 

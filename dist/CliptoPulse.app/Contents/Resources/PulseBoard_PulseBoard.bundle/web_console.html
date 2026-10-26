@@ -3170,10 +3170,10 @@
 
       out.push("## 🎯 头条指标");
       out.push("");
-      out.push("| 端到端分析速度 | 全 CMS 内存峰值 | 全 CMS CPU P95 | 全 CMS GPU P95 |");
-      out.push("| :---: | :---: | :---: | :---: |");
-      out.push(`| **${formatSpeedup(primary.wall_speedup)}** | **${bytes(m(hw, "cms_total_memory_bytes").max)}** | **${pct(m(hw, "cms_total_cpu_percent").p95)}** | **${pct(m(hw, "cms_total_gpu_percent").p95)}** |`);
-      out.push(`| 素材 ${formatDurationShort(d.total_media_duration_ms)} ÷ 端到端 ${formatDurationShort(primary.wall_clock_ms)} | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） |`);
+      out.push("| 端到端分析速度 | 全 CMS 内存峰值 | 全 CMS CPU P95 | 全 CMS GPU P95 | Clipto 进程组内存峰值 |");
+      out.push("| :---: | :---: | :---: | :---: | :---: |");
+      out.push(`| **${formatSpeedup(primary.wall_speedup)}** | **${bytes(m(hw, "cms_total_memory_bytes").max)}** | **${pct(m(hw, "cms_total_cpu_percent").p95)}** | **${pct(m(hw, "cms_total_gpu_percent").p95)}** | **${bytes(m(hw, "clipto_memory_bytes").max)}** |`);
+      out.push(`| 素材 ${formatDurationShort(d.total_media_duration_ms)} ÷ 端到端 ${formatDurationShort(primary.wall_clock_ms)} | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） | Clipto.app 全部进程物理内存合计 |`);
       out.push("");
 
       out.push("## 一、吞吐概览");
