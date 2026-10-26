@@ -271,6 +271,7 @@ enum SelfTestSuite {
             analysis: analysis,
             options: MarkdownReportOptions(
                 reporter: "测试工程师 A",
+                lanHost: "http://192.168.1.23:8766/",
                 changeSummary: "优化 VLM 并发与解码管线 | 降低峰值内存",
                 notes: "观察到长视频切片耗时稳定 | 无 OOM"
             )
@@ -280,9 +281,16 @@ enum SelfTestSuite {
         try check(md.contains("## 🎯 头条指标"), "Missing headline KPI section")
         try check(md.contains("| **6.00x** | **2.50 GB** | **250.0%** | **40.0%** |"), "Headline KPI values mismatch")
         try check(!md.contains("算法服务耗时瓶颈") && !md.contains("长尾慢素材"), "Sections 3/4 should be removed")
-        try check(md.contains("测试工程师 A"), "Missing reporter field in Markdown")
+        try check(md.contains("**评测人**：测试工程师 A"), "Missing reporter field in Markdown")
+        try check(md.contains("http://192.168.1.23:8766"), "Missing LAN detail link (normalized host + port)")
         try check(md.contains("优化 VLM 并发与解码管线 \\| 降低峰值内存"), "Unescaped pipe in changeSummary")
         try check(md.contains("## 二、运行期硬件与进程资源水位"), "Missing aligned hardware section")
+        let csv = ReportCSVGenerator.generate(analysis: analysis)
+        let csvRows = csv.dropFirst().split(separator: "\r\n", omittingEmptySubsequences: false).dropLast()
+        try check(csvRows.count == ReportCSVGenerator.rowLabels.count, "CSV row count mismatch: \(csvRows.count)")
+        try check(csvRows.first == "v1.4.0" || csvRows.first?.isEmpty == false, "CSV row 1 must be the version")
+        try check(csvRows.dropFirst().first == "6.00", "CSV row 2 must be end-to-end speedup, got \(String(describing: csvRows.dropFirst().first))")
+        try check(!csvRows.contains(where: { $0.contains(",") && !$0.hasPrefix("\"") }), "CSV must stay single-column")
         let layout = ReportLayout(blocks: ReportMarkdownParser.parse(md))
         try check(layout.kpis.count == 4 && layout.kpis[0].value.contains("6.00x"), "Headline KPI strip not detected by image layout")
         try check(md.contains("`cms_vlm_worker`"), "Missing CMS worker row in Markdown")
@@ -481,11 +489,13 @@ enum CLIRunner {
         var dagscPath = ""
         var sliceMode = "auto"
         var batchID: String?
-        var reporter = ""
+        var reporter = ReportProfile.reporter
+        var lanHost = ReportProfile.lanHost
         var changeSummary = ""
         var notes = ""
         var outPath: String?
         var pngPath: String?
+        var csvPath: String?
 
         var i = 1
         while i < arguments.count {
@@ -509,6 +519,10 @@ enum CLIRunner {
             else if arg.hasPrefix("--notes=") { notes = String(arg.dropFirst("--notes=".count)) }
             else if arg == "--out", let v = nextVal() { outPath = v }
             else if arg.hasPrefix("--out=") { outPath = String(arg.dropFirst("--out=".count)) }
+            else if arg == "--lan-ip", let v = nextVal() { lanHost = v }
+            else if arg.hasPrefix("--lan-ip=") { lanHost = String(arg.dropFirst("--lan-ip=".count)) }
+            else if arg == "--csv", let v = nextVal() { csvPath = v }
+            else if arg.hasPrefix("--csv=") { csvPath = String(arg.dropFirst("--csv=".count)) }
             else if arg == "--png", let v = nextVal() { pngPath = v }
             else if arg.hasPrefix("--png=") { pngPath = String(arg.dropFirst("--png=".count)) }
             i += 1
@@ -539,10 +553,18 @@ enum CLIRunner {
             analysis: analysis,
             options: MarkdownReportOptions(
                 reporter: reporter,
+                lanHost: lanHost,
                 changeSummary: changeSummary,
                 notes: notes
             )
         )
+
+        if let csvPath, !csvPath.isEmpty {
+            let csvURL = URL(fileURLWithPath: (csvPath as NSString).expandingTildeInPath)
+            try FileManager.default.createDirectory(at: csvURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try ReportCSVGenerator.generate(analysis: analysis).write(to: csvURL, atomically: true, encoding: .utf8)
+            print("Saved CSV report to \(csvURL.path)")
+        }
 
         if let pngPath, !pngPath.isEmpty {
             let pngURL = URL(fileURLWithPath: (pngPath as NSString).expandingTildeInPath)
@@ -557,7 +579,7 @@ enum CLIRunner {
             try FileManager.default.createDirectory(at: outURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try md.write(to: outURL, atomically: true, encoding: String.Encoding.utf8)
             print("Saved Markdown report to \(outURL.path)")
-        } else if pngPath == nil {
+        } else if pngPath == nil && csvPath == nil {
             print(md)
         }
     }
@@ -579,11 +601,13 @@ enum CLIRunner {
             --dagsc <路径>      指定 dagsc_data 目录或 schedule.db 路径（默认自动探测本机 Clipto）
             --slice <模式>      auto | batch | all（默认 auto = 最近一个测试批次）
             --batch <batch-id>  当 --slice=batch 时指定批次 ID（如 batch-3）
-            --reporter <姓名>   日报记录人
+            --reporter <姓名>   评测人（默认使用已保存的评测人）
+            --lan-ip <IP>       晨报「查看详情」链接中的局域网 IP（默认使用已保存的 IP）
             --change <说明>     本轮版本/改动说明
             --notes <备注>      问题定位与后续计划备注
             --out <文件路径>    保存 Markdown 到文件（省略则输出到标准输出）
             --png <文件路径>    同时把晨报渲染为 PNG 图片
+            --csv <文件路径>    同时导出单列 CSV（第 1 行版本号，之后每行一个指标）
           --self-test           运行内置自检测试套件（验证批次切分、硬件对齐、晨报 Markdown 与图片生成）
           --help, -h            显示本帮助信息
         """

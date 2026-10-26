@@ -336,6 +336,63 @@ enum WebConsoleRouter {
             }
         }
 
+        if path == "/api/report/profile" {
+            // Manually entered 评测人 / 局域网 IP shared with the menu bar and CLI.
+            if request.method == "POST",
+               let obj = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any] {
+                let reporter = obj["reporter"] as? String
+                let lanHost = obj["lan_host"] as? String
+                await MainActor.run {
+                    if let reporter { monitor.reporterName = reporter }
+                    if let lanHost { monitor.reportLANHost = lanHost }
+                }
+            }
+            struct ProfilePayload: Encodable {
+                let ok = true
+                let reporter: String
+                let lan_host: String
+                let web_port: Int
+                let detected_lan_ips: [String]
+            }
+            return .json(200, ProfilePayload(
+                reporter: ReportProfile.reporter,
+                lan_host: ReportProfile.lanHost,
+                web_port: env.webPort,
+                detected_lan_ips: env.lanIPs
+            ))
+        }
+
+        if path == "/api/report/csv-labels" {
+            // Row names of the single-column CSV, one per line (for setting up the tracking sheet once).
+            let text = ReportCSVGenerator.rowLabels.joined(separator: "\n")
+            return HTTPResponse(statusCode: 200, contentType: "text/plain; charset=utf-8", extraHeaders: [], body: Data(text.utf8))
+        }
+
+        if path == "/api/report/csv" {
+            // Single-column CSV: row 1 = Clipto version, then one metric per row.
+            // ?download=1 → attachment; ?format=column → newline-separated values for clipboard;
+            // ?with_labels=1 → two columns (name,value) for checking.
+            do {
+                var result = try DAGSCAnalyzer.analyze(options: parseDAGSCQueryOptions(from: request), environment: env)
+                result.alignedHardware = try? await history.fetchAlignedReport(
+                    activeIntervalsMs: result.activeIntervalsMs,
+                    fallbackStartMs: result.sliceStartMs,
+                    fallbackEndMs: result.sliceEndMs
+                )
+                if request.query("format") == "column" {
+                    let text = ReportCSVGenerator.columnText(analysis: result)
+                    return HTTPResponse(statusCode: 200, contentType: "text/plain; charset=utf-8", extraHeaders: [], body: Data(text.utf8))
+                }
+                let csv = ReportCSVGenerator.generate(analysis: result, includeLabels: request.query("with_labels") == "1")
+                if request.query("download") == "1" {
+                    return .download(filename: ReportCSVGenerator.fileName(result), contentType: "text/csv; charset=utf-8", data: Data(csv.utf8))
+                }
+                return HTTPResponse(statusCode: 200, contentType: "text/csv; charset=utf-8", extraHeaders: [], body: Data(csv.utf8))
+            } catch {
+                return .jsonError(400, error.localizedDescription)
+            }
+        }
+
         if path == "/api/report/image" {
             // POST {"markdown": "...", "filename": "..."} renders exactly what the web console shows.
             // Without a markdown body the server generates the report itself from the slice params.
@@ -447,13 +504,14 @@ enum WebConsoleRouter {
            let obj = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any] {
             jsonBody = obj
         }
-        func str(_ key: String) -> String {
-            request.query(key) ?? (jsonBody[key] as? String) ?? ""
+        func str(_ key: String) -> String? {
+            request.query(key) ?? (jsonBody[key] as? String)
         }
-        var opts = MarkdownReportOptions()
-        opts.reporter = str("reporter")
-        opts.changeSummary = str("change_summary")
-        opts.notes = str("notes")
+        var opts = MarkdownReportOptions() // reporter / lanHost default to the saved profile
+        if let v = str("reporter") { opts.reporter = v }
+        if let v = str("lan_host") { opts.lanHost = v }
+        opts.changeSummary = str("change_summary") ?? ""
+        opts.notes = str("notes") ?? ""
         return opts
     }
 

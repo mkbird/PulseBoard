@@ -44,6 +44,14 @@ final class MonitorStore: ObservableObject {
         }
     }
     @Published private(set) var isWiping = false
+    /// 评测人（手动填写，晨报 / CSV 使用）
+    @Published var reporterName: String = ReportProfile.reporter {
+        didSet { if ReportProfile.reporter != reporterName { ReportProfile.reporter = reporterName } }
+    }
+    /// 局域网 IP（手动填写，用于晨报「查看详情」链接和复制共享网址）
+    @Published var reportLANHost: String = ReportProfile.lanHost {
+        didSet { if ReportProfile.lanHost != reportLANHost { ReportProfile.lanHost = reportLANHost } }
+    }
     @Published private(set) var webServerPort: Int = 8766
     @Published private(set) var webServerRunning = false
     @Published private(set) var menuActionFeedback: String?
@@ -130,6 +138,7 @@ final class MonitorStore: ObservableObject {
     }
 
     var primaryLANURLString: String {
+        if let manual = ReportProfile.detailURL(port: webServerPort) { return manual }
         let ips = SystemEnvironmentService.lanIPv4Addresses()
         if let first = ips.first {
             return "http://\(first):\(webServerPort)"
@@ -201,6 +210,20 @@ final class MonitorStore: ObservableObject {
                 showMenuFeedback("✓ 已复制 Markdown 晨报（可直接粘贴至飞书/Notion）")
             } catch {
                 showMenuFeedback("晨报生成失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Copies the single-column CSV values (row 1 = version) for pasting into the tracking sheet.
+    func copyLatestReportCSVColumn() {
+        Task {
+            do {
+                let report = try await buildLatestReport()
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(ReportCSVGenerator.columnText(analysis: report.analysis), forType: .string)
+                showMenuFeedback("✓ 已复制 CSV 列（第 1 行版本号），可直接粘贴到表格")
+            } catch {
+                showMenuFeedback("CSV 生成失败：\(error.localizedDescription)")
             }
         }
     }

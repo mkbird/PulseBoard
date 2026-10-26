@@ -1255,6 +1255,15 @@
             <button type="button" class="btn btn-secondary" id="download-img-btn" style="padding:9px 16px; font-size:0.9rem;">
               ⬇️ 下载 PNG
             </button>
+            <button type="button" class="btn btn-secondary" id="download-csv-btn" style="padding:9px 16px; font-size:0.9rem;" title="单列 CSV：第 1 行版本号，之后每行一个指标（纯数字，单位见行名）">
+              📊 导出 CSV
+            </button>
+            <button type="button" class="btn btn-secondary" id="copy-csv-btn" style="padding:9px 16px; font-size:0.9rem;" title="复制 CSV 这一列的值，可直接粘贴到表格的某一列">
+              📋 复制 CSV 列
+            </button>
+            <button type="button" class="btn btn-secondary" id="copy-csv-labels-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;" title="复制 CSV 每一行对应的指标名，用于第一次搭建记录表">
+              复制行名
+            </button>
           </div>
         </div>
 
@@ -1277,8 +1286,12 @@
         <!-- Developer Custom Fields -->
         <div class="report-form-grid">
           <div class="field-group">
-            <label for="rpt-reporter">测试 / 记录人（自动保存）</label>
-            <input type="text" id="rpt-reporter" class="text-input" placeholder="例如：yingjia / 客户端与算法联调组">
+            <label for="rpt-reporter">评测人（手动填写，与菜单栏同步保存）</label>
+            <input type="text" id="rpt-reporter" class="text-input" placeholder="例如：yingjia">
+          </div>
+          <div class="field-group">
+            <label for="rpt-lan-host">局域网 IP（手动填写，晨报会附上「查看详情」链接）</label>
+            <input type="text" id="rpt-lan-host" class="text-input" placeholder="例如：192.168.1.23" spellcheck="false" autocomplete="off">
           </div>
           <div class="field-group">
             <label for="rpt-changes">本轮分支 / 模型 / 优化改动摘要</label>
@@ -1325,6 +1338,8 @@
     let liveData = null;
     let monitorSeries = [];
     let lanShareURL = window.location.origin;
+    let reportProfile = { reporter: "", lan_host: "", web_port: Number(window.location.port) || 8766, detected_lan_ips: [] };
+    let profileSaveTimer = null;
 
     // DAGSC slice & table state
     let sliceMode = "auto";      // 'auto' | 'batch' | 'custom' | 'all'
@@ -1570,6 +1585,48 @@
     });
 
     // ==================== Live Telemetry Polling (/api/monitor/live) ====================
+    // Manually entered LAN host wins over auto-detected addresses.
+    function normalizeHost(raw) {
+      let h = String(raw || "").trim().replace(/^https?:\/\//i, "");
+      h = h.split("/")[0];
+      if ((h.match(/:/g) || []).length === 1) h = h.split(":")[0];
+      return h;
+    }
+    function updateLanPill(detected) {
+      const host = normalizeHost(document.getElementById("rpt-lan-host").value) || (detected && detected[0]) || "";
+      if (!host) return;
+      lanShareURL = `http://${host}:${reportProfile.web_port}`;
+      document.getElementById("lan-url-text").textContent = `${host}:${reportProfile.web_port}`;
+    }
+    async function loadReportProfile() {
+      try {
+        const p = await (await fetch("/api/report/profile")).json();
+        if (!p.ok) return;
+        reportProfile = p;
+        document.getElementById("rpt-reporter").value = p.reporter || "";
+        document.getElementById("rpt-lan-host").value = p.lan_host || "";
+        if (p.detected_lan_ips && p.detected_lan_ips.length) {
+          document.getElementById("rpt-lan-host").placeholder = `例如：${p.detected_lan_ips[0]}（本机检测到的地址，需手动确认填写）`;
+        }
+        updateLanPill(p.detected_lan_ips);
+        rebuildMarkdownReport();
+      } catch (_) {}
+    }
+    function scheduleProfileSave() {
+      clearTimeout(profileSaveTimer);
+      profileSaveTimer = setTimeout(() => {
+        fetch("/api/report/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reporter: document.getElementById("rpt-reporter").value,
+            lan_host: document.getElementById("rpt-lan-host").value
+          })
+        }).catch(() => {});
+      }, 500);
+      updateLanPill(reportProfile.detected_lan_ips);
+    }
+
     async function pollLiveTelemetry() {
       try {
         const resp = await fetch("/api/monitor/live");
@@ -1580,10 +1637,8 @@
         const env = data.environment;
         if (env) {
           document.getElementById("nav-chip-badge").textContent = `${env.chip_model} · ${env.physical_memory_text}`;
-          if (env.lan_ips && env.lan_ips.length > 0) {
-            lanShareURL = `http://${env.lan_ips[0]}:${env.web_port}`;
-            document.getElementById("lan-url-text").textContent = `${env.lan_ips[0]}:${env.web_port}`;
-          }
+          reportProfile.web_port = env.web_port || reportProfile.web_port;
+          updateLanPill(env.lan_ips || []);
           const pathInp = document.getElementById("dagsc-path-input");
           if (!pathInp.value && env.default_dagsc_dir) {
             pathInp.value = env.default_dagsc_dir;
@@ -1919,16 +1974,7 @@
       btn.textContent = "分析中...";
       errBanner.style.display = "none";
 
-      const params = new URLSearchParams();
-      if (pathVal) params.set("path", pathVal);
-      const mode = opts.sliceMode || sliceMode || "auto";
-      params.set("slice_mode", mode);
-      if (mode === "batch" && (opts.batchId || selectedBatchId)) {
-        params.set("batch_id", opts.batchId || selectedBatchId);
-      } else if (mode === "custom" && customSliceFromMs > 0 && customSliceToMs >= customSliceFromMs) {
-        params.set("from_ms", String(customSliceFromMs));
-        params.set("to_ms", String(customSliceToMs));
-      }
+      const params = buildSliceParams(opts);
 
       try {
         const resp = await fetch(`/api/dagsc/analyze?${params.toString()}`);
@@ -1960,6 +2006,22 @@
         btn.disabled = false;
         btn.textContent = "加载并分析";
       }
+    }
+
+    // Query params describing the slice currently shown (shared by analyze / CSV export).
+    function buildSliceParams(opts = {}) {
+      const params = new URLSearchParams();
+      const pathVal = document.getElementById("dagsc-path-input").value.trim();
+      if (pathVal) params.set("path", pathVal);
+      const mode = opts.sliceMode || sliceMode || "auto";
+      params.set("slice_mode", mode);
+      if (mode === "batch" && (opts.batchId || selectedBatchId)) {
+        params.set("batch_id", opts.batchId || selectedBatchId);
+      } else if (mode === "custom" && customSliceFromMs > 0 && customSliceToMs >= customSliceFromMs) {
+        params.set("from_ms", String(customSliceFromMs));
+        params.set("to_ms", String(customSliceToMs));
+      }
+      return params;
     }
 
     function updateSliceControlVisibility() {
@@ -3096,8 +3158,10 @@
       out.push(`> - **运行时段**：${reportTitleRange(d)}（${escMdCell(sliceSummary)}）`);
       out.push(`> - **测试平台**：Clipto **macOS 版** · ${env.chip_model || "Mac"} · ${env.physical_memory_text || "—"} 统一内存 · ${env.logical_cores || "—"} 核 · ${env.macos_version || "macOS"}`);
       out.push(`> - **分析模板**：${d.template_version || "—"} ｜ 生成于 ${d.analyzed_at_text}`);
-      if (reporter) out.push(`> - **测试记录人**：${escMdCell(reporter)}`);
+      if (reporter) out.push(`> - **评测人**：${escMdCell(reporter)}`);
       if (changes) out.push(`> - **本轮改动**：${escMdCell(changes)}`);
+      const lanHost = normalizeHost(document.getElementById("rpt-lan-host").value);
+      if (lanHost) out.push(`> - **查看详情**：同一局域网内用浏览器打开 http://${lanHost}:${env.web_port || reportProfile.web_port}（DAGSC 泳道、硬件曲线与历史监控）`);
       out.push("");
 
       out.push("## 🎯 头条指标");
@@ -3293,7 +3357,6 @@
     function rebuildMarkdownReport() {
       // Persist developer fields
       try {
-        localStorage.setItem("cliptopulse.reporter", document.getElementById("rpt-reporter").value);
         localStorage.setItem("cliptopulse.changes", document.getElementById("rpt-changes").value);
         localStorage.setItem("cliptopulse.notes", document.getElementById("rpt-notes").value);
       } catch (_) {}
@@ -3411,7 +3474,10 @@
       }
     });
 
-    ["rpt-reporter", "rpt-changes", "rpt-notes", "rpt-opt-hw", "rpt-opt-cms"].forEach(id => {
+    ["rpt-reporter", "rpt-lan-host"].forEach(id => {
+      document.getElementById(id).addEventListener("input", scheduleProfileSave);
+    });
+    ["rpt-reporter", "rpt-lan-host", "rpt-changes", "rpt-notes", "rpt-opt-hw", "rpt-opt-cms"].forEach(id => {
       const el = document.getElementById(id);
       el.addEventListener("input", rebuildMarkdownReport);
       el.addEventListener("change", rebuildMarkdownReport);
@@ -3472,6 +3538,49 @@
       }
     });
 
+    async function fetchReportCSV(extra) {
+      if (!dagscData) throw new Error("请先加载 DAGSC 分析数据");
+      const params = buildSliceParams();
+      Object.entries(extra || {}).forEach(([k, v]) => params.set(k, v));
+      const resp = await fetch(`/api/report/csv?${params.toString()}`);
+      if (!resp.ok) {
+        let msg = `CSV 生成失败 (${resp.status})`;
+        try { const j = await resp.json(); if (j.error) msg = j.error; } catch (_) {}
+        throw new Error(msg);
+      }
+      return resp;
+    }
+
+    document.getElementById("download-csv-btn").addEventListener("click", async () => {
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.png").replace(/\.png$/, ".csv");
+      try {
+        downloadBlob(await (await fetchReportCSV()).blob(), fn);
+        showToast(`✓ 已导出 ${fn}`);
+      } catch (err) {
+        showToast(`✗ ${err.message || err}`);
+      }
+    });
+
+    document.getElementById("copy-csv-btn").addEventListener("click", async () => {
+      try {
+        const text = await (await fetchReportCSV({ format: "column" })).text();
+        await copyTextSafe(text);
+        showToast("✓ 已复制 CSV 列，可直接粘贴到表格的一列");
+      } catch (err) {
+        showToast(`✗ ${err.message || err}`);
+      }
+    });
+
+    document.getElementById("copy-csv-labels-btn").addEventListener("click", async () => {
+      try {
+        const text = await (await fetch("/api/report/csv-labels")).text();
+        await copyTextSafe(text);
+        showToast("✓ 已复制 CSV 行名（每行一个指标名）");
+      } catch (err) {
+        showToast(`✗ ${err.message || err}`);
+      }
+    });
+
     document.getElementById("download-img-btn").addEventListener("click", async () => {
       const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.md").replace(/\.md$/, ".png");
       try {
@@ -3504,7 +3613,6 @@
     // ==================== Initialization ====================
     (function initApp() {
       try {
-        document.getElementById("rpt-reporter").value = localStorage.getItem("cliptopulse.reporter") || "";
         document.getElementById("rpt-changes").value = localStorage.getItem("cliptopulse.changes") || "";
         document.getElementById("rpt-notes").value = localStorage.getItem("cliptopulse.notes") || "";
       } catch (_) {}
@@ -3514,6 +3622,7 @@
         switchTab(initialHash, false);
       }
 
+      loadReportProfile();
       pollLiveTelemetry();
       setInterval(pollLiveTelemetry, 2000);
       fetchDAGSCAnalysis({ sliceMode: "auto" });

@@ -111,6 +111,27 @@ private struct MenuBarControlView: View {
             .padding(9)
             .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
 
+            // Manually entered report metadata (shared with the web console)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Text("评测人").font(.system(size: 11.5)).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
+                    TextField("例如：yingjia", text: $store.reporterName)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11.5))
+                }
+                HStack(spacing: 6) {
+                    Text("局域网 IP").font(.system(size: 11.5)).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
+                    TextField(lanPlaceholder, text: $store.reportLANHost)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11.5))
+                }
+                Text(store.reportLANHost.isEmpty
+                     ? "填写后晨报会附上「查看详情：http://IP:\(store.webServerPort)」"
+                     : "晨报详情链接：http://\(ReportProfile.normalizeHost(store.reportLANHost)):\(store.webServerPort)")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+
             if let feedback = store.menuActionFeedback {
                 Text(feedback)
                     .font(.system(size: 11.5, weight: .semibold))
@@ -157,9 +178,9 @@ private struct MenuBarControlView: View {
                     .buttonStyle(.bordered)
 
                     Button {
-                        store.copyLatestDailyReportMarkdown()
+                        store.copyLatestReportCSVColumn()
                     } label: {
-                        Label("复制 Markdown", systemImage: "doc.on.clipboard")
+                        Label("复制 CSV 列", systemImage: "tablecells")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
@@ -215,6 +236,11 @@ private struct MenuBarControlView: View {
         }
         .padding(13)
         .frame(width: 340)
+    }
+
+    private var lanPlaceholder: String {
+        if let ip = SystemEnvironmentService.lanIPv4Addresses().first { return "例如：\(ip)" }
+        return "例如：192.168.1.23"
     }
 
     private func telemetryRow(title: String, value: String) -> some View {

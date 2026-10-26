@@ -13,6 +13,8 @@
 - 晨报头条指标：端到端分析速度、全 CMS 内存峰值、全 CMS CPU P95、全 CMS GPU P95
 - 新增全 CMS 进程 GPU 占用采集（按进程 IOAccelerator GPU 时间，历史库新增 `cms_gpu` 列）
 - 晨报图片改为深色渐变页眉 + 卡片式版面
+- 单列 CSV 导出（第 1 行版本号，之后每行一个指标，纯数字）：网页「导出 CSV / 复制 CSV 列 / 复制行名」、菜单栏「复制 CSV 列」、命令行 `--csv`、接口 `/api/report/csv`
+- 评测人 / 局域网 IP 改为手动填写（菜单栏与网页同步保存，接口 `/api/report/profile`，命令行 `--lan-ip`）；填写 IP 后晨报附「查看详情：http://IP:8766」
 
 ### Changed
 

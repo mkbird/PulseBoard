@@ -65,6 +65,7 @@ cd "/Users/yingjia/Desktop/agent的工作间/CliptoPulse"
   - `GET /api/monitor/live` — 实时硬件 + Clipto + CMS 会话指标
   - `GET /api/monitor/history?minutes=60` — 历史监控时间序列
   - `GET /api/dagsc/analyze?slice_mode=auto|batch|custom|all` — DAGSC 切片分析 + 自动对齐的硬件水位报告
+  - `GET /api/report/csv` — 单列 CSV（第 1 行版本号，之后每行一个指标；`?download=1` 下载，`?with_labels=1` 带行名，`?format=column` 纯文本列）
   - `POST /api/report/image` — 把晨报 Markdown 渲染为 PNG 图片（body: `{"markdown": "..."}`；`?download=1` 下载）
   - `GET|POST /api/report/markdown` — 生成或下载标准 Markdown 开发日报
   - `GET /api/export/system-csv` & `GET /api/export/cms-csv` — 原始监控 CSV 流式导出

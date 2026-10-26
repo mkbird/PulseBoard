@@ -1,7 +1,10 @@
 import Foundation
 
 struct MarkdownReportOptions: Sendable {
-    var reporter: String = ""
+    /// 评测人 (manually entered; defaults to the saved profile)
+    var reporter: String = ReportProfile.reporter
+    /// 局域网 IP for the "查看详情" link (manually entered; empty = no link line)
+    var lanHost: String = ReportProfile.lanHost
     var changeSummary: String = ""
     var notes: String = ""
     var includeHardware: Bool = true
@@ -28,11 +31,15 @@ enum MarkdownReportGenerator {
         lines.append("> - **分析模板**：\(analysis.templateVersion.isEmpty ? "—" : analysis.templateVersion) ｜ 生成于 \(analysis.analyzedAtText)")
         let reporter = options.reporter.trimmingCharacters(in: .whitespacesAndNewlines)
         if !reporter.isEmpty {
-            lines.append("> - **测试记录人**：\(escapeMD(reporter))")
+            lines.append("> - **评测人**：\(escapeMD(reporter))")
         }
         let change = options.changeSummary.trimmingCharacters(in: .whitespacesAndNewlines)
         if !change.isEmpty {
             lines.append("> - **本轮改动**：\(escapeMD(change))")
+        }
+        let host = ReportProfile.normalizeHost(options.lanHost)
+        if !host.isEmpty {
+            lines.append("> - **查看详情**：同一局域网内用浏览器打开 http://\(host):\(env.webPort)（DAGSC 泳道、硬件曲线与历史监控）")
         }
         lines.append("")
 
