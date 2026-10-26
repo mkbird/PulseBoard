@@ -32,6 +32,8 @@ struct MetricSample: Codable, Identifiable, Hashable, Sendable {
     let cliptoGPUPercent: Double?
     let swapUsedBytes: Double
     let swapTotalBytes: Double
+    /// Summed GPU busy % of all CMS-named processes (added in 2.1; nil for older history rows).
+    var cmsGPUPercent: Double? = nil
 
     var cliptoRunning: Bool { (cliptoProcessCount ?? 0) > 0 }
 

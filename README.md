@@ -8,7 +8,7 @@
    - 100% 兼容并直接复用既有本地历史库：`~/Library/Application Support/PulseBoard/history.sqlite`（无需迁移旧数据）。
 2. **DAGSC 调度吞吐与 Nsight 泳道分析（源自 `clipto运行信息分析工具`，已原生 Swift 重写，无需 Python）**
    - 直接读取 `~/Library/Application Support/com.clipto.mac/dagsc_data/data/schedule.db`（安全拷贝临时快照 + WAL/SHM，绝不阻塞正在运行的 Clipto）。
-   - **修复跨天跑分失真**：支持按 **测试批次（Batch，默认 15 分钟空闲间隔自动切分）**、**自然日（YYYY-MM-DD）**、**自定义时间窗**、**全库** 四种维度切分统计；多批次自然日自动按活跃批次合并计算真实耗时，不再把中间空闲数小时计入分母。
+   - **按测试批次统计（晨报模式）**：支持 **测试批次（Batch，默认 15 分钟空闲间隔自动切分，跨午夜的夜跑算作同一批次）**、**自定义时间窗**、**全库** 三种维度；多批次自动按活跃时段合并计算真实耗时，不把中间空闲计入分母。只统计真正执行过任务的素材，未开始排队的素材不计入素材总时长。
    - **泳道 + 硬件同轴联动**：20 泳道 Nsight 风格时间轴下方同步绘制同一毫秒时间窗内的 **CPU 占用曲线、物理内存水位（Clipto / CMS / 整机）、整机与分项功耗曲线**，缩放平移完全联动。
 3. **Clipto Markdown 开发日报一键导出**
    - 自动汇总：**测试环境（芯片/内存/系统/Clipto 版本/分析模板版本）**、**素材吞吐与实时处理倍速（Speedup / RTF）**、**运行期对齐的硬件与 Clipto/CMS 资源水位（均值 / P95 / 峰值 / 累计 Wh 耗电）**、**Top 算法服务（`node_type`）耗时瓶颈排行**、**最慢长尾素材明细**、**失败任务异常诊断**。
@@ -39,11 +39,21 @@ cd "/Users/yingjia/Desktop/agent的工作间/CliptoPulse"
 # 命令行直接导出最新批次 Markdown 开发日报
 ./dist/CliptoPulse.app/Contents/MacOS/PulseBoard --export-report --slice=auto --out=./clipto_daily_report.md
 
-# 命令行导出指定自然日（如 2026-10-24）日报
-./dist/CliptoPulse.app/Contents/MacOS/PulseBoard --export-report --slice=day --day=2026-10-24
+# 同时导出 Markdown 与 PNG 晨报图片
+./dist/CliptoPulse.app/Contents/MacOS/PulseBoard --export-report --out=./晨报.md --png=./晨报.png
 ```
 
 ---
+
+## 晨报使用流程
+
+1. **晚上走之前**：确认菜单栏 CliptoPulse 在运行，并且「防止 Mac 睡眠与 App Nap」已打开（默认开启，插电即可整夜 1 Hz 采样，显示器照常熄屏）；如需从干净状态开始，可先点「清空全部记录…」，然后在 Clipto 开始跑分析。
+2. **早上来**：等 Clipto 全部跑完，点菜单栏「复制晨报图片」直接粘贴到群里；或在网页「Clipto 晨报」页签填写备注后「复制晨报图片 / 下载 PNG / 复制 Markdown」。
+
+### 清空全部记录
+
+菜单栏「清空全部记录…」会删除本机全部硬件 / Clipto / CMS 采样历史（`history.sqlite`）和分析临时快照，并隐藏清空时刻之前的 Clipto 测试批次。
+**不会删除**：已导出的晨报（.md / .png / .csv）、软件设置、网页中填写的记录人等表单内容，以及 Clipto 自己的 `schedule.db`（Clipto 不受任何影响；外部备份数据库也不受隐藏影响）。
 
 ## 目录与数据说明
 
@@ -54,6 +64,7 @@ cd "/Users/yingjia/Desktop/agent的工作间/CliptoPulse"
   - `GET /api/bootstrap` — 机器环境、局域网地址、默认路径与实时快照
   - `GET /api/monitor/live` — 实时硬件 + Clipto + CMS 会话指标
   - `GET /api/monitor/history?minutes=60` — 历史监控时间序列
-  - `GET /api/dagsc/analyze?slice_mode=auto|batch|day|custom|all` — DAGSC 切片分析 + 自动对齐的硬件水位报告
+  - `GET /api/dagsc/analyze?slice_mode=auto|batch|custom|all` — DAGSC 切片分析 + 自动对齐的硬件水位报告
+  - `POST /api/report/image` — 把晨报 Markdown 渲染为 PNG 图片（body: `{"markdown": "..."}`；`?download=1` 下载）
   - `GET|POST /api/report/markdown` — 生成或下载标准 Markdown 开发日报
   - `GET /api/export/system-csv` & `GET /api/export/cms-csv` — 原始监控 CSV 流式导出

@@ -57,7 +57,8 @@ final class SystemSampler {
             cliptoProcessCount: cliptoMetrics.processCount,
             cliptoGPUPercent: cliptoMetrics.gpuPercent,
             swapUsedBytes: memory.swapUsed,
-            swapTotalBytes: memory.swapTotal
+            swapTotalBytes: memory.swapTotal,
+            cmsGPUPercent: cliptoMetrics.cmsGPUPercent
         )
     }
 

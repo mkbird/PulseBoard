@@ -21,14 +21,32 @@ enum DAGSCError: LocalizedError {
 
 struct DAGSCQueryOptions: Sendable {
     var inputPath: String = ""
-    /// "auto" | "batch" | "day" | "custom" | "all"
+    /// "auto" | "batch" | "custom" | "all"
     var sliceMode: String = "auto"
     var batchID: String?
-    var day: String?
     var customFromMs: Int64?
     var customToMs: Int64?
     /// Idle gap threshold in milliseconds used to split distinct test batches (default: 15 minutes).
     var batchGapMs: Int64 = 15 * 60 * 1_000
+    /// Tasks/workflows that started before this epoch are hidden (set by "清空全部记录").
+    /// Only applied to the machine's default Clipto `dagsc_data`, never to external backup databases.
+    var ignoreBeforeMs: Int64? = RecordsEpoch.currentMs()
+}
+
+/// Persisted "records reset" marker. Clipto's own `schedule.db` is never modified; CliptoPulse simply
+/// stops showing batches that happened before the last reset.
+enum RecordsEpoch {
+    static let defaultsKey = "CliptoPulse.recordsEpochMs"
+
+    static func currentMs() -> Int64? {
+        let v = UserDefaults.standard.object(forKey: defaultsKey) as? NSNumber
+        guard let ms = v?.int64Value, ms > 0 else { return nil }
+        return ms
+    }
+
+    static func markNow() {
+        UserDefaults.standard.set(NSNumber(value: Int64(Date().timeIntervalSince1970 * 1_000)), forKey: defaultsKey)
+    }
 }
 
 enum DAGSCAnalyzer {
@@ -199,12 +217,20 @@ enum DAGSCAnalyzer {
         let workflowsByID = Dictionary(rawWorkflows.map { ($0.workflowID, $0) }, uniquingKeysWith: { _, last in last })
         let rawTasks = try loadTasks(db: db, workflowsByID: workflowsByID)
         // Only analyze media asset analysis (`clipto_asset_analysis`), excluding startup/lightweight non-asset flows
-        let workflows = rawWorkflows.filter { $0.templateID == "clipto_asset_analysis" }
-        let allLoadedTasks = rawTasks.filter { $0.templateID == "clipto_asset_analysis" }
+        var workflows = rawWorkflows.filter { $0.templateID == "clipto_asset_analysis" }
+        var allLoadedTasks = rawTasks.filter { $0.templateID == "clipto_asset_analysis" }
         let templateVersion = loadTemplateVersion(db: db)
 
-        // 1. Discover Batches & Days across the whole schedule.db
-        let (batchesChrono, daysDesc) = discoverBatchesAndDays(
+        // 0. Hide everything before the last "清空全部记录" (default Clipto DB only)
+        let isDefaultDB = dagscRoot.standardizedFileURL.path == URL(fileURLWithPath: defaultDir).standardizedFileURL.path
+        if isDefaultDB, let epoch = options.ignoreBeforeMs, epoch > 0 {
+            allLoadedTasks = allLoadedTasks.filter { $0.effStart >= epoch }
+            let keptIDs = Set(allLoadedTasks.map(\.workflowID))
+            workflows = workflows.filter { keptIDs.contains($0.workflowID) || $0.createdAt >= epoch }
+        }
+
+        // 1. Discover test batches across the whole schedule.db
+        let batchesChrono = discoverBatches(
             workflows: workflows,
             tasks: allLoadedTasks,
             batchGapMs: batchGapMs
@@ -215,35 +241,25 @@ enum DAGSCAnalyzer {
         let resolved = resolveEffectiveSlice(
             options: options,
             batchesDesc: batchesDesc,
-            daysDesc: daysDesc,
-            allTasks: allLoadedTasks,
-            allWorkflows: workflows
+            allTasks: allLoadedTasks
         )
 
         // 3. Filter tasks & workflows to the resolved slice
         let filteredTasks: [RawTask]
-        let filteredWorkflows: [RawWorkflow]
-
         if resolved.mode == "all" {
             filteredTasks = allLoadedTasks
-            filteredWorkflows = workflows
         } else {
             let wStart = resolved.startMs
             let wEnd = resolved.endMs
             filteredTasks = allLoadedTasks.filter { t in
                 guard t.effStart > 0 else { return false }
-                if resolved.mode == "day" {
-                    return t.effStart >= wStart && t.effStart <= wEnd
-                }
                 return t.effStart <= wEnd && t.effEnd >= wStart
             }
-            let activeWorkflowIDs = Set(filteredTasks.map(\.workflowID))
-            filteredWorkflows = workflows.filter { wf in
-                if activeWorkflowIDs.contains(wf.workflowID) { return true }
-                let anchor = wf.startedAt > 0 ? wf.startedAt : wf.createdAt
-                return anchor > 0 && anchor >= wStart && anchor <= wEnd
-            }
         }
+        // Only workflows that actually executed tasks inside the slice count towards media totals.
+        // Queued (not yet started) workflows would otherwise inflate the speedup of an unfinished run.
+        let activeWorkflowIDs = Set(filteredTasks.map(\.workflowID))
+        let filteredWorkflows = workflows.filter { activeWorkflowIDs.contains($0.workflowID) }
 
         // 4. Workflow summary by template
         var wfSummaryMap: [String: (
@@ -419,7 +435,6 @@ enum DAGSCAnalyzer {
             analyzedAtText: formatNowSecond(),
             sliceMode: resolved.mode,
             selectedBatchID: resolved.batchID,
-            selectedDay: resolved.day,
             sliceLabel: resolved.label,
             sliceStartMs: effectiveStart,
             sliceEndMs: effectiveEnd,
@@ -427,7 +442,7 @@ enum DAGSCAnalyzer {
             sliceEndText: formatTimestampMs(effectiveEnd),
             activeIntervalsMs: activeIntervalsForJSON,
             availableBatches: batchesDesc,
-            availableDays: daysDesc,
+            recordsEpochMs: isDefaultDB ? (options.ignoreBeforeMs ?? 0) : 0,
             workflowsTotal: filteredWorkflows.count,
             assetsTotal: byAsset.count,
             videoAssetsCount: videoAssetsCount,
@@ -615,13 +630,13 @@ enum DAGSCAnalyzer {
         return ""
     }
 
-    // MARK: - Batch & Day Discovery
+    // MARK: - Batch Discovery
 
-    private static func discoverBatchesAndDays(
+    private static func discoverBatches(
         workflows: [RawWorkflow],
         tasks: [RawTask],
         batchGapMs: Int64
-    ) -> (batchesChrono: [DAGSCBatchSummary], daysDesc: [DAGSCDaySummary]) {
+    ) -> [DAGSCBatchSummary] {
         let wfByID = Dictionary(workflows.map { ($0.workflowID, $0) }, uniquingKeysWith: { _, last in last })
         let validTasks = tasks.filter { $0.effStart > 0 }.sorted { $0.effStart < $1.effStart }
 
@@ -666,7 +681,11 @@ enum DAGSCAnalyzer {
             }
             let day = formatDayLocal(c.startMs)
             let startShort = formatTimeOnlyLocal(c.startMs)
-            let endShort = formatTimeOnlyLocal(c.endMs)
+            let endDay = formatDayLocal(c.endMs)
+            // Overnight batches: make the cross-midnight end explicit (e.g. "~10-27 03:40:00")
+            let endShort = endDay == day
+                ? formatTimeOnlyLocal(c.endMs)
+                : "\(endDay.dropFirst(5)) \(formatTimeOnlyLocal(c.endMs))"
             let durMs = max(0, c.endMs - c.startMs)
             let batchNum = idx + 1
             let assetDesc = assetCount > 0 ? "\(assetCount) 素材" : "系统流"
@@ -688,70 +707,12 @@ enum DAGSCAnalyzer {
                 totalMediaDurationMs: mediaDur
             )
         }
-
-        // Group by local day
-        struct DayAcc {
-            var taskCount: Int = 0
-            var firstStart: Int64 = .max
-            var lastFinish: Int64 = 0
-            var workflowIDs: Set<String> = []
-            var intervals: [(Int64, Int64)] = []
-        }
-        var dayMap: [String: DayAcc] = [:]
-        for t in validTasks {
-            let d = formatDayLocal(t.effStart)
-            var acc = dayMap[d] ?? DayAcc()
-            acc.taskCount += 1
-            acc.firstStart = min(acc.firstStart, t.effStart)
-            acc.lastFinish = max(acc.lastFinish, t.effEnd)
-            if !t.workflowID.isEmpty { acc.workflowIDs.insert(t.workflowID) }
-            acc.intervals.append((t.effStart, t.effEnd))
-            dayMap[d] = acc
-        }
-
-        let daysDesc: [DAGSCDaySummary] = dayMap.keys.sorted(by: >).compactMap { d in
-            guard let acc = dayMap[d] else { return nil }
-            var assetCount = 0
-            var videoCount = 0
-            var imageCount = 0
-            var mediaDur: Int64 = 0
-            for wfID in acc.workflowIDs {
-                if let wf = wfByID[wfID], wf.templateID == "clipto_asset_analysis", !wf.assetID.isEmpty {
-                    assetCount += 1
-                    mediaDur += wf.mediaDurationMs
-                    if wf.assetType == "image" || wf.mediaDurationMs == 0 {
-                        imageCount += 1
-                    } else {
-                        videoCount += 1
-                    }
-                }
-            }
-            let merged = mergeIntervalsWithGap(acc.intervals, maxGapMs: batchGapMs)
-            let activeWall = merged.reduce(Int64(0)) { $0 + max(0, $1.1 - $1.0) }
-            let fS = acc.firstStart == .max ? 0 : acc.firstStart
-            return DAGSCDaySummary(
-                day: d,
-                batchCount: merged.count,
-                taskCount: acc.taskCount,
-                assetCount: assetCount,
-                videoCount: videoCount,
-                imageCount: imageCount,
-                totalMediaDurationMs: mediaDur,
-                firstStartMs: fS,
-                lastFinishMs: acc.lastFinish,
-                firstStartText: formatTimestampMs(fS),
-                lastFinishText: formatTimestampMs(acc.lastFinish),
-                activeBatchWallMs: activeWall
-            )
-        }
-
-        return (batchesChrono, daysDesc)
+        return batchesChrono
     }
 
     private struct ResolvedSlice {
         let mode: String
         let batchID: String?
-        let day: String?
         let label: String
         let startMs: Int64
         let endMs: Int64
@@ -760,9 +721,7 @@ enum DAGSCAnalyzer {
     private static func resolveEffectiveSlice(
         options: DAGSCQueryOptions,
         batchesDesc: [DAGSCBatchSummary],
-        daysDesc: [DAGSCDaySummary],
-        allTasks: [RawTask],
-        allWorkflows: [RawWorkflow]
+        allTasks: [RawTask]
     ) -> ResolvedSlice {
         let reqMode = options.sliceMode.lowercased()
 
@@ -770,7 +729,7 @@ enum DAGSCAnalyzer {
             let starts = allTasks.filter { $0.effStart > 0 }.map(\.effStart)
             let ends = allTasks.filter { $0.effEnd > 0 }.map(\.effEnd)
             return ResolvedSlice(
-                mode: "all", batchID: nil, day: nil,
+                mode: "all", batchID: nil,
                 label: "全库汇总（包含所有历史批次）",
                 startMs: starts.min() ?? 0,
                 endMs: ends.max() ?? 0
@@ -782,27 +741,16 @@ enum DAGSCAnalyzer {
            let cTo = options.customToMs,
            cTo >= cFrom, cFrom > 0 {
             return ResolvedSlice(
-                mode: "custom", batchID: nil, day: nil,
+                mode: "custom", batchID: nil,
                 label: "自定义时间窗 (\(formatTimestampMs(cFrom)) ~ \(formatTimestampMs(cTo)))",
                 startMs: cFrom, endMs: cTo
             )
         }
 
-        if reqMode == "day" {
-            let targetDay = options.day ?? daysDesc.first?.day
-            if let targetDay, let bounds = dayBoundsMs(dayString: targetDay) {
-                return ResolvedSlice(
-                    mode: "day", batchID: nil, day: targetDay,
-                    label: "自然日汇总 · \(targetDay)",
-                    startMs: bounds.startMs, endMs: bounds.endMs
-                )
-            }
-        }
-
         if reqMode == "batch", let bid = options.batchID,
            let found = batchesDesc.first(where: { $0.batchID == bid }) {
             return ResolvedSlice(
-                mode: "batch", batchID: found.batchID, day: found.day,
+                mode: "batch", batchID: found.batchID,
                 label: found.label,
                 startMs: found.startMs, endMs: found.endMs
             )
@@ -811,14 +759,14 @@ enum DAGSCAnalyzer {
         // Default ("auto" or fallback): pick latest batch with media assets, or latest batch overall, or "all"
         if let bestBatch = batchesDesc.first(where: { $0.assetCount > 0 }) ?? batchesDesc.first {
             return ResolvedSlice(
-                mode: "batch", batchID: bestBatch.batchID, day: bestBatch.day,
+                mode: "batch", batchID: bestBatch.batchID,
                 label: bestBatch.label,
                 startMs: bestBatch.startMs, endMs: bestBatch.endMs
             )
         }
 
         return ResolvedSlice(
-            mode: "all", batchID: nil, day: nil,
+            mode: "all", batchID: nil,
             label: "全库汇总",
             startMs: 0, endMs: 0
         )
@@ -1113,15 +1061,6 @@ enum DAGSCAnalyzer {
 
     static func formatNowSecond() -> String {
         dateTimeFormatter.string(from: Date())
-    }
-
-    static func dayBoundsMs(dayString: String) -> (startMs: Int64, endMs: Int64)? {
-        guard let start = dayFormatter.date(from: dayString) else { return nil }
-        let cal = Calendar.current
-        guard let nextDay = cal.date(byAdding: .day, value: 1, to: start) else { return nil }
-        let startMs = Int64(start.timeIntervalSince1970 * 1_000)
-        let endMs = Int64(nextDay.timeIntervalSince1970 * 1_000) - 1
-        return (startMs, endMs)
     }
 
     private static let dateTimeFormatter: DateFormatter = {

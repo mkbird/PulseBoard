@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CliptoPulse · 性能监控与 DAGSC 日报工作台</title>
+  <title>CliptoPulse · 性能监控与 DAGSC 晨报工作台</title>
   <style>
     :root {
       color-scheme: light;
@@ -482,29 +482,6 @@
       margin-top: 12px;
     }
 
-    .day-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .day-chip {
-      padding: 5px 11px;
-      border-radius: 999px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      border: 1px solid var(--border-strong);
-      background: #fff;
-      color: #334155;
-      cursor: pointer;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-    .day-chip.active {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-
     .meta-bar {
       display: flex;
       flex-wrap: wrap;
@@ -789,14 +766,6 @@
       min-height: 74px;
     }
 
-    .report-split {
-      display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
-      gap: 18px;
-      align-items: start;
-    }
-    @media (max-width: 1120px) { .report-split { grid-template-columns: 1fr; } }
-
     .md-preview-box {
       background: #fff;
       border: 1px solid var(--border);
@@ -838,19 +807,6 @@
       cursor: default;
     }
 
-    .md-raw-textarea {
-      width: 100%;
-      height: 820px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.8rem;
-      line-height: 1.55;
-      padding: 14px;
-      border-radius: 10px;
-      border: 1px solid #1e293b;
-      background: #0f172a;
-      color: #e2e8f0;
-      resize: vertical;
-    }
 
     .toast {
       position: fixed;
@@ -887,14 +843,14 @@
             <span>CliptoPulse</span>
             <span id="nav-chip-badge" style="font-size:0.72rem; font-weight:600; padding:2px 8px; border-radius:999px; background:#1e293b; color:#38bdf8; border:1px solid #334155;">Apple Silicon</span>
           </div>
-          <div class="brand-sub">硬件与 CMS 常驻监控 × DAGSC 调度分析 × 开发日报工作台</div>
+          <div class="brand-sub">硬件与 CMS 常驻监控 × DAGSC 调度分析 × 晨报工作台</div>
         </div>
       </div>
 
       <nav class="nav-tabs" id="main-nav-tabs">
         <button type="button" class="nav-tab active" data-tab="dagsc">🔬 DAGSC 联动分析</button>
         <button type="button" class="nav-tab" data-tab="monitor">📊 实时与历史监控</button>
-        <button type="button" class="nav-tab" data-tab="report">📝 Clipto 开发日报</button>
+        <button type="button" class="nav-tab" data-tab="report">📝 Clipto 晨报</button>
       </nav>
 
       <div class="live-strip">
@@ -925,7 +881,7 @@
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn btn-secondary" id="reset-dagsc-path-btn">重置默认路径</button>
             <button type="button" class="btn btn-secondary" id="export-dagsc-csv-btn">导出当前表 CSV</button>
-            <button type="button" class="btn btn-purple" id="jump-to-report-btn">📝 生成当前范围 Clipto 日报 →</button>
+            <button type="button" class="btn btn-purple" id="jump-to-report-btn">📝 生成当前范围 Clipto 晨报 →</button>
           </div>
         </div>
 
@@ -943,7 +899,6 @@
             <span style="font-size:0.82rem; font-weight:700; color:#334155;">统计范围切分：</span>
             <div class="seg-control" id="slice-mode-seg">
               <button type="button" class="seg-btn active" data-slice="batch">🎯 自动测试批次 (Batch)</button>
-              <button type="button" class="seg-btn" data-slice="day">📅 按自然日 (日报)</button>
               <button type="button" class="seg-btn" data-slice="custom">⏱️ 自定义时间窗</button>
               <button type="button" class="seg-btn" data-slice="all">🗂️ 全库汇总</button>
             </div>
@@ -953,11 +908,6 @@
             <!-- Batch Selector -->
             <div id="slice-ctrl-batch" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <select id="batch-select" class="select-input" style="min-width:340px; font-family:ui-monospace, monospace;"></select>
-            </div>
-            <!-- Day Selector -->
-            <div id="slice-ctrl-day" style="display:none; align-items:center; gap:8px; flex-wrap:wrap;">
-              <div class="day-chips" id="day-chips-wrap"></div>
-              <input type="date" id="day-date-picker" class="text-input" style="padding:5px 10px;">
             </div>
             <!-- Custom Window Selector -->
             <div id="slice-ctrl-custom" style="display:none; align-items:center; gap:6px; flex-wrap:wrap;">
@@ -977,6 +927,7 @@
             <span>数据库：<code id="meta-db-path">—</code></span>
             <span>DB 大小：<code id="meta-db-size">—</code></span>
             <span>最后修改：<code id="meta-db-mtime">—</code></span>
+            <span id="meta-epoch-wrap" style="display:none;">已隐藏 <code id="meta-epoch">—</code> 之前的批次（清空记录）</span>
           </div>
           <div>
             倍速定义：<span class="ratio-pill speedup">实时处理倍速 = 素材总时长 ÷ 实际处理耗时 (越大越快)</span>
@@ -1292,17 +1243,17 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">📝 Clipto 开发日报生成器（标准 GFM Markdown · 适配飞书文档 / Notion）</h2>
+            <h2 class="card-title">📝 Clipto 晨报生成器（图片 · 直接粘贴到飞书 / 微信群）</h2>
             <div style="font-size:0.81rem; color:var(--muted); margin-top:2px;">
-              当前日报数据自动关联顶部所选的测试批次 / 自然日 / 自定义时间窗，并融合了 DAGSC 吞吐指标与 PulseBoard 硬件及 CMS 水位
+              晨报数据自动关联顶部所选的测试批次 / 自定义时间窗，并融合了 DAGSC 吞吐指标与 PulseBoard 硬件及 CMS 水位。请在 Clipto 全部跑完后再生成。
             </div>
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button type="button" class="btn btn-primary" id="copy-md-btn" style="padding:9px 18px; font-size:0.9rem;">
-              📋 一键复制 Markdown 日报
+            <button type="button" class="btn btn-primary" id="copy-img-btn" style="padding:9px 18px; font-size:0.9rem;">
+              🖼️ 复制晨报图片
             </button>
-            <button type="button" class="btn btn-secondary" id="download-md-btn" style="padding:9px 16px; font-size:0.9rem;">
-              💾 下载 .md 文件
+            <button type="button" class="btn btn-secondary" id="download-img-btn" style="padding:9px 16px; font-size:0.9rem;">
+              ⬇️ 下载 PNG
             </button>
           </div>
         </div>
@@ -1310,7 +1261,7 @@
         <!-- Quick Slice Sync Bar inside Report Studio -->
         <div class="slice-panel" style="margin-top:0; margin-bottom:16px;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <span style="font-size:0.82rem; font-weight:700;">快速切换日报数据源：</span>
+            <span style="font-size:0.82rem; font-weight:700;">快速切换晨报数据源：</span>
             <select id="report-quick-slice" class="select-input" style="min-width:360px; font-family:ui-monospace, monospace;"></select>
           </div>
           <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; font-size:0.81rem;">
@@ -1319,22 +1270,6 @@
             </label>
             <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
               <input type="checkbox" id="rpt-opt-cms" checked style="accent-color:#2563eb;"> CMS 子进程表
-            </label>
-            <label style="display:inline-flex; align-items:center; gap:5px;">
-              算法排行:
-              <select id="rpt-opt-topn" class="select-input" style="padding:3px 8px;">
-                <option value="5">Top 5</option>
-                <option value="10" selected>Top 10</option>
-                <option value="20">全部 20 类</option>
-              </select>
-            </label>
-            <label style="display:inline-flex; align-items:center; gap:5px;">
-              慢素材排行:
-              <select id="rpt-opt-slow" class="select-input" style="padding:3px 8px;">
-                <option value="5" selected>Top 5</option>
-                <option value="10">Top 10</option>
-                <option value="0">不展示</option>
-              </select>
             </label>
           </div>
         </div>
@@ -1351,28 +1286,25 @@
           </div>
         </div>
         <div class="field-group">
-          <label for="rpt-notes">开发结论、异常说明与明日跟进事项（支持多行 Markdown 列表）</label>
+          <label for="rpt-notes">开发结论、异常说明与跟进事项（每行以「- 」开头会显示为列表）</label>
           <textarea id="rpt-notes" placeholder="- 整体处理倍速符合预期，内存峰值可控&#10;- 待跟进：排查长视频在 asr 泳道尾部的单核排队现象"></textarea>
         </div>
       </div>
 
-      <!-- Dual Split View: Rendered Preview + Raw Markdown -->
-      <div class="report-split">
-        <div class="card" style="margin-bottom:0;">
-          <div class="card-header">
-            <h3 class="card-title">👁️ 日报排版实时预览（飞书 / Notion 效果）</h3>
-            <span class="badge badge-blue" id="rpt-filename-badge">Clipto日报.md</span>
+      <!-- Report Preview (the PNG card is rendered from the same Markdown) -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">
+          <h3 class="card-title">👁️ 晨报预览</h3>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span class="badge badge-blue" id="rpt-filename-badge">Clipto晨报.png</span>
+            <!-- Markdown export kept for occasional use (Feishu docs / Notion), intentionally low-key -->
+            <button type="button" class="btn btn-secondary" id="copy-md-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;">复制 Markdown</button>
+            <button type="button" class="btn btn-secondary" id="download-md-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;">下载 .md</button>
           </div>
-          <div class="md-preview-box" id="md-rendered-preview"></div>
         </div>
-
-        <div class="card" style="margin-bottom:0;">
-          <div class="card-header">
-            <h3 class="card-title">📄 标准 GFM Markdown 源码</h3>
-            <button type="button" class="btn btn-secondary" id="copy-md-btn-2" style="padding:4px 10px; font-size:0.78rem;">复制源码</button>
-          </div>
-          <textarea class="md-raw-textarea" id="md-raw-output" spellcheck="false"></textarea>
-        </div>
+        <div class="md-preview-box" id="md-rendered-preview" style="max-height:none;"></div>
+        <!-- Hidden data holder: source Markdown used for the PNG render and the optional .md export -->
+        <textarea id="md-raw-output" spellcheck="false" hidden></textarea>
       </div>
     </section>
   </div>
@@ -1395,9 +1327,8 @@
     let lanShareURL = window.location.origin;
 
     // DAGSC slice & table state
-    let sliceMode = "auto";      // 'auto' | 'batch' | 'day' | 'custom' | 'all'
+    let sliceMode = "auto";      // 'auto' | 'batch' | 'custom' | 'all'
     let selectedBatchId = "";
-    let selectedDay = "";
     let customSliceFromMs = 0;
     let customSliceToMs = 0;
     let currentView = "node_type";       // 'node_type' | 'template_node' | 'asset'
@@ -1994,8 +1925,6 @@
       params.set("slice_mode", mode);
       if (mode === "batch" && (opts.batchId || selectedBatchId)) {
         params.set("batch_id", opts.batchId || selectedBatchId);
-      } else if (mode === "day" && (opts.day || selectedDay)) {
-        params.set("day", opts.day || selectedDay);
       } else if (mode === "custom" && customSliceFromMs > 0 && customSliceToMs >= customSliceFromMs) {
         params.set("from_ms", String(customSliceFromMs));
         params.set("to_ms", String(customSliceToMs));
@@ -2010,7 +1939,6 @@
         dagscData = data;
         sliceMode = data.slice_mode || "batch";
         selectedBatchId = data.selected_batch_id || "";
-        selectedDay = data.selected_day || "";
         if (!pathVal && data.default_dagsc_dir) {
           document.getElementById("dagsc-path-input").value = data.default_dagsc_dir;
         }
@@ -2039,7 +1967,6 @@
         b.classList.toggle("active", b.getAttribute("data-slice") === sliceMode);
       });
       document.getElementById("slice-ctrl-batch").style.display = sliceMode === "batch" ? "flex" : "none";
-      document.getElementById("slice-ctrl-day").style.display = sliceMode === "day" ? "flex" : "none";
       document.getElementById("slice-ctrl-custom").style.display = sliceMode === "custom" ? "flex" : "none";
     }
 
@@ -2054,14 +1981,13 @@
         `<option value="${escHtml(b.batch_id)}" ${b.batch_id === selectedBatchId ? "selected" : ""}>${escHtml(b.label)}</option>`
       ).join("");
 
-      // Day chips & date picker
-      const days = dagscData.available_days || [];
-      const chipsWrap = document.getElementById("day-chips-wrap");
-      chipsWrap.innerHTML = days.slice(0, 6).map(d =>
-        `<button type="button" class="day-chip ${d.day === selectedDay ? "active" : ""}" data-day="${escHtml(d.day)}">${escHtml(d.day)} (${d.asset_count}素材/${d.batch_count}批)</button>`
-      ).join("");
-      if (selectedDay) {
-        document.getElementById("day-date-picker").value = selectedDay;
+      // Records-reset epoch hint
+      const epochWrap = document.getElementById("meta-epoch-wrap");
+      if (dagscData.records_epoch_ms > 0) {
+        document.getElementById("meta-epoch").textContent = formatLocalMinute(dagscData.records_epoch_ms, true);
+        epochWrap.style.display = "inline";
+      } else {
+        epochWrap.style.display = "none";
       }
 
       // Report studio quick slice dropdown
@@ -2071,11 +1997,9 @@
         const sel = (sliceMode === "batch" && b.batch_id === selectedBatchId) ? "selected" : "";
         qHtml += `<option value="batch:${escHtml(b.batch_id)}" ${sel}>${escHtml(b.label)}</option>`;
       });
-      qHtml += `</optgroup><optgroup label="📅 按自然日汇总 (日报)">`;
-      days.forEach(d => {
-        const sel = (sliceMode === "day" && d.day === selectedDay) ? "selected" : "";
-        qHtml += `<option value="day:${escHtml(d.day)}" ${sel}>自然日 · ${escHtml(d.day)} (${d.asset_count} 素材 · ${d.task_count} 任务)</option>`;
-      });
+      if (sliceMode === "custom") {
+        qHtml += `</optgroup><optgroup label="⏱️ 自定义"><option value="custom:" selected>${escHtml(dagscData.slice_label || "自定义时间窗")}</option>`;
+      }
       qHtml += `</optgroup><optgroup label="🗂️ 全库"><option value="all:" ${sliceMode === "all" ? "selected" : ""}>全库所有历史任务汇总</option></optgroup>`;
       quickSel.innerHTML = qHtml;
     }
@@ -3137,117 +3061,107 @@
       return String(s == null ? "" : s).replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
     }
 
+    // Mirrors MarkdownReportGenerator.generate (Swift) — keep both in sync.
+    // Layout contract for the PNG card: # title → > meta → ## 🎯 头条指标 (3-row table) → numbered sections.
     function buildMarkdownFromCurrentState() {
       if (!dagscData) return "# 暂未加载有效的 Clipto DAGSC 数据\n\n> 请在「🔬 DAGSC 联动分析」页签确认数据库路径有效后点击「加载并分析」。\n";
       const d = dagscData;
       const env = d.environment || {};
       const primary = d.scopes.asset_analysis;
-      const primaryTitle = "媒体资产分析 (`clipto_asset_analysis`)";
+      const hw = d.aligned_hardware && d.aligned_hardware.has_data ? d.aligned_hardware : null;
 
       const reporter = document.getElementById("rpt-reporter").value.trim();
       const changes = document.getElementById("rpt-changes").value.trim();
       const notes = document.getElementById("rpt-notes").value.trim();
       const incHw = document.getElementById("rpt-opt-hw").checked;
       const incCms = document.getElementById("rpt-opt-cms").checked;
-      const topN = Number(document.getElementById("rpt-opt-topn").value) || 10;
-      const slowN = Number(document.getElementById("rpt-opt-slow").value) || 0;
 
-      const reportDate = d.selected_day || (d.slice_start_text && d.slice_start_text !== "—" ? d.slice_start_text.slice(0, 10) : d.analyzed_at_text.slice(0, 10));
-      document.getElementById("rpt-filename-badge").textContent = `Clipto日报_${reportDate}.md`;
+      document.getElementById("rpt-filename-badge").textContent = `${reportFileStem(d)}.png`;
+
+      const pct = v => (v == null || !isFinite(v)) ? "—" : `${Number(v).toFixed(1)}%`;
+      const bytes = v => (v == null || !isFinite(v)) ? "—" : formatBytes(v);
+      const watts = v => (v == null || !isFinite(v)) ? "—" : formatWatts(v);
+      const m = (o, k) => (o && o[k]) ? o[k] : {};
+
+      let sliceSummary = d.slice_label;
+      if (d.slice_mode === "batch") {
+        const b = (d.available_batches || []).find(x => x.batch_id === d.selected_batch_id);
+        if (b) sliceSummary = `批次 #${b.index} · ${b.asset_count} 素材 · ${b.task_count} 任务`;
+      }
+      const version = d.app_version && d.app_version !== "未知版本" ? ` ${d.app_version}` : "";
 
       const out = [];
-      out.push(`# Clipto 运行与性能开发日报（${reportDate}）`);
+      out.push(`# Clipto Mac${version} 性能晨报`);
       out.push("");
-      out.push(`> - **统计范围**：${escMdCell(d.slice_label)}`);
-      out.push(`> - **时间窗口**：\`${d.slice_start_text}\` → \`${d.slice_end_text}\``);
-      out.push(`> - **软件版本**：Clipto \`${d.app_version}\` ｜ 分析模板 \`${d.template_version || "—"}\``);
-      out.push(`> - **测试机型**：\`${env.chip_model || "Mac"}\` · \`${env.physical_memory_text || "—"}\` 统一内存 · ${env.logical_cores || "—"} 逻辑核 · \`${env.macos_version || "macOS"}\``);
+      out.push(`> - **运行时段**：${reportTitleRange(d)}（${escMdCell(sliceSummary)}）`);
+      out.push(`> - **测试平台**：Clipto **macOS 版** · ${env.chip_model || "Mac"} · ${env.physical_memory_text || "—"} 统一内存 · ${env.logical_cores || "—"} 核 · ${env.macos_version || "macOS"}`);
+      out.push(`> - **分析模板**：${d.template_version || "—"} ｜ 生成于 ${d.analyzed_at_text}`);
       if (reporter) out.push(`> - **测试记录人**：${escMdCell(reporter)}`);
-      if (changes) out.push(`> - **本轮版本/改动摘要**：${escMdCell(changes)}`);
-      out.push(`> - **日报生成时间**：\`${d.analyzed_at_text}\``);
+      if (changes) out.push(`> - **本轮改动**：${escMdCell(changes)}`);
       out.push("");
 
-      out.push("## 一、核心吞吐与处理倍速总览");
+      out.push("## 🎯 头条指标");
+      out.push("");
+      out.push("| 端到端分析速度 | 全 CMS 内存峰值 | 全 CMS CPU P95 | 全 CMS GPU P95 |");
+      out.push("| :---: | :---: | :---: | :---: |");
+      out.push(`| **${formatSpeedup(primary.wall_speedup)}** | **${bytes(m(hw, "cms_total_memory_bytes").max)}** | **${pct(m(hw, "cms_total_cpu_percent").p95)}** | **${pct(m(hw, "cms_total_gpu_percent").p95)}** |`);
+      out.push(`| 素材 ${formatDurationShort(d.total_media_duration_ms)} ÷ 端到端 ${formatDurationShort(primary.wall_clock_ms)} | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） |`);
+      out.push("");
+
+      out.push("## 一、吞吐概览");
       out.push("");
       out.push("| 指标项 | 数值结果 | 口径与说明 |");
       out.push("| :--- | :--- | :--- |");
-      out.push(`| **处理媒体素材规模** | **${d.assets_total} 个**（${d.video_assets_count} 视频 + ${d.image_assets_count} 图片） | 数据目录：\`${escMdCell(d.dagsc_dir)}\` |`);
-      out.push(`| **基准素材总时长 / 总体积** | **${formatDurationHuman(d.total_media_duration_ms)}**（${formatSec(d.total_media_duration_ms)}） / **${formatBytes(d.total_media_size_bytes)}** | 平均单视频时长：${d.video_assets_count > 0 ? formatDurationHuman(d.total_media_duration_ms / d.video_assets_count) : "—"} |`);
-      const multiBatchHint = primary.batch_count_in_scope > 1 ? `（含 ${primary.batch_count_in_scope} 个活跃批次累计，剔除长空闲；首尾总跨度 ${formatDurationHuman(primary.span_wall_clock_ms)}）` : "";
-      out.push(`| **实际处理总耗时** | **${formatDurationHuman(primary.wall_clock_ms)}**（${formatSec(primary.wall_clock_ms)}） | ${primaryTitle}${multiBatchHint} |`);
-      out.push(`| **整体实时处理倍速 (Speedup)** | **${formatSpeedup(primary.wall_speedup)}** | 素材总时长 ÷ 实际处理耗时（越大越快；耗时比 RTF = \`${primary.wall_rtf.toFixed(4)}x\`） |`);
-      out.push(`| **任务规模与成功率** | **${primary.succeeded_tasks} / ${primary.total_tasks}** 成功（失败 **${primary.failed_tasks}**） | 工作流总数：${d.workflows_total} 个；平均并行加速比：**${primary.concurrency.toFixed(2)}x** |`);
+      out.push(`| **处理媒体素材** | **${d.assets_total} 个**（${d.video_assets_count} 视频 + ${d.image_assets_count} 图片） | 总时长 **${formatDurationHuman(d.total_media_duration_ms)}** · 总体积 **${formatBytes(d.total_media_size_bytes)}** |`);
+      const segHint = primary.batch_count_in_scope > 1 ? `，含 ${primary.batch_count_in_scope} 个活跃段（已剔除长空闲）` : "";
+      out.push(`| **端到端处理耗时** | **${formatDurationHuman(primary.wall_clock_ms)}** | 媒体资产分析 (\`clipto_asset_analysis\`)${segHint} |`);
+      out.push(`| **端到端分析速度** | **${formatSpeedup(primary.wall_speedup)}** | 素材总时长 ÷ 端到端处理耗时（越大越快；RTF = \`${primary.wall_rtf.toFixed(4)}\`） |`);
+      out.push(`| **任务成功率** | **${primary.succeeded_tasks} / ${primary.total_tasks}**（失败 **${primary.failed_tasks}**） | 工作流 ${d.workflows_total} 个；平均并行度 **${primary.concurrency.toFixed(2)}x** |`);
       out.push("");
 
       if (incHw) {
-        out.push("## 二、运行期硬件与进程资源水位（PulseBoard 自动对齐）");
+        out.push("## 二、运行期硬件与进程资源水位");
         out.push("");
-        const hw = d.aligned_hardware;
-        if (hw && hw.has_data) {
-          out.push(`已自动对齐本次分析活跃时间窗（共匹配 **${formatInt(hw.sample_count)}** 个系统采样点、**${formatInt(hw.cms_frame_count)}** 帧 CMS 采样，覆盖率 **${hw.coverage_percent.toFixed(1)}%**）：`);
+        if (hw) {
+          out.push(`自动对齐分析活跃时段（${formatInt(hw.sample_count)} 个系统采样点 · ${formatInt(hw.cms_frame_count)} 帧 CMS 采样 · 覆盖率 **${hw.coverage_percent.toFixed(1)}%**）`);
           out.push("");
-          out.push("| 监控对象与指标 | 区间平均值 | P95 水位 | 采样峰值 | 补充说明 |");
+          if (hw.coverage_percent < 90) {
+            out.push(`> ⚠️ 硬件采样覆盖率仅 ${hw.coverage_percent.toFixed(1)}%（运行期间 CliptoPulse 未全程采集），以下硬件数据只代表部分时段。`);
+            out.push("");
+          }
+          const cg = m(hw, "cms_total_gpu_percent");
+          out.push("| 监控对象与指标 | 平均值 | P95 | 峰值 | 补充信息 |");
           out.push("| :--- | :---: | :---: | :---: | :--- |");
-          out.push(`| **Clipto 进程组 CPU（单核=100%）** | ${formatPct(hw.clipto_cpu_percent.avg)} | ${formatPct(hw.clipto_cpu_percent.p95)} | **${formatPct(hw.clipto_cpu_percent.max)}** | 多核累计口径；最多 ${hw.clipto_max_processes} 个子进程 |`);
-          out.push(`| **Clipto 进程组物理内存** | ${formatBytes(hw.clipto_memory_bytes.avg)} | ${formatBytes(hw.clipto_memory_bytes.p95)} | **${formatBytes(hw.clipto_memory_bytes.max)}** | 活跃采样帧：${hw.clipto_active_samples} 点 |`);
-          out.push(`| **Clipto 进程组 GPU / 读写吞吐** | GPU ${formatPct(hw.clipto_gpu_percent.avg)} | GPU ${formatPct(hw.clipto_gpu_percent.p95)} | GPU **${formatPct(hw.clipto_gpu_percent.max)}** | 读峰值 ${formatRate(hw.clipto_disk_read_bps.max)} / 写峰值 ${formatRate(hw.clipto_disk_write_bps.max)} |`);
-          out.push(`| **CMS 进程组总 CPU（单核=100%）** | ${formatPct(hw.cms_total_cpu_percent.avg)} | ${formatPct(hw.cms_total_cpu_percent.p95)} | **${formatPct(hw.cms_total_cpu_percent.max)}** | 匹配名称含 \`cms\` 的子进程合计 |`);
-          out.push(`| **CMS 进程组物理内存 (\`phys_footprint\`)** | ${formatBytes(hw.cms_total_memory_bytes.avg)} | ${formatBytes(hw.cms_total_memory_bytes.p95)} | **${formatBytes(hw.cms_total_memory_bytes.max)}** | 共识别 ${(hw.cms_processes || []).length} 类 CMS 进程名 |`);
-          out.push(`| **整机 CPU / GPU / ANE 活跃度** | CPU ${formatPct(hw.sys_cpu.avg)} / GPU ${formatPct(hw.sys_gpu.avg)} / ANE ${formatPct(hw.ane_usage.avg)} | CPU ${formatPct(hw.sys_cpu.p95)} | CPU **${formatPct(hw.sys_cpu.max)}** / GPU **${formatPct(hw.sys_gpu.max)}** / ANE **${formatPct(hw.ane_usage.max)}** | 系统级硬件利用率 |`);
-          out.push(`| **整机内存与 Swap 占用** | ${formatBytes(hw.sys_mem_bytes.avg)}（${formatPct(hw.sys_mem_pct.avg)}） | ${formatBytes(hw.sys_mem_bytes.p95)} | **${formatBytes(hw.sys_mem_bytes.max)}**（${formatPct(hw.sys_mem_pct.max)}） | Swap 峰值：**${formatBytes(hw.swap_used_bytes.max)}** |`);
-          const whStr = hw.estimated_energy_wh != null ? `区间累计耗电约 **${hw.estimated_energy_wh.toFixed(2)} Wh**` : "—";
-          out.push(`| **整机功耗与分项功耗** | 整机 **${formatWatts(hw.sys_power_watts.avg)}**（CPU ${formatWatts(hw.cpu_power_watts.avg)} / GPU ${formatWatts(hw.gpu_power_watts.avg)} / ANE ${formatWatts(hw.ane_power_watts.avg)}） | 整机 ${formatWatts(hw.sys_power_watts.p95)} | 整机 **${formatWatts(hw.sys_power_watts.max)}** | ${whStr}；最高热状态：**${thermalText(hw.worst_thermal_state)}** |`);
+          out.push(`| **全 CMS 物理内存** | ${bytes(hw.cms_total_memory_bytes.avg)} | ${bytes(hw.cms_total_memory_bytes.p95)} | **${bytes(hw.cms_total_memory_bytes.max)}** | \`phys_footprint\`，${(hw.cms_processes || []).length} 类 cms 进程 |`);
+          out.push(`| **全 CMS CPU（单核=100%）** | ${pct(hw.cms_total_cpu_percent.avg)} | ${pct(hw.cms_total_cpu_percent.p95)} | **${pct(hw.cms_total_cpu_percent.max)}** | 名称含 \`cms\` 的进程合计 |`);
+          out.push(`| **全 CMS GPU** | ${pct(cg.avg)} | ${pct(cg.p95)} | **${pct(cg.max)}** | 按进程 GPU 时间统计（不含 ANE） |`);
+          out.push(`| **Clipto 进程组 CPU / 内存** | ${pct(hw.clipto_cpu_percent.avg)} / ${bytes(hw.clipto_memory_bytes.avg)} | ${pct(hw.clipto_cpu_percent.p95)} / ${bytes(hw.clipto_memory_bytes.p95)} | **${pct(hw.clipto_cpu_percent.max)}** / **${bytes(hw.clipto_memory_bytes.max)}** | 最多 ${hw.clipto_max_processes} 个子进程 |`);
+          out.push(`| **Clipto 进程组 GPU** | ${pct(hw.clipto_gpu_percent.avg)} | ${pct(hw.clipto_gpu_percent.p95)} | **${pct(hw.clipto_gpu_percent.max)}** | 磁盘读峰值 ${formatRate(hw.clipto_disk_read_bps.max)} / 写峰值 ${formatRate(hw.clipto_disk_write_bps.max)} |`);
+          out.push(`| **整机 CPU / GPU / ANE** | ${pct(hw.sys_cpu.avg)} / ${pct(hw.sys_gpu.avg)} / ${pct(hw.ane_usage.avg)} | ${pct(hw.sys_cpu.p95)} / ${pct(hw.sys_gpu.p95)} / ${pct(hw.ane_usage.p95)} | **${pct(hw.sys_cpu.max)}** / **${pct(hw.sys_gpu.max)}** / **${pct(hw.ane_usage.max)}** | 系统级利用率 |`);
+          out.push(`| **整机内存 / Swap** | ${bytes(hw.sys_mem_bytes.avg)} | ${bytes(hw.sys_mem_bytes.p95)} | **${bytes(hw.sys_mem_bytes.max)}** | Swap 峰值 **${bytes(hw.swap_used_bytes.max)}** |`);
+          const whStr = hw.estimated_energy_wh != null ? `累计耗电约 **${hw.estimated_energy_wh.toFixed(2)} Wh**` : "—";
+          out.push(`| **整机功耗** | ${watts(hw.sys_power_watts.avg)} | ${watts(hw.sys_power_watts.p95)} | **${watts(hw.sys_power_watts.max)}** | ${whStr}；最高热状态 **${thermalText(hw.worst_thermal_state)}** |`);
           out.push("");
 
           if (incCms && hw.cms_processes && hw.cms_processes.length > 0) {
-            out.push("### 2.1 CMS 子进程资源明细");
+            out.push("### CMS 子进程明细");
             out.push("");
             out.push("| CMS 进程名 | 实例数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |");
             out.push("| :--- | :---: | :---: | :---: | :---: | :---: |");
             hw.cms_processes.slice(0, 12).forEach(p => {
-              out.push(`| \`${escMdCell(p.name)}\` | ${p.instance_count} | ${formatPct(p.avg_cpu_percent)} | **${formatPct(p.max_cpu_percent)}** | ${formatBytes(p.avg_memory_bytes)} | **${formatBytes(p.max_memory_bytes)}** |`);
+              out.push(`| \`${escMdCell(p.name)}\` | ${p.instance_count} | ${pct(p.avg_cpu_percent)} | **${pct(p.max_cpu_percent)}** | ${bytes(p.avg_memory_bytes)} | **${bytes(p.max_memory_bytes)}** |`);
             });
             out.push("");
           }
         } else {
-          out.push("> 该历史分析区间内未查询到对应的 PulseBoard 本地硬件采样记录（建议压测期间保持菜单栏 `CliptoPulse` 常驻运行）。");
+          out.push("> 该分析区间内没有 CliptoPulse 硬件采样记录（采集未开启或早于历史保留期）。测试期间请保持菜单栏 CliptoPulse 常驻运行。");
           out.push("");
         }
       }
 
-      if (primary.by_node_type && primary.by_node_type.length > 0) {
-        const nodes = primary.by_node_type.slice(0, topN);
-        out.push(`## 三、算法服务耗时瓶颈排行（Top ${nodes.length} \`node_type\`）`);
-        out.push("");
-        out.push("| # | 算法服务 (`node_type`) | 执行器 | 任务数 (成/败) | 累计耗时 | 占累计总耗时 | 单服务实时倍速 | 平均耗时 | 最大耗时 | 泳道 Busy% |");
-        out.push("| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |");
-        nodes.forEach((r, i) => {
-          out.push(`| ${i + 1} | \`${escMdCell(r.node_type)}\` | \`${escMdCell(r.executor)}\` | ${r.count} (${r.succeeded}/${r.failed}) | **${formatSec(r.sum_ms)}** | **${r.pct_cumulative.toFixed(2)}%** | ${formatSpeedup(r.speedup)} | ${formatSec(r.avg_ms)} | ${formatSec(r.max_ms)} | ${r.busy_pct.toFixed(1)}% |`);
-        });
-        out.push("");
-      }
-
-      if (slowN > 0 && d.by_asset && d.by_asset.length > 0) {
-        const slowest = [...d.by_asset].sort((a, b) => (b.wall_span_ms || 0) - (a.wall_span_ms || 0)).slice(0, slowN);
-        out.push(`## 四、长尾慢素材排行（单资产耗时 Top ${slowest.length}）`);
-        out.push("");
-        out.push("| 资产 ID | 素材文件名 | 素材时长 | 单资产处理耗时 | 单资产实时倍速 | 最耗时算法服务 |");
-        out.push("| :---: | :--- | :---: | :---: | :---: | :--- |");
-        slowest.forEach(a => {
-          const isImg = a.asset_type === "image" || !a.media_duration_ms;
-          const mStr = isImg ? "图片 (0s)" : `${formatDurationHuman(a.media_duration_ms)} (${formatSec(a.media_duration_ms)})`;
-          const spStr = isImg ? "—" : formatSpeedup(a.wall_speedup);
-          const tnStr = a.top_node_type ? `\`${escMdCell(a.top_node_type)}\` (${formatSec(a.top_node_ms)})` : "—";
-          out.push(`| \`#${escMdCell(a.asset_id)}\` | ${escMdCell(a.filename)} | ${mStr} | **${formatDurationHuman(a.wall_span_ms)}** | **${spStr}** | ${tnStr} |`);
-        });
-        out.push("");
-      }
-
-      out.push("## 五、异常诊断与开发记录");
+      out.push("## 三、异常诊断与开发记录");
       out.push("");
       if (d.failed_task_samples && d.failed_task_samples.length > 0) {
-        out.push("### 5.1 失败/异常任务明细");
-        out.push("");
         out.push("| 时间 | 资产 ID | 算法节点 | 状态 | 错误摘要 |");
         out.push("| :--- | :---: | :--- | :---: | :--- |");
         d.failed_task_samples.forEach(f => {
@@ -3255,13 +3169,8 @@
         });
         out.push("");
       } else {
-        const hw = d.aligned_hardware;
-        const thNote = (hw && hw.has_data) ? `，运行期间最高热状态为「**${thermalText(hw.worst_thermal_state)}**」` : "";
-        out.push(`- **任务健康度**：本次统计区间内全部 **${primary.total_tasks}** 个任务均执行成功（**0 失败**）${thNote}。`);
-        if (primary.by_node_type && primary.by_node_type.length > 0) {
-          const top1 = primary.by_node_type[0];
-          out.push(`- **首要耗时瓶颈**：\`${top1.node_type}\` 占累计总耗时的 **${top1.pct_cumulative.toFixed(2)}%**（累计 ${formatDurationHuman(top1.sum_ms)}，泳道 Busy% 为 \`${top1.busy_pct.toFixed(1)}%\`）。`);
-        }
+        const thNote = hw ? `，运行期间最高热状态「**${thermalText(hw.worst_thermal_state)}**」` : "";
+        out.push(`- **任务健康度**：全部 **${primary.total_tasks}** 个任务执行成功（**0 失败**）${thNote}。`);
       }
 
       if (notes) {
@@ -3272,6 +3181,36 @@
       }
       out.push("");
       return out.join("\n");
+    }
+
+    // "7h29m" / "15.4s" (mirrors MarkdownReportGenerator.fmtDurationShort)
+    function formatDurationShort(ms) {
+      const totalSec = Math.max(0, ms || 0) / 1000;
+      const h = Math.floor(totalSec / 3600);
+      const mi = Math.floor((totalSec % 3600) / 60);
+      if (h > 0) return `${h}h${String(mi).padStart(2, "0")}m`;
+      if (mi > 0) return `${mi}m${String(Math.floor(totalSec % 60)).padStart(2, "0")}s`;
+      return `${totalSec.toFixed(1)}s`;
+    }
+
+    function pad2(n) { return String(n).padStart(2, "0"); }
+    function formatLocalMinute(ms, withYear) {
+      const t = new Date(ms);
+      const md = `${pad2(t.getMonth() + 1)}-${pad2(t.getDate())} ${pad2(t.getHours())}:${pad2(t.getMinutes())}`;
+      return withYear ? `${t.getFullYear()}-${md}` : md;
+    }
+    // "2026-10-26 20:15 → 23:40" or "10-26 20:15 → 10-27 03:40" (mirrors MarkdownReportGenerator.titleRange)
+    function reportTitleRange(d) {
+      if (!(d.slice_start_ms > 0)) return (d.analyzed_at_text || "").slice(0, 16);
+      const s = new Date(d.slice_start_ms);
+      const e = new Date(Math.max(d.slice_end_ms || 0, d.slice_start_ms));
+      const sameDay = s.toDateString() === e.toDateString();
+      if (sameDay) return `${formatLocalMinute(d.slice_start_ms, true)} → ${pad2(e.getHours())}:${pad2(e.getMinutes())}`;
+      return `${formatLocalMinute(d.slice_start_ms, false)} → ${formatLocalMinute(e.getTime(), false)}`;
+    }
+    function reportFileStem(d) {
+      const t = new Date(d && d.slice_start_ms > 0 ? d.slice_start_ms : Date.now());
+      return `Clipto晨报_${t.getFullYear()}${pad2(t.getMonth() + 1)}${pad2(t.getDate())}-${pad2(t.getHours())}${pad2(t.getMinutes())}`;
     }
 
     // Lightweight, zero-dependency GFM Markdown Renderer for instant preview
@@ -3384,9 +3323,6 @@
       updateSliceControlVisibility();
       if (mode === "batch") {
         fetchDAGSCAnalysis({ sliceMode: "batch", batchId: document.getElementById("batch-select").value });
-      } else if (mode === "day") {
-        const d = selectedDay || (dagscData && dagscData.available_days && dagscData.available_days[0] && dagscData.available_days[0].day) || "";
-        fetchDAGSCAnalysis({ sliceMode: "day", day: d });
       } else if (mode === "all") {
         fetchDAGSCAnalysis({ sliceMode: "all" });
       } else if (mode === "custom") {
@@ -3402,20 +3338,6 @@
     document.getElementById("batch-select").addEventListener("change", e => {
       selectedBatchId = e.target.value;
       fetchDAGSCAnalysis({ sliceMode: "batch", batchId: selectedBatchId });
-    });
-
-    document.getElementById("day-chips-wrap").addEventListener("click", e => {
-      const chip = e.target.closest(".day-chip");
-      if (!chip) return;
-      selectedDay = chip.getAttribute("data-day");
-      fetchDAGSCAnalysis({ sliceMode: "day", day: selectedDay });
-    });
-
-    document.getElementById("day-date-picker").addEventListener("change", e => {
-      if (e.target.value) {
-        selectedDay = e.target.value;
-        fetchDAGSCAnalysis({ sliceMode: "day", day: selectedDay });
-      }
     });
 
     document.getElementById("dagsc-custom-apply").addEventListener("click", () => {
@@ -3483,16 +3405,13 @@
       if (mode === "batch") {
         sliceMode = "batch"; selectedBatchId = val;
         fetchDAGSCAnalysis({ sliceMode: "batch", batchId: val });
-      } else if (mode === "day") {
-        sliceMode = "day"; selectedDay = val;
-        fetchDAGSCAnalysis({ sliceMode: "day", day: val });
       } else if (mode === "all") {
         sliceMode = "all";
         fetchDAGSCAnalysis({ sliceMode: "all" });
       }
     });
 
-    ["rpt-reporter", "rpt-changes", "rpt-notes", "rpt-opt-hw", "rpt-opt-cms", "rpt-opt-topn", "rpt-opt-slow"].forEach(id => {
+    ["rpt-reporter", "rpt-changes", "rpt-notes", "rpt-opt-hw", "rpt-opt-cms"].forEach(id => {
       const el = document.getElementById(id);
       el.addEventListener("input", rebuildMarkdownReport);
       el.addEventListener("change", rebuildMarkdownReport);
@@ -3501,14 +3420,72 @@
     async function handleCopyMarkdown() {
       const md = document.getElementById("md-raw-output").value;
       await copyTextSafe(md);
-      showToast("✓ 已复制 Markdown 日报！可直接粘贴至飞书文档 / Notion");
+      showToast("✓ 已复制 Markdown 晨报！可直接粘贴至飞书文档 / Notion");
     }
+
+    // Renders exactly the Markdown shown in the editor into a PNG card on the CliptoPulse server.
+    function requestReportImage() {
+      const md = document.getElementById("md-raw-output").value;
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.md").replace(/\.md$/, ".png");
+      return fetch("/api/report/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markdown: md, filename: fn })
+      }).then(async resp => {
+        if (!resp.ok || !(resp.headers.get("Content-Type") || "").startsWith("image/png")) {
+          let msg = `图片生成失败 (${resp.status})`;
+          try { const j = await resp.json(); if (j.error) msg = j.error; } catch (_) {}
+          throw new Error(msg);
+        }
+        return resp.blob();
+      });
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    document.getElementById("copy-img-btn").addEventListener("click", async () => {
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.md").replace(/\.md$/, ".png");
+      const blobPromise = requestReportImage();
+      try {
+        if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
+          // Pass the promise directly so Safari keeps the user-gesture permission.
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
+          showToast("✓ 已复制晨报图片，可直接粘贴到飞书 / 微信群");
+          return;
+        }
+        throw new Error("当前浏览器不支持写入图片到剪贴板（局域网 http 访问时常见）");
+      } catch (err) {
+        try {
+          const blob = await blobPromise;
+          downloadBlob(blob, fn);
+          showToast(`无法直接复制图片，已改为下载 ${fn}`);
+        } catch (e2) {
+          showToast(`✗ ${e2.message || e2}`);
+        }
+      }
+    });
+
+    document.getElementById("download-img-btn").addEventListener("click", async () => {
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.md").replace(/\.md$/, ".png");
+      try {
+        downloadBlob(await requestReportImage(), fn);
+        showToast(`✓ 已下载 ${fn}`);
+      } catch (err) {
+        showToast(`✗ ${err.message || err}`);
+      }
+    });
     document.getElementById("copy-md-btn").addEventListener("click", handleCopyMarkdown);
-    document.getElementById("copy-md-btn-2").addEventListener("click", handleCopyMarkdown);
 
     document.getElementById("download-md-btn").addEventListener("click", () => {
       const md = document.getElementById("md-raw-output").value;
-      const fn = document.getElementById("rpt-filename-badge").textContent || "Clipto日报.md";
+      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto晨报.png").replace(/\.png$/, ".md");
       const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

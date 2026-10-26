@@ -175,6 +175,7 @@ extension HistoryStore {
         var cliptoGPU = StatTracker()
         var cliptoDiskRead = StatTracker()
         var cliptoDiskWrite = StatTracker()
+        var cmsGPU = StatTracker()
 
         var worstThermalRank = 0
         var worstThermal = "nominal"
@@ -201,6 +202,8 @@ extension HistoryStore {
             dramWrite.add(s.memoryWriteGBps)
             diskRead.add(s.diskReadBytesPerSecond)
             diskWrite.add(s.diskWriteBytesPerSecond)
+
+            cmsGPU.add(s.cmsGPUPercent)
 
             let rank = Self.thermalSeverity(s.thermalState)
             if rank > worstThermalRank {
@@ -275,6 +278,7 @@ extension HistoryStore {
             cliptoDiskReadBps: cliptoDiskRead.metric,
             cliptoDiskWriteBps: cliptoDiskWrite.metric,
             cmsTotalCPUPercent: cmsCPUTracker.metric,
+            cmsTotalGPUPercent: cmsGPU.metric,
             cmsTotalMemoryBytes: cmsMemTracker.metric,
             cmsProcesses: cmsProcesses,
             series: series
@@ -406,7 +410,7 @@ extension HistoryStore {
             cliptoActiveSamples: 0, cliptoMaxProcesses: 0,
             cliptoCPUPercent: empty, cliptoMemoryBytes: empty, cliptoGPUPercent: empty,
             cliptoDiskReadBps: empty, cliptoDiskWriteBps: empty,
-            cmsTotalCPUPercent: empty, cmsTotalMemoryBytes: empty,
+            cmsTotalCPUPercent: empty, cmsTotalGPUPercent: empty, cmsTotalMemoryBytes: empty,
             cmsProcesses: [], series: []
         )
     }

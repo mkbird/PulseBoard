@@ -317,9 +317,7 @@ enum WebConsoleRouter {
                     fallbackEndMs: result.sliceEndMs
                 )
                 let md = MarkdownReportGenerator.generate(analysis: result, options: mdOptions)
-                let dayTag = result.selectedDay
-                    ?? (result.sliceStartMs > 0 ? DAGSCAnalyzer.formatDayLocal(result.sliceStartMs) : "today")
-                let filename = "Clipto日报_\(dayTag).md"
+                let filename = "\(MarkdownReportGenerator.fileStem(result)).md"
                 if request.query("download") == "1" {
                     return .download(
                         filename: filename,
@@ -333,6 +331,43 @@ enum WebConsoleRouter {
                     let markdown: String
                 }
                 return .json(200, MarkdownPayload(filename: filename, markdown: md))
+            } catch {
+                return .jsonError(400, error.localizedDescription)
+            }
+        }
+
+        if path == "/api/report/image" {
+            // POST {"markdown": "...", "filename": "..."} renders exactly what the web console shows.
+            // Without a markdown body the server generates the report itself from the slice params.
+            var bodyJSON: [String: Any] = [:]
+            if request.method == "POST", !request.body.isEmpty,
+               let obj = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any] {
+                bodyJSON = obj
+            }
+            do {
+                let markdown: String
+                var stem = "Clipto晨报"
+                if let provided = bodyJSON["markdown"] as? String,
+                   !provided.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    markdown = provided
+                    if let fn = bodyJSON["filename"] as? String, !fn.isEmpty {
+                        stem = (fn as NSString).deletingPathExtension
+                    }
+                } else {
+                    var result = try DAGSCAnalyzer.analyze(options: parseDAGSCQueryOptions(from: request), environment: env)
+                    result.alignedHardware = try? await history.fetchAlignedReport(
+                        activeIntervalsMs: result.activeIntervalsMs,
+                        fallbackStartMs: result.sliceStartMs,
+                        fallbackEndMs: result.sliceEndMs
+                    )
+                    markdown = MarkdownReportGenerator.generate(analysis: result, options: parseMarkdownOptions(from: request))
+                    stem = MarkdownReportGenerator.fileStem(result)
+                }
+                let png = try await MainActor.run { try ReportImageRenderer.renderPNG(markdown: markdown) }
+                if request.query("download") == "1" {
+                    return .download(filename: "\(stem).png", contentType: "image/png", data: png)
+                }
+                return HTTPResponse(statusCode: 200, contentType: "image/png", extraHeaders: [], body: png)
             } catch {
                 return .jsonError(400, error.localizedDescription)
             }
@@ -398,7 +433,6 @@ enum WebConsoleRouter {
         opts.inputPath = str("path") ?? ""
         opts.sliceMode = str("slice_mode") ?? "auto"
         opts.batchID = str("batch_id")
-        opts.day = str("day")
         opts.customFromMs = int64Val("from_ms")
         opts.customToMs = int64Val("to_ms")
         if let gapMin = int64Val("gap_min"), gapMin >= 1 {
@@ -420,9 +454,6 @@ enum WebConsoleRouter {
         opts.reporter = str("reporter")
         opts.changeSummary = str("change_summary")
         opts.notes = str("notes")
-        if let topN = request.query("top_nodes").flatMap(Int.init) {
-            opts.topNodeLimit = max(1, min(topN, 50))
-        }
         return opts
     }
 

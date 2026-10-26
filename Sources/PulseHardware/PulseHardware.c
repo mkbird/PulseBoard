@@ -75,6 +75,7 @@ typedef struct {
     pid_t pid;
     uint32_t parent_pid;
     int belongs_to_clipto;
+    int is_cms;
 } PBProcessEntry;
 
 typedef struct {
@@ -84,6 +85,8 @@ typedef struct {
     uint64_t disk_read;
     uint64_t disk_write;
     uint64_t gpu_time;
+    int is_clipto;
+    int is_cms;
 } PBPreviousProcess;
 
 static PBPreviousProcess *g_previous_clipto_processes = NULL;
@@ -534,10 +537,17 @@ PBHardwareMetrics pb_hardware_sample(void) {
     return metrics;
 }
 
-static int path_belongs_to_clipto(pid_t pid) {
+static int path_belongs_to_clipto(pid_t pid, int *is_cms) {
     char path[PROC_PIDPATHINFO_MAXSIZE] = {0};
     int length = proc_pidpath(pid, path, sizeof(path));
+    if (is_cms) *is_cms = 0;
     if (length <= 0) return 0;
+    if (is_cms) {
+        // Same rule as CMSProcesses.c: executable name contains "cms" (case-insensitive).
+        const char *separator = strrchr(path, '/');
+        const char *name = separator ? separator + 1 : path;
+        *is_cms = strcasestr(name, "cms") != NULL;
+    }
     return strstr(path, "/Clipto.app/") != NULL;
 }
 
@@ -646,8 +656,10 @@ PBAppMetrics pb_clipto_sample(void) {
         PBProcessEntry entry = {
             .pid = pids[index],
             .parent_pid = info.pbi_ppid,
-            .belongs_to_clipto = path_belongs_to_clipto(pids[index])
+            .belongs_to_clipto = 0,
+            .is_cms = 0
         };
+        entry.belongs_to_clipto = path_belongs_to_clipto(pids[index], &entry.is_cms);
         processes[process_count++] = entry;
     }
     free(pids);
@@ -670,9 +682,11 @@ PBAppMetrics pb_clipto_sample(void) {
         }
     } while (changed);
 
+    // Track the union of Clipto-group and CMS processes: Clipto metrics only sum
+    // the Clipto group, CMS GPU only sums the CMS-named processes.
     size_t matched_count = 0;
     for (size_t index = 0; index < process_count; index++) {
-        if (processes[index].belongs_to_clipto) matched_count++;
+        if (processes[index].belongs_to_clipto || processes[index].is_cms) matched_count++;
     }
 
     PBPreviousProcess *current = matched_count > 0
@@ -683,15 +697,20 @@ PBAppMetrics pb_clipto_sample(void) {
     uint64_t read_delta = 0;
     uint64_t write_delta = 0;
     uint64_t gpu_delta = 0;
+    uint64_t cms_gpu_delta = 0;
+    unsigned int cms_count = 0;
     uint64_t now = mach_absolute_time();
 
     for (size_t index = 0; index < process_count; index++) {
-        if (!processes[index].belongs_to_clipto) continue;
-        metrics.process_count++;
+        int is_clipto = processes[index].belongs_to_clipto;
+        int is_cms = processes[index].is_cms;
+        if (!is_clipto && !is_cms) continue;
+        if (is_clipto) metrics.process_count++;
 
         struct rusage_info_v2 usage = {0};
         if (proc_pid_rusage(processes[index].pid, RUSAGE_INFO_V2, (rusage_info_t *)&usage) != 0) continue;
-        metrics.memory_bytes += (double)usage.ri_phys_footprint;
+        if (is_cms) cms_count++;
+        if (is_clipto) metrics.memory_bytes += (double)usage.ri_phys_footprint;
 
         PBPreviousProcess snapshot = {
             .pid = processes[index].pid,
@@ -699,10 +718,13 @@ PBAppMetrics pb_clipto_sample(void) {
             .cpu_time = usage.ri_user_time + usage.ri_system_time,
             .disk_read = usage.ri_diskio_bytesread,
             .disk_write = usage.ri_diskio_byteswritten,
-            .gpu_time = 0
+            .gpu_time = 0,
+            .is_clipto = is_clipto,
+            .is_cms = is_cms
         };
         if (current && current_count < matched_count) current[current_count++] = snapshot;
 
+        if (!is_clipto) continue;
         const PBPreviousProcess *previous = previous_clipto_process(snapshot.pid, snapshot.start_time);
         if (!previous) continue;
         if (snapshot.cpu_time >= previous->cpu_time) cpu_delta += snapshot.cpu_time - previous->cpu_time;
@@ -713,7 +735,9 @@ PBAppMetrics pb_clipto_sample(void) {
     for (size_t index = 0; index < current_count; index++) {
         const PBPreviousProcess *previous = previous_clipto_process(current[index].pid, current[index].start_time);
         if (previous && current[index].gpu_time >= previous->gpu_time) {
-            gpu_delta += current[index].gpu_time - previous->gpu_time;
+            uint64_t delta = current[index].gpu_time - previous->gpu_time;
+            if (current[index].is_clipto) gpu_delta += delta;
+            if (current[index].is_cms) cms_gpu_delta += delta;
         }
     }
     free(processes);
@@ -735,6 +759,11 @@ PBAppMetrics pb_clipto_sample(void) {
         metrics.gpu_percent = (double)gpu_delta / seconds / 1e9 * 100.0;
         if (metrics.gpu_percent > 100.0) metrics.gpu_percent = 100.0;
         metrics.rates_valid = 1;
+        if (cms_count > 0) {
+            metrics.cms_gpu_percent = (double)cms_gpu_delta / seconds / 1e9 * 100.0;
+            if (metrics.cms_gpu_percent > 100.0) metrics.cms_gpu_percent = 100.0;
+            metrics.cms_gpu_valid = 1;
+        }
     }
     metrics.running = metrics.process_count > 0;
 

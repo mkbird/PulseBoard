@@ -9,6 +9,8 @@ struct CliptoProcessMetrics {
     let diskWriteBytesPerSecond: Double?
     let gpuPercent: Double?
     let processCount: Int?
+    /// Summed GPU busy % of all CMS-named processes (nil when no CMS process is running).
+    let cmsGPUPercent: Double?
 }
 
 final class CliptoProcessBridge {
@@ -22,7 +24,8 @@ final class CliptoProcessBridge {
             diskReadBytesPerSecond: running && value.rates_valid != 0 ? value.disk_read_bytes_per_second : nil,
             diskWriteBytesPerSecond: running && value.rates_valid != 0 ? value.disk_write_bytes_per_second : nil,
             gpuPercent: running && value.rates_valid != 0 ? value.gpu_percent : nil,
-            processCount: running ? Int(value.process_count) : nil
+            processCount: running ? Int(value.process_count) : nil,
+            cmsGPUPercent: value.rates_valid != 0 && value.cms_gpu_valid != 0 ? value.cms_gpu_percent : nil
         )
     }
 }

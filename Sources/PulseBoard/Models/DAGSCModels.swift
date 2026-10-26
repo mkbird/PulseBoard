@@ -64,36 +64,6 @@ struct DAGSCBatchSummary: Codable, Sendable, Equatable {
     }
 }
 
-struct DAGSCDaySummary: Codable, Sendable, Equatable {
-    let day: String
-    let batchCount: Int
-    let taskCount: Int
-    let assetCount: Int
-    let videoCount: Int
-    let imageCount: Int
-    let totalMediaDurationMs: Int64
-    let firstStartMs: Int64
-    let lastFinishMs: Int64
-    let firstStartText: String
-    let lastFinishText: String
-    let activeBatchWallMs: Int64
-
-    enum CodingKeys: String, CodingKey {
-        case day
-        case batchCount = "batch_count"
-        case taskCount = "task_count"
-        case assetCount = "asset_count"
-        case videoCount = "video_count"
-        case imageCount = "image_count"
-        case totalMediaDurationMs = "total_media_duration_ms"
-        case firstStartMs = "first_start_ms"
-        case lastFinishMs = "last_finish_ms"
-        case firstStartText = "first_start_text"
-        case lastFinishText = "last_finish_text"
-        case activeBatchWallMs = "active_batch_wall_ms"
-    }
-}
-
 struct DAGSCWorkflowSummary: Codable, Sendable {
     let templateID: String
     let total: Int
@@ -513,6 +483,8 @@ struct AlignedHardwareReport: Codable, Sendable {
     let cliptoDiskReadBps: AlignedStatMetric
     let cliptoDiskWriteBps: AlignedStatMetric
     let cmsTotalCPUPercent: AlignedStatMetric
+    /// Summed GPU busy % of CMS-named processes (from per-process IOAccelerator GPU time).
+    let cmsTotalGPUPercent: AlignedStatMetric
     let cmsTotalMemoryBytes: AlignedStatMetric
     let cmsProcesses: [AlignedCMSProcessItem]
     let series: [AlignedTimeSeriesPoint]
@@ -552,6 +524,7 @@ struct AlignedHardwareReport: Codable, Sendable {
         case cliptoDiskReadBps = "clipto_disk_read_bps"
         case cliptoDiskWriteBps = "clipto_disk_write_bps"
         case cmsTotalCPUPercent = "cms_total_cpu_percent"
+        case cmsTotalGPUPercent = "cms_total_gpu_percent"
         case cmsTotalMemoryBytes = "cms_total_memory_bytes"
         case cmsProcesses = "cms_processes"
         case series
@@ -573,7 +546,6 @@ struct DAGSCAnalysisResponse: Codable, Sendable {
     // Slice metadata
     let sliceMode: String
     let selectedBatchID: String?
-    let selectedDay: String?
     let sliceLabel: String
     let sliceStartMs: Int64
     let sliceEndMs: Int64
@@ -581,7 +553,8 @@ struct DAGSCAnalysisResponse: Codable, Sendable {
     let sliceEndText: String
     let activeIntervalsMs: [[Int64]]
     let availableBatches: [DAGSCBatchSummary]
-    let availableDays: [DAGSCDaySummary]
+    /// Batches that started before this epoch are hidden (0 = none). Set by "清空全部记录".
+    let recordsEpochMs: Int64
 
     // Scoped totals
     let workflowsTotal: Int
@@ -612,7 +585,6 @@ struct DAGSCAnalysisResponse: Codable, Sendable {
         case analyzedAtText = "analyzed_at_text"
         case sliceMode = "slice_mode"
         case selectedBatchID = "selected_batch_id"
-        case selectedDay = "selected_day"
         case sliceLabel = "slice_label"
         case sliceStartMs = "slice_start_ms"
         case sliceEndMs = "slice_end_ms"
@@ -620,7 +592,7 @@ struct DAGSCAnalysisResponse: Codable, Sendable {
         case sliceEndText = "slice_end_text"
         case activeIntervalsMs = "active_intervals_ms"
         case availableBatches = "available_batches"
-        case availableDays = "available_days"
+        case recordsEpochMs = "records_epoch_ms"
         case workflowsTotal = "workflows_total"
         case assetsTotal = "assets_total"
         case videoAssetsCount = "video_assets_count"

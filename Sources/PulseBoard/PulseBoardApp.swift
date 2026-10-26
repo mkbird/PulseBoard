@@ -50,7 +50,7 @@ struct PulseBoardApp: App {
             CommandGroup(after: .saveItem) {
                 Button("打开统一网页控制台") { store.openWebConsole() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
-                Button("打开 Clipto 日报中心") { store.openWebConsole(hash: "report") }
+                Button("打开 Clipto 晨报中心") { store.openWebConsole(hash: "report") }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
                 Button(L10n.text("menu.export_range")) { store.exportCurrentRange() }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
@@ -141,19 +141,30 @@ private struct MenuBarControlView: View {
                     Button {
                         store.openWebConsole(hash: "report")
                     } label: {
-                        Label("Clipto 日报中心", systemImage: "doc.richtext")
+                        Label("Clipto 晨报中心", systemImage: "doc.richtext")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 }
 
-                Button {
-                    store.copyLatestDailyReportMarkdown()
-                } label: {
-                    Label("一键复制最新批次 Markdown 日报", systemImage: "doc.on.clipboard")
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 6) {
+                    Button {
+                        store.copyLatestDailyReportImage()
+                    } label: {
+                        Label("复制晨报图片", systemImage: "photo.on.rectangle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        store.copyLatestDailyReportMarkdown()
+                    } label: {
+                        Label("复制 Markdown", systemImage: "doc.on.clipboard")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
+                .help("基于最近一个测试批次生成晨报；请在 Clipto 全部跑完后再复制")
 
                 Button {
                     store.copyLANAddressToPasteboard()
@@ -169,6 +180,9 @@ private struct MenuBarControlView: View {
 
             Divider()
 
+            Toggle("防止 Mac 睡眠与 App Nap（夜跑请保持开启）", isOn: $store.preventSleep)
+                .font(.system(size: 12))
+                .help("阻止系统空闲睡眠并关闭 App Nap，保证整夜 1 Hz 采样；显示器仍可正常熄屏。合盖且未接电源时 macOS 仍会强制睡眠。")
             Toggle("启动时自动弹出网页控制台", isOn: $store.autoOpenWebOnLaunch)
                 .font(.system(size: 12))
 
@@ -179,6 +193,15 @@ private struct MenuBarControlView: View {
                 }
                 .buttonStyle(.link)
                 .font(.system(size: 12))
+
+                Spacer()
+
+                Button(store.isWiping ? "正在清空…" : "清空全部记录…") {
+                    store.confirmAndWipeAllRecords()
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 12))
+                .disabled(store.isWiping)
 
                 Spacer()
 

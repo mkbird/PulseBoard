@@ -122,6 +122,23 @@ actor HistoryRepository {
     /// submitted transactions finish before the process exits.
     func flush() {}
 
+    /// Deletes the whole local history database (system samples + CMS frames) and starts a fresh,
+    /// empty one. Closing the connection first lets SQLite release the WAL/SHM files.
+    func wipeAll() throws {
+        guard activeCMSExports == 0 else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey: "正在导出 CMS CSV，请导出完成后再清空。"])
+        }
+        let url = try store?.databaseURL ?? databaseURL ?? connection().databaseURL
+        store = nil // deinit -> sqlite3_close
+        for suffix in ["", "-wal", "-shm", "-journal"] {
+            let path = url.path + suffix
+            if FileManager.default.fileExists(atPath: path) {
+                try FileManager.default.removeItem(atPath: path)
+            }
+        }
+        _ = try connection()
+    }
+
     private func connection() throws -> HistoryStore {
         if let store { return store }
         let opened = try HistoryStore(databaseURL: databaseURL)

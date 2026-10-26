@@ -11,6 +11,7 @@ enum SelfTestError: LocalizedError {
     }
 }
 
+@MainActor
 enum SelfTestSuite {
     private static func check(_ condition: @autoclosure () -> Bool, _ message: String) throws {
         if !condition() {
@@ -20,8 +21,63 @@ enum SelfTestSuite {
 
     static func runAll() throws {
         try verifyURLFormQueryDecoding()
-        try verifyDAGSCBatchAndDaySlicing()
+        try verifyDAGSCBatchSlicing()
         try verifyAlignedHardwareAndMarkdownReport()
+        try verifyReportImageRendering()
+        try verifyHistoryWipe()
+    }
+
+    private final class OutcomeBox: @unchecked Sendable {
+        var error: Error?
+        var countAfterWipe = -1
+        var countAfterReappend = -1
+    }
+
+    static func verifyHistoryWipe() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cliptopulse_test_wipe_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let url = tempDir.appendingPathComponent("history.sqlite")
+        let repo = HistoryRepository(databaseURL: url)
+        let t0 = Date()
+        let s1 = makeSample(at: t0)
+        let s2 = makeSample(at: t0.addingTimeInterval(1))
+        let box = OutcomeBox()
+        let sem = DispatchSemaphore(value: 0)
+        Task.detached {
+            do {
+                try await repo.append(system: s1, cms: nil)
+                try await repo.wipeAll()
+                box.countAfterWipe = try await repo.fetchRaw(from: t0.addingTimeInterval(-10), to: t0.addingTimeInterval(10)).count
+                try await repo.append(system: s2, cms: nil)
+                box.countAfterReappend = try await repo.fetchRaw(from: t0.addingTimeInterval(-10), to: t0.addingTimeInterval(10)).count
+            } catch {
+                box.error = error
+            }
+            sem.signal()
+        }
+        sem.wait()
+        if let error = box.error { throw error }
+        try check(box.countAfterWipe == 0, "Expected empty history after wipe, got \(box.countAfterWipe)")
+        try check(box.countAfterReappend == 1, "Expected sampling to resume after wipe, got \(box.countAfterReappend)")
+    }
+
+    private static func makeSample(at ts: Date) -> MetricSample {
+        MetricSample(
+            timestamp: ts, cpuUsage: 45, gpuUsage: 30, aneUsage: 12,
+            memoryUsage: 60, memoryUsedBytes: 18_000_000_000, memoryTotalBytes: 32_000_000_000, memoryPressure: 40,
+            anePowerWatts: 2.0, cpuPowerWatts: 18.0, gpuPowerWatts: 10.0, systemPowerWatts: 36.0,
+            memoryReadGBps: 24.0, memoryWriteGBps: 12.0,
+            diskReadBytesPerSecond: 100_000_000, diskWriteBytesPerSecond: 20_000_000,
+            diskFreeBytes: 200_000_000_000, diskTotalBytes: 500_000_000_000,
+            networkDownBytesPerSecond: 1_000, networkUpBytesPerSecond: 500,
+            thermalState: "正常",
+            cliptoCPUPercent: 38.0, cliptoMemoryBytes: 4_294_967_296,
+            cliptoDiskReadBytesPerSecond: 80_000_000, cliptoDiskWriteBytesPerSecond: 10_000_000,
+            cliptoProcessCount: 6, cliptoGPUPercent: 28.0,
+            swapUsedBytes: 0, swapTotalBytes: 2_147_483_648
+        )
     }
 
     static func verifyURLFormQueryDecoding() throws {
@@ -38,7 +94,7 @@ enum SelfTestSuite {
         )
     }
 
-    static func verifyDAGSCBatchAndDaySlicing() throws {
+    static func verifyDAGSCBatchSlicing() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("cliptopulse_test_dagsc_\(UUID().uuidString)", isDirectory: true)
         let dataDir = tempDir.appendingPathComponent("data", isDirectory: true)
@@ -56,7 +112,6 @@ enum SelfTestSuite {
             environment: env
         )
         try check(autoRes.availableBatches.count == 3, "Expected 3 asset batches (startup check excluded), got \(autoRes.availableBatches.count)")
-        try check(autoRes.availableDays.count == 2, "Expected 2 natural days, got \(autoRes.availableDays.count)")
         try check(autoRes.selectedBatchID == "batch-3", "Expected selectedBatchID == batch-3, got \(String(describing: autoRes.selectedBatchID))")
         try check(autoRes.assetsTotal == 1, "Expected 1 media asset in batch-3")
         try check(autoRes.videoAssetsCount == 1, "Expected 1 video asset in batch-3")
@@ -66,17 +121,13 @@ enum SelfTestSuite {
         try check(autoRes.scopes.assetAnalysis.wallSpeedup == 6.0, "Expected 6.0x wallSpeedup")
         try check(autoRes.failedTaskSamples.count == 1, "Expected 1 failed task sample")
 
-        // 2. Day mode on 2026-10-24 has two asset batches (10:00 for 5s + 11:00 for 10s = 15_000ms active),
-        //    and stitched swimlane virtualEndMs must equal wallClockMs (15_000ms), NOT 3_610_000ms!
-        let dayRes = try DAGSCAnalyzer.analyze(
-            options: DAGSCQueryOptions(inputPath: tempDir.path, sliceMode: "day", day: "2026-10-24"),
+        // 2. Batch-2 (started_at=0 task) must be repaired via dispatched_at
+        let b2Res = try DAGSCAnalyzer.analyze(
+            options: DAGSCQueryOptions(inputPath: tempDir.path, sliceMode: "batch", batchID: "batch-2"),
             environment: env
         )
-        try check(dayRes.sliceMode == "day", "Expected day sliceMode")
-        try check(dayRes.scopes.assetAnalysis.wallClockMs == 15_000, "Expected active wallClockMs == 15_000ms, got \(dayRes.scopes.assetAnalysis.wallClockMs)")
-        try check(dayRes.scopes.assetAnalysis.activeSegments.count == 2, "Expected 2 stitched active segments")
-        try check(dayRes.scopes.assetAnalysis.activeSegments.last?.virtualEndMs == 15_000, "Expected stitched swimlane length == 15_000ms")
-        try check(dayRes.scopes.assetAnalysis.zeroStartFixedCount == 1, "Expected 1 zeroStartFixedCount task")
+        try check(b2Res.scopes.assetAnalysis.zeroStartFixedCount == 1, "Expected 1 zeroStartFixedCount task")
+        try check(b2Res.scopes.assetAnalysis.wallClockMs == 5_000, "Expected batch-2 wallClockMs == 5_000ms")
 
         // 3. All-DB mode across multiple days must also stitch active segments so swimlane length == wallClockMs (35_000ms)
         let allRes = try DAGSCAnalyzer.analyze(
@@ -85,6 +136,36 @@ enum SelfTestSuite {
         )
         try check(allRes.scopes.assetAnalysis.wallClockMs == 35_000, "Expected all-DB active wallClockMs == 35_000ms")
         try check(allRes.scopes.assetAnalysis.activeSegments.last?.virtualEndMs == 35_000, "Expected all-DB swimlane virtualEndMs == 35_000ms")
+        // Queued workflow (no tasks yet) must not inflate media totals
+        try check(allRes.assetsTotal == 3, "Expected 3 executed assets (queued workflow excluded), got \(allRes.assetsTotal)")
+        try check(allRes.totalMediaDurationMs == 180_000, "Expected 180_000ms media (queued excluded), got \(allRes.totalMediaDurationMs)")
+    }
+
+    static func verifyReportImageRendering() throws {
+        let md = """
+        # Clipto 性能晨报（10-26 20:15 → 10-27 03:40）
+
+        > - **统计范围**：批次 #1
+        > - **测试机型**：`Apple M5`
+
+        ## 一、核心吞吐
+
+        | 指标项 | 数值结果 | 口径与说明 |
+        | :--- | :---: | :--- |
+        | **处理媒体素材规模** | **2 个** | 文件名 a\\|b.mp4 |
+
+        - **任务健康度**：全部成功
+        """
+        let blocks = ReportMarkdownParser.parse(md)
+        try check(blocks.count == 5, "Expected 5 markdown blocks, got \(blocks.count)")
+        if case .table(let header, _, let rows) = blocks[3] {
+            try check(header.count == 3 && rows.first?.count == 3, "Table parse mismatch")
+            try check(rows.first?[2] == "文件名 a|b.mp4", "Escaped pipe not restored: \(rows.first?[2] ?? "")")
+        } else {
+            throw SelfTestError.assertionFailed("Expected table block")
+        }
+        let png = try ReportImageRenderer.renderPNG(markdown: md)
+        try check(png.count > 10_000 && png.starts(with: [0x89, 0x50, 0x4E, 0x47]), "Expected a valid PNG")
     }
 
     static func verifyAlignedHardwareAndMarkdownReport() throws {
@@ -136,7 +217,8 @@ enum SelfTestSuite {
                 cliptoProcessCount: 6,
                 cliptoGPUPercent: 28.0,
                 swapUsedBytes: 0,
-                swapTotalBytes: 2_147_483_648
+                swapTotalBytes: 2_147_483_648,
+                cmsGPUPercent: 40.0
             )
 
             let raw = CMSRawSnapshot(
@@ -181,6 +263,7 @@ enum SelfTestSuite {
         try check(aligned.cliptoMemoryBytes.max == 4_294_967_296, "Expected Clipto max memory 4 GiB")
         try check(aligned.cmsProcesses.count == 2, "Expected 2 CMS process summaries")
         try check((aligned.estimatedEnergyWh ?? 0) > 0.05, "Expected positive estimatedEnergyWh")
+        try check(aligned.cmsTotalGPUPercent.p95 == 40.0, "Expected CMS GPU P95 == 40%, got \(String(describing: aligned.cmsTotalGPUPercent.p95))")
 
         analysis.alignedHardware = aligned
 
@@ -193,12 +276,16 @@ enum SelfTestSuite {
             )
         )
 
-        try check(md.contains("# Clipto 运行与性能开发日报（2026-10-24）"), "Missing Markdown report H1 header")
+        try check(md.contains("# Clipto Mac ") && md.contains(" 性能晨报"), "Missing Markdown report H1 header")
+        try check(md.contains("## 🎯 头条指标"), "Missing headline KPI section")
+        try check(md.contains("| **6.00x** | **2.50 GB** | **250.0%** | **40.0%** |"), "Headline KPI values mismatch")
+        try check(!md.contains("算法服务耗时瓶颈") && !md.contains("长尾慢素材"), "Sections 3/4 should be removed")
         try check(md.contains("测试工程师 A"), "Missing reporter field in Markdown")
         try check(md.contains("优化 VLM 并发与解码管线 \\| 降低峰值内存"), "Unescaped pipe in changeSummary")
-        try check(md.contains("## 二、运行期硬件与进程资源水位（PulseBoard 自动对齐）"), "Missing aligned hardware section")
+        try check(md.contains("## 二、运行期硬件与进程资源水位"), "Missing aligned hardware section")
+        let layout = ReportLayout(blocks: ReportMarkdownParser.parse(md))
+        try check(layout.kpis.count == 4 && layout.kpis[0].value.contains("6.00x"), "Headline KPI strip not detected by image layout")
         try check(md.contains("`cms_vlm_worker`"), "Missing CMS worker row in Markdown")
-        try check(md.contains("clip_pipe\\|test.mp4"), "Unescaped pipe in asset filename")
     }
 
     private static func localTimestampMs(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int) -> Int64 {
@@ -324,6 +411,15 @@ enum SelfTestSuite {
                 '{"duration":60000,"file_size_bytes":104857600,"asset_type":"video"}'
             );
             """,
+            // Queued workflow created during batch-3 but never started -> excluded from media totals
+            """
+            INSERT INTO workflows VALUES (
+                'wf-queued', 'clipto_asset_analysis', '1.4.0', 'asset-queued', 'pending',
+                \(d2Batch3Start + 2_000), 0, 0, 'full',
+                '{"filename":"queued.mp4"}',
+                '{"duration":600000,"file_size_bytes":1048576,"asset_type":"video"}'
+            );
+            """,
             "INSERT INTO nodes VALUES ('wf-day2-asset', 'n-vlm', 'vlm_caption');",
             "INSERT INTO nodes VALUES ('wf-day2-asset', 'n-asr', 'asr_transcribe');",
             """
@@ -348,6 +444,7 @@ enum SelfTestSuite {
     }
 }
 
+@MainActor
 enum CLIRunner {
     /// Returns true if a CLI-only flag (`--self-test`, `--export-report`, `--help`) was handled and the process should exit.
     static func handleIfNeeded(arguments: [String] = CommandLine.arguments) -> Bool {
@@ -359,7 +456,7 @@ enum CLIRunner {
         if arguments.contains("--self-test") {
             do {
                 try SelfTestSuite.runAll()
-                print("CliptoPulse self-test passed (DAGSC batch/day slicing + aligned hardware + GFM Markdown report).")
+                print("CliptoPulse self-test passed (DAGSC batch slicing + aligned hardware + GFM Markdown report + PNG card).")
                 return true
             } catch {
                 fputs("CliptoPulse self-test FAILED: \(error.localizedDescription)\n", stderr)
@@ -384,11 +481,11 @@ enum CLIRunner {
         var dagscPath = ""
         var sliceMode = "auto"
         var batchID: String?
-        var day: String?
         var reporter = ""
         var changeSummary = ""
         var notes = ""
         var outPath: String?
+        var pngPath: String?
 
         var i = 1
         while i < arguments.count {
@@ -404,8 +501,6 @@ enum CLIRunner {
             else if arg.hasPrefix("--slice=") { sliceMode = String(arg.dropFirst("--slice=".count)) }
             else if arg == "--batch", let v = nextVal() { batchID = v }
             else if arg.hasPrefix("--batch=") { batchID = String(arg.dropFirst("--batch=".count)) }
-            else if arg == "--day", let v = nextVal() { day = v }
-            else if arg.hasPrefix("--day=") { day = String(arg.dropFirst("--day=".count)) }
             else if arg == "--reporter", let v = nextVal() { reporter = v }
             else if arg.hasPrefix("--reporter=") { reporter = String(arg.dropFirst("--reporter=".count)) }
             else if arg == "--change", let v = nextVal() { changeSummary = v }
@@ -414,6 +509,8 @@ enum CLIRunner {
             else if arg.hasPrefix("--notes=") { notes = String(arg.dropFirst("--notes=".count)) }
             else if arg == "--out", let v = nextVal() { outPath = v }
             else if arg.hasPrefix("--out=") { outPath = String(arg.dropFirst("--out=".count)) }
+            else if arg == "--png", let v = nextVal() { pngPath = v }
+            else if arg.hasPrefix("--png=") { pngPath = String(arg.dropFirst("--png=".count)) }
             i += 1
         }
 
@@ -426,8 +523,7 @@ enum CLIRunner {
             options: DAGSCQueryOptions(
                 inputPath: dagscPath,
                 sliceMode: sliceMode,
-                batchID: batchID,
-                day: day
+                batchID: batchID
             ),
             environment: env
         )
@@ -448,13 +544,20 @@ enum CLIRunner {
             )
         )
 
+        if let pngPath, !pngPath.isEmpty {
+            let pngURL = URL(fileURLWithPath: (pngPath as NSString).expandingTildeInPath)
+            try FileManager.default.createDirectory(at: pngURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try ReportImageRenderer.renderPNG(markdown: md).write(to: pngURL, options: .atomic)
+            print("Saved PNG report to \(pngURL.path)")
+        }
+
         if let outPath, !outPath.isEmpty {
             let expanded = (outPath as NSString).expandingTildeInPath
             let outURL = URL(fileURLWithPath: expanded)
             try FileManager.default.createDirectory(at: outURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try md.write(to: outURL, atomically: true, encoding: String.Encoding.utf8)
             print("Saved Markdown report to \(outURL.path)")
-        } else {
+        } else if pngPath == nil {
             print(md)
         }
     }
@@ -474,14 +577,14 @@ enum CLIRunner {
         命令行工具选项:
           --export-report       直接生成并输出 Clipto Markdown 开发日报后退出
             --dagsc <路径>      指定 dagsc_data 目录或 schedule.db 路径（默认自动探测本机 Clipto）
-            --slice <模式>      auto | batch | day | all（默认 auto）
+            --slice <模式>      auto | batch | all（默认 auto = 最近一个测试批次）
             --batch <batch-id>  当 --slice=batch 时指定批次 ID（如 batch-3）
-            --day <YYYY-MM-DD>  当 --slice=day 时指定自然日（如 2026-10-24）
             --reporter <姓名>   日报记录人
             --change <说明>     本轮版本/改动说明
             --notes <备注>      问题定位与后续计划备注
             --out <文件路径>    保存 Markdown 到文件（省略则输出到标准输出）
-          --self-test           运行内置自检测试套件（验证分批/自然日切分、硬件对齐与日报生成）
+            --png <文件路径>    同时把晨报渲染为 PNG 图片
+          --self-test           运行内置自检测试套件（验证批次切分、硬件对齐、晨报 Markdown 与图片生成）
           --help, -h            显示本帮助信息
         """
         print(usage)

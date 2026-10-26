@@ -35,7 +35,8 @@ final class HistoryStore {
             ("clipto_process_count", "INTEGER"),
             ("clipto_gpu", "REAL"),
             ("swap_used", "REAL"),
-            ("swap_total", "REAL")
+            ("swap_total", "REAL"),
+            ("cms_gpu", "REAL")
         ]
         for (column, type) in migrations {
             if try !hasColumn(column, in: "samples") {
@@ -68,9 +69,9 @@ final class HistoryStore {
           ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,
           disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,ane_usage,
           clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count,clipto_gpu,
-          swap_used,swap_total
+          swap_used,swap_total,cms_gpu
         ) VALUES (
-          ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+          ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         );
         """
         var statement: OpaquePointer?
@@ -112,6 +113,7 @@ final class HistoryStore {
         bind(sample.cliptoGPUPercent, to: statement, at: 27)
         sqlite3_bind_double(statement, 28, sample.swapUsedBytes)
         sqlite3_bind_double(statement, 29, sample.swapTotalBytes)
+        bind(sample.cmsGPUPercent, to: statement, at: 30)
 
         guard sqlite3_step(statement) == SQLITE_DONE else { throw StoreError.queryFailed(message) }
     }
@@ -134,7 +136,7 @@ final class HistoryStore {
                    AVG(memory_read),AVG(memory_write),AVG(disk_read),AVG(disk_write),AVG(disk_free),
                    AVG(disk_total),AVG(net_down),AVG(net_up),MAX(thermal),AVG(clipto_cpu),
                    AVG(clipto_memory),AVG(clipto_disk_read),AVG(clipto_disk_write),MAX(clipto_process_count),
-                   AVG(clipto_gpu),AVG(swap_used),AVG(swap_total)
+                   AVG(clipto_gpu),AVG(swap_used),AVG(swap_total),AVG(cms_gpu)
             FROM samples WHERE timestamp BETWEEN ? AND ?
             GROUP BY CAST(timestamp / \(bucket) AS INTEGER)
             ORDER BY timestamp;
@@ -215,7 +217,8 @@ final class HistoryStore {
                 cliptoProcessCount: optionalInt(statement, 25),
                 cliptoGPUPercent: optionalDouble(statement, 26),
                 swapUsedBytes: optionalDouble(statement, 27) ?? 0,
-                swapTotalBytes: optionalDouble(statement, 28) ?? 0
+                swapTotalBytes: optionalDouble(statement, 28) ?? 0,
+                cmsGPUPercent: optionalDouble(statement, 29)
             ))
         }
         return samples
@@ -302,7 +305,7 @@ final class HistoryStore {
         "OR \(column) <= MAX(50, system_power * 3 + 20)) THEN \(column) END"
     }
 
-    private static let columns = "timestamp,cpu,gpu,ane_usage,memory,memory_used,memory_total,memory_pressure,ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count,clipto_gpu,swap_used,swap_total"
+    private static let columns = "timestamp,cpu,gpu,ane_usage,memory,memory_used,memory_total,memory_pressure,ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count,clipto_gpu,swap_used,swap_total,cms_gpu"
     private static let schema = """
     CREATE TABLE IF NOT EXISTS samples (
       timestamp REAL PRIMARY KEY,

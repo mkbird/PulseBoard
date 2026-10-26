@@ -8,6 +8,7 @@ final class MonitorStore: ObservableObject {
     private static let retentionDefaultsKey = "PulseBoard.retentionDays"
     private static let webPortDefaultsKey = "CliptoPulse.webPort"
     private static let autoOpenWebDefaultsKey = "CliptoPulse.autoOpenWebOnLaunch"
+    private static let preventSleepDefaultsKey = "CliptoPulse.preventSleep"
 
     @Published private(set) var samples: [MetricSample] = []
     @Published private(set) var latest: MetricSample?
@@ -35,6 +36,14 @@ final class MonitorStore: ObservableObject {
             UserDefaults.standard.set(autoOpenWebOnLaunch, forKey: Self.autoOpenWebDefaultsKey)
         }
     }
+    /// Keeps the Mac awake (idle system sleep) and opts out of App Nap so overnight runs are sampled at 1 Hz.
+    @Published var preventSleep: Bool = true {
+        didSet {
+            UserDefaults.standard.set(preventSleep, forKey: Self.preventSleepDefaultsKey)
+            applySleepPolicy()
+        }
+    }
+    @Published private(set) var isWiping = false
     @Published private(set) var webServerPort: Int = 8766
     @Published private(set) var webServerRunning = false
     @Published private(set) var menuActionFeedback: String?
@@ -44,7 +53,8 @@ final class MonitorStore: ObservableObject {
     private let sampler = SystemSampler()
     private let cmsSampler = CMSProcessSampler()
     private var cmsStatistics: CMSProcessSession
-    private let cmsSessionID = UUID().uuidString
+    private var cmsSessionID = UUID().uuidString
+    private var sleepActivity: NSObjectProtocol?
     private var cmsSequence: Int64 = 0
     private var cmsSegment: Int64 = 0
     private var workspaceSubscriptions = Set<AnyCancellable>()
@@ -77,6 +87,9 @@ final class MonitorStore: ObservableObject {
         if UserDefaults.standard.object(forKey: Self.autoOpenWebDefaultsKey) != nil {
             autoOpenWebOnLaunch = UserDefaults.standard.bool(forKey: Self.autoOpenWebDefaultsKey)
         }
+        if UserDefaults.standard.object(forKey: Self.preventSleepDefaultsKey) != nil {
+            preventSleep = UserDefaults.standard.bool(forKey: Self.preventSleepDefaultsKey)
+        }
         let savedPort = UserDefaults.standard.integer(forKey: Self.webPortDefaultsKey)
         if savedPort >= 1_024 && savedPort <= 65_535 {
             webServerPort = savedPort
@@ -96,6 +109,9 @@ final class MonitorStore: ObservableObject {
         restartTimer()
 
         let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        if !isRunningTests {
+            applySleepPolicy()
+        }
         if enableWebServer && !isRunningTests {
             startWebConsoleServer()
             let args = CommandLine.arguments
@@ -156,32 +172,132 @@ final class MonitorStore: ObservableObject {
         showMenuFeedback("✓ 已复制访问地址：\(urlStr)")
     }
 
-    func copyLatestDailyReportMarkdown() {
+    /// Builds the latest-batch report (same as the web console's default "auto" slice).
+    private func buildLatestReport() async throws -> (analysis: DAGSCAnalysisResponse, markdown: String) {
         let port = webServerPort
         let historyRef = history
+        let dbURL = (try? await historyRef.resolvedDatabaseURL())
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("PulseBoard/history.sqlite")
+        let env = SystemEnvironmentService.current(webPort: port, historyDBURL: dbURL)
+        // Heavy SQLite work happens off the main actor so sampling keeps its 1 Hz cadence.
+        var result = try await Task.detached(priority: .userInitiated) {
+            try DAGSCAnalyzer.analyze(options: DAGSCQueryOptions(sliceMode: "auto"), environment: env)
+        }.value
+        result.alignedHardware = try? await historyRef.fetchAlignedReport(
+            activeIntervalsMs: result.activeIntervalsMs,
+            fallbackStartMs: result.sliceStartMs,
+            fallbackEndMs: result.sliceEndMs
+        )
+        return (result, MarkdownReportGenerator.generate(analysis: result))
+    }
+
+    func copyLatestDailyReportMarkdown() {
         Task {
             do {
-                let dbURL = (try? await historyRef.resolvedDatabaseURL())
-                    ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                        .appendingPathComponent("PulseBoard/history.sqlite")
-                let env = SystemEnvironmentService.current(webPort: port, historyDBURL: dbURL)
-                var result = try DAGSCAnalyzer.analyze(options: DAGSCQueryOptions(sliceMode: "auto"), environment: env)
-                result.alignedHardware = try? await historyRef.fetchAlignedReport(
-                    activeIntervalsMs: result.activeIntervalsMs,
-                    fallbackStartMs: result.sliceStartMs,
-                    fallbackEndMs: result.sliceEndMs
-                )
-                let md = MarkdownReportGenerator.generate(analysis: result)
-                await MainActor.run {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(md, forType: .string)
-                    self.showMenuFeedback("✓ 已复制 Markdown 日报（可直接粘贴至飞书/Notion）")
-                }
+                let report = try await buildLatestReport()
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(report.markdown, forType: .string)
+                showMenuFeedback("✓ 已复制 Markdown 晨报（可直接粘贴至飞书/Notion）")
             } catch {
-                await MainActor.run {
-                    self.showMenuFeedback("日报生成失败：\(error.localizedDescription)")
-                }
+                showMenuFeedback("晨报生成失败：\(error.localizedDescription)")
             }
+        }
+    }
+
+    func copyLatestDailyReportImage() {
+        Task {
+            do {
+                let report = try await buildLatestReport()
+                let png = try ReportImageRenderer.renderPNG(markdown: report.markdown)
+                ReportImageRenderer.copyToPasteboard(png: png)
+                showMenuFeedback("✓ 已复制晨报图片，可直接粘贴到飞书/微信群")
+            } catch {
+                showMenuFeedback("晨报图片生成失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - Sleep / App Nap
+
+    private func applySleepPolicy() {
+        if preventSleep && !isTerminating {
+            guard sleepActivity == nil else { return }
+            sleepActivity = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiated, .idleSystemSleepDisabled],
+                reason: "CliptoPulse 正在持续采集 Clipto 夜间运行数据"
+            )
+        } else if let activity = sleepActivity {
+            ProcessInfo.processInfo.endActivity(activity)
+            sleepActivity = nil
+        }
+    }
+
+    // MARK: - Wipe all records
+
+    /// Asks for confirmation, then deletes every CliptoPulse record except exported reports.
+    func confirmAndWipeAllRecords() {
+        guard !isWiping, !isTerminating else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "清空 CliptoPulse 全部记录？"
+        alert.informativeText = """
+        将删除：
+        • 本机全部硬件 / Clipto / CMS 采样历史（history.sqlite）
+        • 分析时产生的临时快照文件
+        • 清空时刻之前的 Clipto 测试批次将不再出现在批次列表和晨报中
+
+        不会删除：已导出的晨报（.md / .png / .csv）、软件设置，以及 Clipto 自己的数据库（Clipto 本身不受任何影响）。
+
+        此操作不可撤销。建议在开始新一轮夜跑之前执行。
+        """
+        alert.addButton(withTitle: "清空")
+        alert.addButton(withTitle: "取消")
+        alert.buttons.first?.hasDestructiveAction = true
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task { await wipeAllRecords() }
+    }
+
+    func wipeAllRecords() async {
+        guard !isWiping, !isTerminating else { return }
+        isWiping = true
+        defer { isWiping = false }
+
+        // Stop sampling so no frame from the old CMS session lands in the fresh database.
+        let running = samplingTask
+        running?.cancel()
+        samplingTask = nil
+        historyReloadTask?.cancel()
+        await running?.value
+
+        do {
+            try await history.wipeAll()
+            RecordsEpoch.markNow()
+            Self.removeTemporarySnapshots()
+            let now = Date()
+            cmsStatistics = CMSProcessSession(startedAt: now)
+            cmsSession = cmsStatistics.snapshot
+            cmsSessionID = UUID().uuidString
+            cmsSequence = 0
+            cmsSegment = 0
+            samples = []
+            lastPrune = .distantPast
+            showMenuFeedback("✓ 已清空全部记录，从现在开始重新采集")
+        } catch {
+            errorMessage = error.localizedDescription
+            showMenuFeedback("清空失败：\(error.localizedDescription)")
+        }
+
+        _ = sampler.sample() // re-prime counters after the pause
+        restartTimer()
+    }
+
+    private static func removeTemporarySnapshots() {
+        let tmp = FileManager.default.temporaryDirectory
+        guard let items = try? FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil) else { return }
+        for item in items where item.lastPathComponent.hasPrefix("cliptopulse_") {
+            try? FileManager.default.removeItem(at: item)
         }
     }
 
@@ -315,6 +431,7 @@ final class MonitorStore: ObservableObject {
 
     func prepareForTermination() async {
         isTerminating = true
+        applySleepPolicy()
         webServer?.stop()
         webServerRunning = false
         samplingTask?.cancel()

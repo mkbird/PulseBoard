@@ -33,6 +33,9 @@ typedef struct {
     unsigned int process_count;
     int running;
     int rates_valid;
+    /* Summed GPU busy % of every process whose executable name contains "cms". */
+    double cms_gpu_percent;
+    int cms_gpu_valid;
 } PBAppMetrics;
 
 typedef struct {
