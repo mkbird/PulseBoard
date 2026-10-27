@@ -191,7 +191,17 @@ enum WebConsoleRouter {
 
         if path == "/" || path == "/index.html" || path == "/dagsc_analyzer.html" {
             if let htmlData = loadWebConsoleHTML() {
-                return .html(200, htmlData)
+                let info = Bundle.main.infoDictionary ?? [:]
+                let version = info["CFBundleShortVersionString"] as? String ?? "开发版"
+                let build = info["CFBundleVersion"] as? String ?? "未打包"
+                let builtAt = info["CliptoPulseBuildTimestamp"] as? String ?? "未知"
+                let label = "CliptoPulse v\(version) · Build \(build) · 构建于 \(builtAt)"
+                    .replacingOccurrences(of: "&", with: "&amp;")
+                    .replacingOccurrences(of: "<", with: "&lt;")
+                    .replacingOccurrences(of: ">", with: "&gt;")
+                let html = String(decoding: htmlData, as: UTF8.self)
+                    .replacingOccurrences(of: "__CLIPTOPULSE_BUILD_LABEL__", with: label)
+                return .html(200, Data(html.utf8))
             }
             return .jsonError(500, "找不到网页控制台资源文件 web_console.html")
         }
