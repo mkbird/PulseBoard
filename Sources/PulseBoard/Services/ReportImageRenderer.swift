@@ -352,14 +352,15 @@ private struct ReportImageView: View {
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 14).fill(Color.white)
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
         )
         .overlay(alignment: .top) {
             UnevenRoundedRectangle(topLeadingRadius: 14, topTrailingRadius: 14)
                 .fill(color)
                 .frame(height: 4)
         }
-        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
     }
 
     // MARK: Section cards
@@ -380,8 +381,11 @@ private struct ReportImageView: View {
         }
         .padding(22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
-        .shadow(color: Color(red: 0.2, green: 0.25, blue: 0.45).opacity(0.08), radius: 12, y: 4)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white)
+                .shadow(color: Color(red: 0.2, green: 0.25, blue: 0.45).opacity(0.08), radius: 12, y: 4)
+        )
     }
 
     @ViewBuilder
@@ -418,12 +422,7 @@ private struct ReportImageView: View {
         case .bullets(let items):
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").font(.system(size: 15, weight: .bold)).foregroundStyle(Palette.accent)
-                        Text(ReportMarkdownParser.inline(item))
-                            .font(.system(size: 14.5))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    bulletItemView(item)
                 }
             }
         case .paragraph(let t):
@@ -434,19 +433,73 @@ private struct ReportImageView: View {
         }
     }
 
+    @ViewBuilder
+    private func bulletItemView(_ item: String) -> some View {
+        let trimmed = item.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("🔴") || trimmed.hasPrefix("🟡") || trimmed.hasPrefix("🟢") {
+            let isRed = trimmed.hasPrefix("🔴")
+            let isYellow = trimmed.hasPrefix("🟡")
+            let bg = isRed
+                ? Color(red: 1.0, green: 0.95, blue: 0.95)
+                : (isYellow ? Color(red: 1.0, green: 0.98, blue: 0.91) : Color(red: 0.93, green: 0.99, blue: 0.95))
+            let bar = isRed
+                ? Color(red: 0.88, green: 0.22, blue: 0.22)
+                : (isYellow ? Color(red: 0.92, green: 0.60, blue: 0.05) : Color(red: 0.09, green: 0.64, blue: 0.35))
+            Text(ReportMarkdownParser.inline(trimmed))
+                .font(.system(size: 14))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 14)
+                .background(bg)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(bar).frame(width: 4)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("•").font(.system(size: 15, weight: .bold)).foregroundStyle(Palette.accent)
+                Text(ReportMarkdownParser.inline(item))
+                    .font(.system(size: 14.5))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private static let tableTotalWidth: CGFloat = ReportImageRenderer.canvasWidth - 64 - 44
+
+    private func columnWidths(for header: [String]) -> [CGFloat] {
+        let weights: [CGFloat]
+        if header.count == 3 {
+            weights = [0.22, 0.26, 0.52]
+        } else if header.count == 5 && header.contains(where: { $0.contains("错误") }) {
+            weights = [0.20, 0.07, 0.22, 0.07, 0.44]
+        } else if header.count == 5 {
+            weights = [0.21, 0.16, 0.16, 0.17, 0.30]
+        } else if header.count == 6 {
+            weights = [0.28, 0.12, 0.15, 0.15, 0.15, 0.15]
+        } else {
+            let w = 1.0 / CGFloat(max(1, header.count))
+            weights = Array(repeating: w, count: header.count)
+        }
+        return weights.map { $0 * Self.tableTotalWidth }
+    }
+
     private func tableView(header: [String], aligns: [ReportMarkdownBlock.Align], rows: [[String]]) -> some View {
-        Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
-            GridRow {
+        let widths = columnWidths(for: header)
+        return VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 0) {
                 ForEach(Array(header.enumerated()), id: \.offset) { idx, h in
-                    cell(h, align: align(aligns, idx), isHeader: true)
+                    cell(h, align: align(aligns, idx), width: widths[idx], isHeader: true)
                 }
             }
             .background(Color(red: 0.95, green: 0.96, blue: 0.99))
+
             ForEach(Array(rows.enumerated()), id: \.offset) { rIdx, row in
-                Rectangle().fill(Palette.line).frame(height: 1).gridCellUnsizedAxes(.horizontal)
-                GridRow {
+                Rectangle().fill(Palette.line).frame(height: 1)
+                HStack(alignment: .center, spacing: 0) {
                     ForEach(Array(row.enumerated()), id: \.offset) { idx, c in
-                        cell(c, align: align(aligns, idx), isHeader: false)
+                        cell(c, align: align(aligns, idx), width: widths[idx], isHeader: false)
                     }
                 }
                 .background(rIdx % 2 == 1 ? Color(red: 0.985, green: 0.988, blue: 0.997) : Color.white)
@@ -460,7 +513,7 @@ private struct ReportImageView: View {
         idx < aligns.count ? aligns[idx] : .leading
     }
 
-    private func cell(_ text: String, align: ReportMarkdownBlock.Align, isHeader: Bool) -> some View {
+    private func cell(_ text: String, align: ReportMarkdownBlock.Align, width: CGFloat, isHeader: Bool) -> some View {
         let frameAlign: Alignment = switch align {
         case .leading: .leading
         case .center: .center
@@ -478,7 +531,7 @@ private struct ReportImageView: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.vertical, 8)
             .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: frameAlign)
+            .frame(width: width, alignment: frameAlign)
     }
 
     private var footer: some View {

@@ -55,6 +55,12 @@ enum MarkdownReportGenerator {
         lines.append("")
 
         // Section 1: Throughput overview
+        let assetsSucceeded = analysis.byAsset.filter { $0.status == "succeeded" }.count
+        let assetsFailed = analysis.byAsset.filter { $0.status == "failed" }.count
+        let assetLight = assetsFailed > 0 ? "🔴" : "🟢"
+        let nodeLight = primaryScope.failedTasks > 0 ? "🟡" : "🟢"
+        let overallLight = assetsFailed > 0 ? "🔴" : (primaryScope.failedTasks > 0 ? "🟡" : "🟢")
+
         lines.append("## 一、吞吐概览")
         lines.append("")
         lines.append("| 指标项 | 数值结果 | 口径与说明 |")
@@ -62,7 +68,8 @@ enum MarkdownReportGenerator {
         lines.append("| **处理媒体素材** | **\(analysis.assetsTotal) 个**（\(analysis.videoAssetsCount) 视频 + \(analysis.imageAssetsCount) 图片） | 总时长 **\(fmtDurationHuman(analysis.totalMediaDurationMs))** · 总体积 **\(fmtBytes(Double(analysis.totalMediaSizeBytes)))** |")
         lines.append("| **端到端处理耗时** | **\(fmtDurationHuman(primaryScope.wallClockMs))** | 媒体资产分析 (`clipto_asset_analysis`)\(primaryScope.batchCountInScope > 1 ? "，含 \(primaryScope.batchCountInScope) 个活跃段（已剔除长空闲）" : "") |")
         lines.append("| **端到端分析速度** | **\(fmtSpeedup(primaryScope.wallSpeedup))** | 素材总时长 ÷ 端到端处理耗时（越大越快；RTF = `\(String(format: "%.4f", primaryScope.wallRtf))`） |")
-        lines.append("| **任务成功率** | **\(primaryScope.succeededTasks) / \(primaryScope.totalTasks)**（失败 **\(primaryScope.failedTasks)**） | 工作流 \(analysis.workflowsTotal) 个；平均并行度 **\(String(format: "%.2fx", primaryScope.concurrency))** |")
+        lines.append("| **素材分析成功率** | \(assetLight) **\(assetsSucceeded) / \(analysis.assetsTotal)**（素材分析失败 **\(assetsFailed)**） | 工作流 \(analysis.workflowsTotal) 个；平均并行度 **\(String(format: "%.2fx", primaryScope.concurrency))** |")
+        lines.append("| **节点执行成功率** | \(nodeLight) **\(primaryScope.succeededTasks) / \(primaryScope.totalTasks)**（节点失败 **\(primaryScope.failedTasks)**） | 节点失败会被自动重试，可能对素材分析没有实际影响 |")
         lines.append("")
 
         // Section 2: Aligned hardware & process watermarks
@@ -84,7 +91,7 @@ enum MarkdownReportGenerator {
                 lines.append("| **全 CMS CPU（单核=100%）** | \(fmtPct1(hw.cmsTotalCPUPercent.avg)) | \(fmtPct1(hw.cmsTotalCPUPercent.p95)) | **\(fmtPct1(hw.cmsTotalCPUPercent.max))** | 名称含 `cms` 的进程合计 |")
                 lines.append("| **全 CMS GPU** | \(fmtPct1(hw.cmsTotalGPUPercent.avg)) | \(fmtPct1(hw.cmsTotalGPUPercent.p95)) | **\(fmtPct1(hw.cmsTotalGPUPercent.max))** | 按进程 GPU 时间统计（不含 ANE） |")
                 lines.append("| **Clipto 进程组 CPU / 内存** | \(fmtPct(hw.cliptoCPUPercent.avg)) / \(fmtBytesOpt(hw.cliptoMemoryBytes.avg)) | \(fmtPct(hw.cliptoCPUPercent.p95)) / \(fmtBytesOpt(hw.cliptoMemoryBytes.p95)) | **\(fmtPct(hw.cliptoCPUPercent.max))** / **\(fmtBytesOpt(hw.cliptoMemoryBytes.max))** | 最多 \(hw.cliptoMaxProcesses) 个子进程 |")
-                lines.append("| **Clipto 非 CMS 进程内存** | \(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.avg)) | \(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.p95)) | **\(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.max))** | 进程组中名称不含 cms 的进程合计（明细见下表） |")
+                lines.append("| **Clipto 非 CMS 进程内存** | \(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.avg)) | \(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.p95)) | **\(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.max))** | 进程组中名称不含 cms 的进程合计（全进程明细见网页端） |")
                 lines.append("| **Clipto 进程组 GPU** | \(fmtPct(hw.cliptoGPUPercent.avg)) | \(fmtPct(hw.cliptoGPUPercent.p95)) | **\(fmtPct(hw.cliptoGPUPercent.max))** | 磁盘读峰值 \(fmtRateOpt(hw.cliptoDiskReadBps.max)) / 写峰值 \(fmtRateOpt(hw.cliptoDiskWriteBps.max)) |")
                 lines.append("| **整机 CPU / GPU / ANE** | \(fmtPct(hw.sysCPU.avg)) / \(fmtPct(hw.sysGPU.avg)) / \(fmtPct(hw.aneUsage.avg)) | \(fmtPct(hw.sysCPU.p95)) / \(fmtPct(hw.sysGPU.p95)) / \(fmtPct(hw.aneUsage.p95)) | **\(fmtPct(hw.sysCPU.max))** / **\(fmtPct(hw.sysGPU.max))** / **\(fmtPct(hw.aneUsage.max))** | 系统级利用率 |")
                 lines.append("| **整机内存 / Swap** | \(fmtBytesOpt(hw.sysMemBytes.avg)) | \(fmtBytesOpt(hw.sysMemBytes.p95)) | **\(fmtBytesOpt(hw.sysMemBytes.max))** | Swap 峰值 **\(fmtBytesOpt(hw.swapUsedBytes.max))** |")
@@ -93,21 +100,19 @@ enum MarkdownReportGenerator {
                 lines.append("")
 
                 if options.includeCMSProcesses {
-                    if !hw.cliptoMembers.isEmpty {
-                        // Every process name in the Clipto group: CMS first, then the rest, each by avg memory.
-                        let cms = hw.cliptoMembers.filter(\.isCMS)
-                        let others = hw.cliptoMembers.filter { !$0.isCMS }
-                        lines.append("### 2.2 Clipto 进程组全进程明细（\(hw.cliptoMembers.count) 个进程名：CMS \(cms.count) · 其他 \(others.count)）")
+                    let cms = hw.cliptoMembers.filter(\.isCMS)
+                    if !cms.isEmpty {
+                        lines.append("### 2.2 CMS 进程明细（\(cms.count) 个进程名）")
                         lines.append("")
-                        lines.append("| 进程名 | 类型 | 最多实例 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |")
-                        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: |")
-                        for m in cms + others {
-                            lines.append("| `\(escapeMD(m.name))` | \(m.isCMS ? "CMS" : "其他") | \(m.maxInstances) | \(fmtBytesOpt(m.avgMemoryBytes)) | **\(fmtBytesOpt(m.maxMemoryBytes))** | \(fmtPct1(m.avgCPUPercent)) | \(fmtPct1(m.maxCPUPercent)) |")
+                        lines.append("| CMS 进程名 | 最多实例 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |")
+                        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
+                        for m in cms {
+                            lines.append("| `\(escapeMD(m.name))` | \(m.maxInstances) | \(fmtBytesOpt(m.avgMemoryBytes)) | **\(fmtBytesOpt(m.maxMemoryBytes))** | \(fmtPct1(m.avgCPUPercent)) | **\(fmtPct1(m.maxCPUPercent))** |")
                         }
                         lines.append("")
                     } else if !hw.cmsProcesses.isEmpty {
                         // History recorded before 2.1 only has the CMS subset.
-                        lines.append("### 2.2 CMS 进程明细（本时段无全进程组记录）")
+                        lines.append("### 2.2 CMS 进程明细")
                         lines.append("")
                         lines.append("| CMS 进程名 | 实例数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |")
                         lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
@@ -134,20 +139,6 @@ enum MarkdownReportGenerator {
             lines.append("| **运行开始前** | \(st.startBytes.map(fmtBytes) ?? "—") | 每 5 分钟测量一次磁盘实际占用 |")
             lines.append("| **运行期间增长** | **\(growth.map(fmtSignedBytes) ?? "—")** | 峰值 \(fmtBytes(st.peakBytes)) |")
             lines.append("")
-            if !st.breakdown.isEmpty {
-                lines.append("| 子目录 / 文件 | 占用 |")
-                lines.append("| :--- | :---: |")
-                // Items ≥ 1 MB listed individually; smaller ones merged so the total stays exact.
-                let big = st.breakdown.filter { $0.bytes >= 1_048_576 }
-                let small = st.breakdown.filter { $0.bytes > 0 && $0.bytes < 1_048_576 }
-                for item in big {
-                    lines.append("| `\(escapeMD(item.name))` | \(fmtBytes(item.bytes)) |")
-                }
-                if !small.isEmpty {
-                    lines.append("| 其余 \(small.count) 项（均小于 1 MB） | \(fmtBytes(small.reduce(0) { $0 + $1.bytes })) |")
-                }
-                lines.append("")
-            }
         } else {
             lines.append("> 暂无数据目录测量记录（CliptoPulse 启动后每 5 分钟测量一次）。")
             lines.append("")
@@ -156,16 +147,21 @@ enum MarkdownReportGenerator {
         // Section 4: Diagnostics & notes
         lines.append("## 四、异常诊断与开发记录")
         lines.append("")
+        let thermalNote = hw.map { "，运行期间最高热状态「**\(thermalLabel($0.worstThermalState))**」" } ?? ""
+        if assetsFailed > 0 {
+            lines.append("- \(overallLight) **运行健康度（红灯）**：素材分析成功 **\(assetsSucceeded) / \(analysis.assetsTotal)**（**素材分析失败 \(assetsFailed)**）；节点执行成功 **\(primaryScope.succeededTasks) / \(primaryScope.totalTasks)**（**节点失败 \(primaryScope.failedTasks)**，节点失败会被自动重试，可能对素材分析没有实际影响）\(thermalNote)。")
+        } else if primaryScope.failedTasks > 0 {
+            lines.append("- \(overallLight) **运行健康度（黄灯）**：全部 **\(analysis.assetsTotal)** 个素材分析成功（**素材分析 0 失败**）；期间发生 **\(primaryScope.failedTasks)** 次节点执行失败（节点失败会被自动重试，可能对素材分析没有实际影响）\(thermalNote)。")
+        } else {
+            lines.append("- \(overallLight) **运行健康度（绿灯）**：全部 **\(analysis.assetsTotal)** 个素材分析成功（**0 失败**），全部 **\(primaryScope.totalTasks)** 个节点执行成功（**0 失败**）\(thermalNote)。")
+        }
         if !analysis.failedTaskSamples.isEmpty {
+            lines.append("")
             lines.append("| 时间 | 资产 ID | 算法节点 | 状态 | 错误摘要 |")
             lines.append("| :--- | :---: | :--- | :---: | :--- |")
             for f in analysis.failedTaskSamples {
                 lines.append("| `\(f.timestampText)` | `#\(escapeMD(f.assetID))` | `\(escapeMD(f.templateNodeID))` (`\(escapeMD(f.nodeType))`) | \(escapeMD(f.statusText)) | \(escapeMD(f.errorSummary.isEmpty ? "—" : f.errorSummary)) |")
             }
-            lines.append("")
-        } else {
-            let thermalNote = hw.map { "，运行期间最高热状态「**\(thermalLabel($0.worstThermalState))**」" } ?? ""
-            lines.append("- **任务健康度**：全部 **\(primaryScope.totalTasks)** 个任务执行成功（**0 失败**）\(thermalNote)。")
         }
 
         let trimmedNotes = options.notes.trimmingCharacters(in: .whitespacesAndNewlines)

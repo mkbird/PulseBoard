@@ -880,8 +880,6 @@
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn btn-secondary" id="reset-dagsc-path-btn">重置默认路径</button>
-            <button type="button" class="btn btn-secondary" id="export-dagsc-csv-btn">导出当前表 CSV</button>
-            <button type="button" class="btn btn-purple" id="jump-to-report-btn">📝 生成当前范围 Clipto 离线分析晨报 →</button>
           </div>
         </div>
 
@@ -967,13 +965,13 @@
 
         <div class="stat-card">
           <div>
-            <div class="stat-label"><span>任务规模与成功率</span><span>多节点并发调度</span></div>
-            <div class="stat-value" id="card-task-count">—</div>
+            <div class="stat-label"><span>素材与节点成功率</span><span id="card-health-badge" class="badge badge-green">🟢 全部成功</span></div>
+            <div class="stat-value" id="card-task-count" style="font-size:1.25rem;">—</div>
             <div class="stat-sub" id="card-task-status-sub">—</div>
           </div>
           <div class="stat-detail">
-            <div>平均并行加速比：<strong id="card-concurrency">—</strong></div>
-            <div>工作流总数：<strong id="card-wf-total">—</strong></div>
+            <div style="font-size:0.74rem; color:#64748b;">节点失败会被自动重试，可能对素材分析没有实际影响</div>
+            <div>平均并行加速比：<strong id="card-concurrency">—</strong> ｜ 工作流：<strong id="card-wf-total">—</strong></div>
           </div>
         </div>
 
@@ -1093,6 +1091,11 @@
             <tfoot id="table-foot"></tfoot>
           </table>
         </div>
+      </div>
+
+      <!-- Full Clipto Process Group Breakdown Card (at the bottom of DAGSC tab) -->
+      <div class="card" id="clipto-members-card" style="display:none;">
+        <div id="clipto-members-body"></div>
       </div>
       </div>
     </section>
@@ -1252,17 +1255,8 @@
             <button type="button" class="btn btn-primary" id="copy-img-btn" style="padding:9px 18px; font-size:0.9rem;">
               🖼️ 复制晨报图片
             </button>
-            <button type="button" class="btn btn-secondary" id="download-img-btn" style="padding:9px 16px; font-size:0.9rem;">
-              ⬇️ 下载 PNG
-            </button>
-            <button type="button" class="btn btn-secondary" id="download-csv-btn" style="padding:9px 16px; font-size:0.9rem;" title="单列 CSV：第 1 行版本号，之后每行一个指标（纯数字，单位见行名）">
-              📊 导出 CSV
-            </button>
-            <button type="button" class="btn btn-secondary" id="copy-csv-btn" style="padding:9px 16px; font-size:0.9rem;" title="复制 CSV 这一列的值，可直接粘贴到表格的某一列">
-              📋 复制 CSV 列
-            </button>
-            <button type="button" class="btn btn-secondary" id="copy-csv-labels-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;" title="复制 CSV 每一行对应的指标名，用于第一次搭建记录表">
-              复制行名
+            <button type="button" class="btn btn-secondary" id="download-bundle-btn" style="padding:9px 16px; font-size:0.9rem;">
+              ⬇️ 下载晨报 + CSV
             </button>
           </div>
         </div>
@@ -1278,7 +1272,7 @@
               <input type="checkbox" id="rpt-opt-hw" checked style="accent-color:#2563eb;"> 硬件与进程水位
             </label>
             <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
-              <input type="checkbox" id="rpt-opt-cms" checked style="accent-color:#2563eb;"> 进程组全进程明细
+              <input type="checkbox" id="rpt-opt-cms" checked style="accent-color:#2563eb;"> CMS 进程明细
             </label>
           </div>
         </div>
@@ -1310,7 +1304,6 @@
           <h3 class="card-title">👁️ 晨报预览</h3>
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <span class="badge badge-blue" id="rpt-filename-badge">Clipto离线分析晨报.png</span>
-            <!-- Markdown export kept for occasional use (Feishu docs / Notion), intentionally low-key -->
             <button type="button" class="btn btn-secondary" id="copy-md-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;">复制 Markdown</button>
             <button type="button" class="btn btn-secondary" id="download-md-btn" style="padding:3px 9px; font-size:0.74rem; opacity:0.75;">下载 .md</button>
           </div>
@@ -1573,10 +1566,6 @@
       if (["dagsc", "monitor", "report"].includes(h)) {
         switchTab(h, false);
       }
-    });
-
-    document.getElementById("jump-to-report-btn").addEventListener("click", () => {
-      switchTab("report");
     });
 
     document.getElementById("copy-lan-pill").addEventListener("click", async () => {
@@ -2074,6 +2063,8 @@
       const badge = document.getElementById("aligned-coverage-badge");
       const hint = document.getElementById("aligned-window-hint");
       const body = document.getElementById("aligned-hw-body");
+      const membersCard = document.getElementById("clipto-members-card");
+      const membersBody = document.getElementById("clipto-members-body");
       const hw = dagscData && dagscData.aligned_hardware;
 
       if (!hw || !hw.has_data) {
@@ -2085,6 +2076,8 @@
             该历史测试窗口内未找到对应的本地硬件监控数据（可能当时尚未启动后台采集）。保持顶部菜单栏 <strong>CliptoPulse</strong> 常驻运行后，后续所有测试批次都会自动对齐 CPU / GPU / ANE / 功耗 / Clipto & CMS 内存水位与同轴曲线。
           </div>
         `;
+        if (membersCard) membersCard.style.display = "none";
+        if (membersBody) membersBody.innerHTML = "";
         return;
       }
 
@@ -2093,6 +2086,57 @@
       hint.textContent = `对齐活跃窗口：${hw.window_start_text} → ${hw.window_end_text}`;
 
       const energyStr = hw.estimated_energy_wh != null ? `${hw.estimated_energy_wh.toFixed(2)} Wh` : "—";
+      const members = hw.clipto_members || [];
+      const cmsMembers = members.filter(x => x.is_cms);
+      const otherMembers = members.filter(x => !x.is_cms);
+      const orderedMembers = cmsMembers.concat(otherMembers);
+      const nonCmsMem = hw.clipto_non_cms_memory_bytes || {};
+      if (membersCard && membersBody) {
+        if (orderedMembers.length > 0) {
+          membersCard.style.display = "";
+          membersBody.innerHTML = `
+            <div class="card-header">
+              <h3 class="card-title">Clipto 进程组全进程明细（共 ${orderedMembers.length} 个进程名：CMS ${cmsMembers.length} · 其他 ${otherMembers.length}）</h3>
+              <span style="font-size:0.78rem; color:var(--muted);">
+                非 CMS 进程内存合计：均值 <strong>${formatBytes(nonCmsMem.avg)}</strong> ｜ P95 <strong>${formatBytes(nonCmsMem.p95)}</strong> ｜ 峰值 <strong>${formatBytes(nonCmsMem.max)}</strong>
+              </span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>进程名</th>
+                    <th style="width:90px;">类型</th>
+                    <th class="num">最多实例</th>
+                    <th class="num">平均物理内存</th>
+                    <th class="num">峰值物理内存</th>
+                    <th class="num">平均 CPU (单核=100%)</th>
+                    <th class="num">峰值 CPU</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${orderedMembers.map(m => `
+                    <tr>
+                      <td><code>${escHtml(m.name)}</code></td>
+                      <td>${m.is_cms
+                        ? `<span class="badge badge-blue">CMS</span>`
+                        : `<span class="badge" style="background:#f1f5f9; color:#475569;">其他</span>`}</td>
+                      <td class="num">${m.max_instances}</td>
+                      <td class="num">${formatBytes(m.avg_memory_bytes)}</td>
+                      <td class="num"><strong>${formatBytes(m.max_memory_bytes)}</strong></td>
+                      <td class="num">${formatPct(m.avg_cpu_percent)}</td>
+                      <td class="num"><strong>${formatPct(m.max_cpu_percent)}</strong></td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          `;
+        } else {
+          membersCard.style.display = "none";
+          membersBody.innerHTML = "";
+        }
+      }
       body.innerHTML = `
         <div class="cards-grid-4" style="margin-bottom:0;">
           <div class="stat-card" style="box-shadow:none; background:#f8fafc;">
@@ -2183,8 +2227,27 @@
       document.getElementById("card-last-node").textContent = lt ? (lt.template_node_id || lt.node_type) : "—";
       document.getElementById("card-last-time").textContent = lt ? lt.timestamp_text : "—";
 
-      document.getElementById("card-task-count").textContent = `${formatInt(scopeObj.total_tasks)} 个任务`;
-      document.getElementById("card-task-status-sub").textContent = `成功 ${formatInt(scopeObj.succeeded_tasks)} / 失败 ${formatInt(scopeObj.failed_tasks)}`;
+      const assetsList = dagscData.by_asset || [];
+      const assetsSucceeded = assetsList.filter(a => a.status === "succeeded").length;
+      const assetsFailed = assetsList.filter(a => a.status === "failed").length;
+      const healthBadge = document.getElementById("card-health-badge");
+      if (healthBadge) {
+        if (assetsFailed > 0) {
+          healthBadge.textContent = `🔴 素材失败 ${assetsFailed}`;
+          healthBadge.className = "badge";
+          healthBadge.style.cssText = "background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;";
+        } else if (scopeObj.failed_tasks > 0) {
+          healthBadge.textContent = `🟡 节点失败 ${scopeObj.failed_tasks}`;
+          healthBadge.className = "badge badge-amber";
+          healthBadge.style.cssText = "";
+        } else {
+          healthBadge.textContent = "🟢 全部成功";
+          healthBadge.className = "badge badge-green";
+          healthBadge.style.cssText = "";
+        }
+      }
+      document.getElementById("card-task-count").textContent = `素材成功 ${formatInt(assetsSucceeded)}/${formatInt(dagscData.assets_total)} (失败 ${formatInt(assetsFailed)})`;
+      document.getElementById("card-task-status-sub").textContent = `节点成功 ${formatInt(scopeObj.succeeded_tasks)}/${formatInt(scopeObj.total_tasks)} (节点失败 ${formatInt(scopeObj.failed_tasks)})`;
       document.getElementById("card-concurrency").textContent = `${scopeObj.concurrency.toFixed(2)}x`;
       document.getElementById("card-wf-total").textContent = `${formatInt(dagscData.workflows_total)} 个`;
 
@@ -3102,26 +3165,6 @@
       });
     }
 
-    // Export current table CSV
-    document.getElementById("export-dagsc-csv-btn").addEventListener("click", () => {
-      const table = document.getElementById("data-table");
-      const rows = [
-        ...table.querySelectorAll("thead tr"),
-        ...table.querySelectorAll("tbody tr"),
-        ...table.querySelectorAll("tfoot tr")
-      ];
-      const lines = rows.map(row =>
-        Array.from(row.querySelectorAll("th, td")).map(c => `"${c.innerText.replace(/\s+/g, " ").trim().replace(/"/g, '""')}"`).join(",")
-      );
-      const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `clipto_dagsc_${sliceMode}_${currentView}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-
     // ==================== Clipto Daily Report Studio (Markdown) ====================
     function escMdCell(s) {
       return String(s == null ? "" : s).replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
@@ -3179,6 +3222,13 @@
       out.push(`| 素材 ${formatDurationShort(d.total_media_duration_ms)} ÷ 端到端 ${formatDurationShort(primary.wall_clock_ms)} | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） | Clipto.app 全部进程物理内存合计 | ${stGrowth != null ? `运行期间 ${signedBytes(stGrowth)}` : "com.clipto.mac 磁盘占用"} |`);
       out.push("");
 
+      const assetsList = d.by_asset || [];
+      const assetsSucceeded = assetsList.filter(a => a.status === "succeeded").length;
+      const assetsFailed = assetsList.filter(a => a.status === "failed").length;
+      const assetLight = assetsFailed > 0 ? "🔴" : "🟢";
+      const nodeLight = primary.failed_tasks > 0 ? "🟡" : "🟢";
+      const overallLight = assetsFailed > 0 ? "🔴" : (primary.failed_tasks > 0 ? "🟡" : "🟢");
+
       out.push("## 一、吞吐概览");
       out.push("");
       out.push("| 指标项 | 数值结果 | 口径与说明 |");
@@ -3187,7 +3237,8 @@
       const segHint = primary.batch_count_in_scope > 1 ? `，含 ${primary.batch_count_in_scope} 个活跃段（已剔除长空闲）` : "";
       out.push(`| **端到端处理耗时** | **${formatDurationHuman(primary.wall_clock_ms)}** | 媒体资产分析 (\`clipto_asset_analysis\`)${segHint} |`);
       out.push(`| **端到端分析速度** | **${formatSpeedup(primary.wall_speedup)}** | 素材总时长 ÷ 端到端处理耗时（越大越快；RTF = \`${primary.wall_rtf.toFixed(4)}\`） |`);
-      out.push(`| **任务成功率** | **${primary.succeeded_tasks} / ${primary.total_tasks}**（失败 **${primary.failed_tasks}**） | 工作流 ${d.workflows_total} 个；平均并行度 **${primary.concurrency.toFixed(2)}x** |`);
+      out.push(`| **素材分析成功率** | ${assetLight} **${assetsSucceeded} / ${d.assets_total}**（素材分析失败 **${assetsFailed}**） | 工作流 ${d.workflows_total} 个；平均并行度 **${primary.concurrency.toFixed(2)}x** |`);
+      out.push(`| **节点执行成功率** | ${nodeLight} **${primary.succeeded_tasks} / ${primary.total_tasks}**（节点失败 **${primary.failed_tasks}**） | 节点失败会被自动重试，可能对素材分析没有实际影响 |`);
       out.push("");
 
       if (incHw) {
@@ -3210,7 +3261,7 @@
           out.push(`| **全 CMS GPU** | ${pct(cg.avg)} | ${pct(cg.p95)} | **${pct(cg.max)}** | 按进程 GPU 时间统计（不含 ANE） |`);
           out.push(`| **Clipto 进程组 CPU / 内存** | ${pct(hw.clipto_cpu_percent.avg)} / ${bytes(hw.clipto_memory_bytes.avg)} | ${pct(hw.clipto_cpu_percent.p95)} / ${bytes(hw.clipto_memory_bytes.p95)} | **${pct(hw.clipto_cpu_percent.max)}** / **${bytes(hw.clipto_memory_bytes.max)}** | 最多 ${hw.clipto_max_processes} 个子进程 |`);
           const nc = m(hw, "clipto_non_cms_memory_bytes");
-          out.push(`| **Clipto 非 CMS 进程内存** | ${bytes(nc.avg)} | ${bytes(nc.p95)} | **${bytes(nc.max)}** | 进程组中名称不含 cms 的进程合计（明细见下表） |`);
+          out.push(`| **Clipto 非 CMS 进程内存** | ${bytes(nc.avg)} | ${bytes(nc.p95)} | **${bytes(nc.max)}** | 进程组中名称不含 cms 的进程合计（全进程明细见网页端） |`);
           out.push(`| **Clipto 进程组 GPU** | ${pct(hw.clipto_gpu_percent.avg)} | ${pct(hw.clipto_gpu_percent.p95)} | **${pct(hw.clipto_gpu_percent.max)}** | 磁盘读峰值 ${formatRate(hw.clipto_disk_read_bps.max)} / 写峰值 ${formatRate(hw.clipto_disk_write_bps.max)} |`);
           out.push(`| **整机 CPU / GPU / ANE** | ${pct(hw.sys_cpu.avg)} / ${pct(hw.sys_gpu.avg)} / ${pct(hw.ane_usage.avg)} | ${pct(hw.sys_cpu.p95)} / ${pct(hw.sys_gpu.p95)} / ${pct(hw.ane_usage.p95)} | **${pct(hw.sys_cpu.max)}** / **${pct(hw.sys_gpu.max)}** / **${pct(hw.ane_usage.max)}** | 系统级利用率 |`);
           out.push(`| **整机内存 / Swap** | ${bytes(hw.sys_mem_bytes.avg)} | ${bytes(hw.sys_mem_bytes.p95)} | **${bytes(hw.sys_mem_bytes.max)}** | Swap 峰值 **${bytes(hw.swap_used_bytes.max)}** |`);
@@ -3219,20 +3270,18 @@
           out.push("");
 
           const members = hw.clipto_members || [];
-          if (incCms && members.length > 0) {
-            // Every process name in the Clipto group: CMS first, then the rest, each by avg memory.
-            const cmsM = members.filter(x => x.is_cms);
-            const otherM = members.filter(x => !x.is_cms);
-            out.push(`### 2.2 Clipto 进程组全进程明细（${members.length} 个进程名：CMS ${cmsM.length} · 其他 ${otherM.length}）`);
+          const cmsM = members.filter(x => x.is_cms);
+          if (incCms && cmsM.length > 0) {
+            out.push(`### 2.2 CMS 进程明细（${cmsM.length} 个进程名）`);
             out.push("");
-            out.push("| 进程名 | 类型 | 最多实例 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |");
-            out.push("| :--- | :---: | :---: | :---: | :---: | :---: | :---: |");
-            cmsM.concat(otherM).forEach(x => {
-              out.push(`| \`${escMdCell(x.name)}\` | ${x.is_cms ? "CMS" : "其他"} | ${x.max_instances} | ${bytes(x.avg_memory_bytes)} | **${bytes(x.max_memory_bytes)}** | ${pct(x.avg_cpu_percent)} | ${pct(x.max_cpu_percent)} |`);
+            out.push("| CMS 进程名 | 最多实例 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |");
+            out.push("| :--- | :---: | :---: | :---: | :---: | :---: |");
+            cmsM.forEach(x => {
+              out.push(`| \`${escMdCell(x.name)}\` | ${x.max_instances} | ${bytes(x.avg_memory_bytes)} | **${bytes(x.max_memory_bytes)}** | ${pct(x.avg_cpu_percent)} | **${pct(x.max_cpu_percent)}** |`);
             });
             out.push("");
           } else if (incCms && hw.cms_processes && hw.cms_processes.length > 0) {
-            out.push("### 2.2 CMS 进程明细（本时段无全进程组记录）");
+            out.push("### 2.2 CMS 进程明细");
             out.push("");
             out.push("| CMS 进程名 | 实例数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |");
             out.push("| :--- | :---: | :---: | :---: | :---: | :---: |");
@@ -3260,15 +3309,6 @@
         out.push(`| **运行开始前** | ${st.start_bytes != null ? formatBytes(st.start_bytes) : "—"} | 每 5 分钟测量一次磁盘实际占用 |`);
         out.push(`| **运行期间增长** | **${signed(growth)}** | 峰值 ${formatBytes(st.peak_bytes)} |`);
         out.push("");
-        if (st.breakdown && st.breakdown.length) {
-          out.push("| 子目录 / 文件 | 占用 |");
-          out.push("| :--- | :---: |");
-          const bigItems = st.breakdown.filter(b => b.bytes >= 1048576);
-          const smallItems = st.breakdown.filter(b => b.bytes > 0 && b.bytes < 1048576);
-          bigItems.forEach(b => out.push(`| \`${escMdCell(b.name)}\` | ${formatBytes(b.bytes)} |`));
-          if (smallItems.length) out.push(`| 其余 ${smallItems.length} 项（均小于 1 MB） | ${formatBytes(smallItems.reduce((a, b) => a + b.bytes, 0))} |`);
-          out.push("");
-        }
       } else {
         out.push("> 暂无数据目录测量记录（CliptoPulse 启动后每 5 分钟测量一次）。");
         out.push("");
@@ -3276,16 +3316,21 @@
 
       out.push("## 四、异常诊断与开发记录");
       out.push("");
+      const thNote = hw ? `，运行期间最高热状态「**${thermalText(hw.worst_thermal_state)}**」` : "";
+      if (assetsFailed > 0) {
+        out.push(`- ${overallLight} **运行健康度（红灯）**：素材分析成功 **${assetsSucceeded} / ${d.assets_total}**（**素材分析失败 ${assetsFailed}**）；节点执行成功 **${primary.succeeded_tasks} / ${primary.total_tasks}**（**节点失败 ${primary.failed_tasks}**，节点失败会被自动重试，可能对素材分析没有实际影响）${thNote}。`);
+      } else if (primary.failed_tasks > 0) {
+        out.push(`- ${overallLight} **运行健康度（黄灯）**：全部 **${d.assets_total}** 个素材分析成功（**素材分析 0 失败**）；期间发生 **${primary.failed_tasks}** 次节点执行失败（节点失败会被自动重试，可能对素材分析没有实际影响）${thNote}。`);
+      } else {
+        out.push(`- ${overallLight} **运行健康度（绿灯）**：全部 **${d.assets_total}** 个素材分析成功（**0 失败**），全部 **${primary.total_tasks}** 个节点执行成功（**0 失败**）${thNote}。`);
+      }
       if (d.failed_task_samples && d.failed_task_samples.length > 0) {
+        out.push("");
         out.push("| 时间 | 资产 ID | 算法节点 | 状态 | 错误摘要 |");
         out.push("| :--- | :---: | :--- | :---: | :--- |");
         d.failed_task_samples.forEach(f => {
           out.push(`| \`${f.timestamp_text}\` | \`#${escMdCell(f.asset_id)}\` | \`${escMdCell(f.template_node_id)}\` (\`${escMdCell(f.node_type)}\`) | ${escMdCell(f.status_text)} | ${escMdCell(f.error_summary || "—")} |`);
         });
-        out.push("");
-      } else {
-        const thNote = hw ? `，运行期间最高热状态「**${thermalText(hw.worst_thermal_state)}**」` : "";
-        out.push(`- **任务健康度**：全部 **${primary.total_tasks}** 个任务执行成功（**0 失败**）${thNote}。`);
       }
 
       if (notes) {
@@ -3567,6 +3612,19 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
+    async function fetchReportCSV(extra) {
+      if (!dagscData) throw new Error("请先加载 DAGSC 分析数据");
+      const params = buildSliceParams();
+      Object.entries(extra || {}).forEach(([k, v]) => params.set(k, v));
+      const resp = await fetch(`/api/report/csv?${params.toString()}`);
+      if (!resp.ok) {
+        let msg = `CSV 生成失败 (${resp.status})`;
+        try { const j = await resp.json(); if (j.error) msg = j.error; } catch (_) {}
+        throw new Error(msg);
+      }
+      return resp;
+    }
+
     document.getElementById("copy-img-btn").addEventListener("click", async () => {
       const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.md").replace(/\.md$/, ".png");
       const blobPromise = requestReportImage();
@@ -3589,58 +3647,22 @@
       }
     });
 
-    async function fetchReportCSV(extra) {
-      if (!dagscData) throw new Error("请先加载 DAGSC 分析数据");
-      const params = buildSliceParams();
-      Object.entries(extra || {}).forEach(([k, v]) => params.set(k, v));
-      const resp = await fetch(`/api/report/csv?${params.toString()}`);
-      if (!resp.ok) {
-        let msg = `CSV 生成失败 (${resp.status})`;
-        try { const j = await resp.json(); if (j.error) msg = j.error; } catch (_) {}
-        throw new Error(msg);
-      }
-      return resp;
-    }
-
-    document.getElementById("download-csv-btn").addEventListener("click", async () => {
-      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.png").replace(/\.png$/, ".csv");
+    document.getElementById("download-bundle-btn").addEventListener("click", async () => {
+      const pngFn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.png").replace(/\.(md|png)$/, ".png");
+      const csvFn = pngFn.replace(/\.png$/, ".csv");
       try {
-        downloadBlob(await (await fetchReportCSV()).blob(), fn);
-        showToast(`✓ 已导出 ${fn}`);
+        const [imgBlob, csvBlob] = await Promise.all([
+          requestReportImage(),
+          fetchReportCSV().then(r => r.blob())
+        ]);
+        downloadBlob(imgBlob, pngFn);
+        setTimeout(() => downloadBlob(csvBlob, csvFn), 150);
+        showToast(`✓ 已下载 ${pngFn} 与 ${csvFn}`);
       } catch (err) {
         showToast(`✗ ${err.message || err}`);
       }
     });
 
-    document.getElementById("copy-csv-btn").addEventListener("click", async () => {
-      try {
-        const text = await (await fetchReportCSV({ format: "column" })).text();
-        await copyTextSafe(text);
-        showToast("✓ 已复制 CSV 列，可直接粘贴到表格的一列");
-      } catch (err) {
-        showToast(`✗ ${err.message || err}`);
-      }
-    });
-
-    document.getElementById("copy-csv-labels-btn").addEventListener("click", async () => {
-      try {
-        const text = await (await fetch("/api/report/csv-labels")).text();
-        await copyTextSafe(text);
-        showToast("✓ 已复制 CSV 行名（每行一个指标名）");
-      } catch (err) {
-        showToast(`✗ ${err.message || err}`);
-      }
-    });
-
-    document.getElementById("download-img-btn").addEventListener("click", async () => {
-      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.md").replace(/\.md$/, ".png");
-      try {
-        downloadBlob(await requestReportImage(), fn);
-        showToast(`✓ 已下载 ${fn}`);
-      } catch (err) {
-        showToast(`✗ ${err.message || err}`);
-      }
-    });
     document.getElementById("copy-md-btn").addEventListener("click", handleCopyMarkdown);
 
     document.getElementById("download-md-btn").addEventListener("click", () => {
