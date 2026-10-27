@@ -1005,6 +1005,16 @@
         <div id="aligned-hw-body"></div>
       </div>
 
+      </div>
+
+      <div class="card" id="clipto-members-card">
+        <div id="clipto-members-body" aria-live="polite">
+          <div class="card-header"><h3 class="card-title">Clipto 进程组全进程明细</h3></div>
+          <p style="color:var(--muted);">尚未加载分析。确认上方 DAGSC 路径后，点击「加载并分析」查看所选时段的进程明细。</p>
+        </div>
+      </div>
+
+      <div id="dagsc-detail-results" style="display:none;">
       <!-- Stacked Node Distribution -->
       <div class="card">
         <div class="card-header">
@@ -1094,10 +1104,6 @@
         </div>
       </div>
 
-      <!-- Full Clipto Process Group Breakdown Card (at the bottom of DAGSC tab) -->
-      <div class="card" id="clipto-members-card" style="display:none;">
-        <div id="clipto-members-body"></div>
-      </div>
       </div>
     </section>
 
@@ -1967,6 +1973,7 @@
       btn.disabled = true;
       btn.textContent = "分析中...";
       errBanner.style.display = "none";
+      renderCliptoMembersNotice("正在加载分析，请稍候…");
 
       const params = buildSliceParams(opts);
 
@@ -1984,6 +1991,7 @@
         }
         document.getElementById("dagsc-meta-bar").style.display = "flex";
         document.getElementById("dagsc-results-body").style.display = "block";
+        document.getElementById("dagsc-detail-results").style.display = "block";
         resetNsysZoom();
         renderDAGSCAll();
         rebuildMarkdownReport();
@@ -1991,6 +1999,8 @@
         dagscData = null;
         document.getElementById("dagsc-meta-bar").style.display = "none";
         document.getElementById("dagsc-results-body").style.display = "none";
+        document.getElementById("dagsc-detail-results").style.display = "none";
+        renderCliptoMembersNotice("分析加载失败，暂时无法显示进程明细。请查看上方错误提示后重试。");
         document.getElementById("dagsc-app-ver").textContent = "—";
         document.getElementById("dagsc-tpl-badge").textContent = "模板 —";
         errBanner.textContent = err.message || String(err);
@@ -2060,6 +2070,13 @@
       quickSel.innerHTML = qHtml;
     }
 
+    function renderCliptoMembersNotice(message) {
+      document.getElementById("clipto-members-body").innerHTML = `
+        <div class="card-header"><h3 class="card-title">Clipto 进程组全进程明细</h3></div>
+        <p style="color:var(--muted);">${escHtml(message)}</p>
+      `;
+    }
+
     function renderAlignedHardwarePanel() {
       const badge = document.getElementById("aligned-coverage-badge");
       const hint = document.getElementById("aligned-window-hint");
@@ -2077,8 +2094,7 @@
             该历史测试窗口内未找到对应的本地硬件监控数据（可能当时尚未启动后台采集）。保持顶部菜单栏 <strong>CliptoPulse</strong> 常驻运行后，后续所有测试批次都会自动对齐 CPU / GPU / ANE / 功耗 / Clipto & CMS 内存水位与同轴曲线。
           </div>
         `;
-        if (membersCard) membersCard.style.display = "none";
-        if (membersBody) membersBody.innerHTML = "";
+        renderCliptoMembersNotice("所选时段没有硬件历史采样，无法提供逐进程明细。保持 CliptoPulse 运行以记录后续数据。");
         return;
       }
 
@@ -2134,8 +2150,9 @@
             </div>
           `;
         } else {
-          membersCard.style.display = "none";
-          membersBody.innerHTML = "";
+          renderCliptoMembersNotice(Array.isArray(hw.clipto_members)
+            ? "该时段未记录逐进程数据。已有的进程组总量无法还原为逐进程明细；请保持新版 CliptoPulse 运行，以采集后续时段的明细。"
+            : "当前服务未提供逐进程明细字段，请确认服务运行的是支持全进程明细的新版 CliptoPulse。");
         }
       }
       body.innerHTML = `
@@ -3699,7 +3716,7 @@
       loadReportProfile();
       pollLiveTelemetry();
       setInterval(pollLiveTelemetry, 2000);
-      fetchDAGSCAnalysis({ sliceMode: "auto" });
+      // Analysis starts only after an explicit user action.
     })();
   </script>
 </body>
