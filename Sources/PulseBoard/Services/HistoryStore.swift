@@ -45,6 +45,7 @@ final class HistoryStore {
         }
         try execute("CREATE INDEX IF NOT EXISTS samples_timestamp ON samples(timestamp);")
         try execute(Self.cmsSchema)
+        try execute(Self.breakdownSchema)
     }
 
     deinit { sqlite3_close(database) }
@@ -116,6 +117,27 @@ final class HistoryStore {
         bind(sample.cmsGPUPercent, to: statement, at: 30)
 
         guard sqlite3_step(statement) == SQLITE_DONE else { throw StoreError.queryFailed(message) }
+        try appendMembers(sample)
+    }
+
+    private func appendMembers(_ sample: MetricSample) throws {
+        guard !sample.cliptoMembers.isEmpty else { return }
+        try withStatement("""
+        INSERT OR REPLACE INTO clipto_member_samples(timestamp,name,is_cms,process_count,memory_bytes,cpu_percent)
+        VALUES (?,?,?,?,?,?);
+        """) { statement in
+            for member in sample.cliptoMembers {
+                sqlite3_reset(statement)
+                sqlite3_clear_bindings(statement)
+                try check(sqlite3_bind_double(statement, 1, sample.timestamp.timeIntervalSince1970))
+                try bindText(member.name, to: statement, at: 2)
+                try check(sqlite3_bind_int(statement, 3, member.isCMS ? 1 : 0))
+                try check(sqlite3_bind_int(statement, 4, Int32(member.count)))
+                try check(sqlite3_bind_double(statement, 5, member.memoryBytes))
+                bind(member.cpuPercent, to: statement, at: 6)
+                try finish(statement)
+            }
+        }
     }
 
     func fetch(from: Date, to: Date, maxPoints: Int = 1_200) throws -> [MetricSample] {
@@ -155,7 +177,7 @@ final class HistoryStore {
 
     func prune(olderThan date: Date) throws {
         try transaction {
-            for table in ["samples", "cms_frames"] {
+            for table in ["samples", "cms_frames", "clipto_member_samples", "storage_samples"] {
                 try withStatement("DELETE FROM \(table) WHERE timestamp < ?;") { statement in
                     try check(sqlite3_bind_double(statement, 1, date.timeIntervalSince1970))
                     try finish(statement)
@@ -306,6 +328,24 @@ final class HistoryStore {
     }
 
     private static let columns = "timestamp,cpu,gpu,ane_usage,memory,memory_used,memory_total,memory_pressure,ane_power,cpu_power,gpu_power,system_power,memory_read,memory_write,disk_read,disk_write,disk_free,disk_total,net_down,net_up,thermal,clipto_cpu,clipto_memory,clipto_disk_read,clipto_disk_write,clipto_process_count,clipto_gpu,swap_used,swap_total,cms_gpu"
+    static let breakdownSchema = """
+    CREATE TABLE IF NOT EXISTS clipto_member_samples (
+      timestamp REAL NOT NULL,
+      name TEXT NOT NULL,
+      is_cms INTEGER NOT NULL,
+      process_count INTEGER NOT NULL,
+      memory_bytes REAL NOT NULL,
+      cpu_percent REAL,
+      PRIMARY KEY (timestamp, name)
+    ) WITHOUT ROWID;
+    CREATE TABLE IF NOT EXISTS storage_samples (
+      timestamp REAL PRIMARY KEY,
+      path TEXT NOT NULL,
+      allocated_bytes REAL NOT NULL,
+      file_count INTEGER NOT NULL,
+      breakdown_json TEXT
+    );
+    """
     private static let schema = """
     CREATE TABLE IF NOT EXISTS samples (
       timestamp REAL PRIMARY KEY,

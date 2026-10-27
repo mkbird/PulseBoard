@@ -392,6 +392,56 @@ struct AlignedCMSProcessItem: Codable, Sendable {
     }
 }
 
+/// One executable name inside the Clipto process group (all instances summed per sample).
+struct AlignedCliptoMemberItem: Codable, Sendable {
+    let name: String
+    let isCMS: Bool
+    let maxInstances: Int
+    let avgMemoryBytes: Double?
+    let maxMemoryBytes: Double?
+    let avgCPUPercent: Double?
+    let maxCPUPercent: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case isCMS = "is_cms"
+        case maxInstances = "max_instances"
+        case avgMemoryBytes = "avg_memory_bytes"
+        case maxMemoryBytes = "max_memory_bytes"
+        case avgCPUPercent = "avg_cpu_percent"
+        case maxCPUPercent = "max_cpu_percent"
+    }
+}
+
+/// Size of `~/Library/Application Support/com.clipto.mac` around the analysed run.
+struct StorageUsageReport: Codable, Sendable {
+    let path: String
+    let startBytes: Double?
+    let endBytes: Double
+    let peakBytes: Double
+    let fileCount: Int
+    let endText: String
+    /// true when no scan fell inside the run window and the latest scan was used instead
+    let isCurrentFallback: Bool
+    let breakdown: [StorageBreakdownItem]
+
+    enum CodingKeys: String, CodingKey {
+        case path
+        case startBytes = "start_bytes"
+        case endBytes = "end_bytes"
+        case peakBytes = "peak_bytes"
+        case fileCount = "file_count"
+        case endText = "end_text"
+        case isCurrentFallback = "is_current_fallback"
+        case breakdown
+    }
+}
+
+struct StorageBreakdownItem: Codable, Sendable {
+    let name: String
+    let bytes: Double
+}
+
 struct AlignedTimeSeriesPoint: Codable, Sendable {
     let tsMs: Int64
     let sysCPU: Double
@@ -487,6 +537,10 @@ struct AlignedHardwareReport: Codable, Sendable {
     let cmsTotalGPUPercent: AlignedStatMetric
     let cmsTotalMemoryBytes: AlignedStatMetric
     let cmsProcesses: [AlignedCMSProcessItem]
+    /// Clipto group minus CMS processes, summed per sample (added in 2.1).
+    var cliptoNonCMSMemoryBytes: AlignedStatMetric = AlignedStatMetric(avg: nil, max: nil, min: nil, p95: nil, count: 0)
+    var cliptoMembers: [AlignedCliptoMemberItem] = []
+    var storage: StorageUsageReport? = nil
     let series: [AlignedTimeSeriesPoint]
 
     enum CodingKeys: String, CodingKey {
@@ -527,6 +581,9 @@ struct AlignedHardwareReport: Codable, Sendable {
         case cmsTotalGPUPercent = "cms_total_gpu_percent"
         case cmsTotalMemoryBytes = "cms_total_memory_bytes"
         case cmsProcesses = "cms_processes"
+        case cliptoNonCMSMemoryBytes = "clipto_non_cms_memory_bytes"
+        case cliptoMembers = "clipto_members"
+        case storage
         case series
     }
 }

@@ -46,10 +46,12 @@ enum MarkdownReportGenerator {
         // Headline KPIs
         lines.append("## 🎯 头条指标")
         lines.append("")
-        lines.append("| 端到端分析速度 | 全 CMS 内存峰值 | 全 CMS CPU P95 | 全 CMS GPU P95 | Clipto 进程组内存峰值 |")
-        lines.append("| :---: | :---: | :---: | :---: | :---: |")
-        lines.append("| **\(fmtSpeedup(primaryScope.wallSpeedup))** | **\(fmtBytesOpt(hw?.cmsTotalMemoryBytes.max))** | **\(fmtPct1(hw?.cmsTotalCPUPercent.p95))** | **\(fmtPct1(hw?.cmsTotalGPUPercent.p95))** | **\(fmtBytesOpt(hw?.cliptoMemoryBytes.max))** |")
-        lines.append("| 素材 \(fmtDurationShort(analysis.totalMediaDurationMs)) ÷ 端到端 \(fmtDurationShort(primaryScope.wallClockMs)) | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） | Clipto.app 全部进程物理内存合计 |")
+        let storage = analysis.alignedHardware?.storage
+        let storageGrowth = storage.flatMap { s in s.startBytes.map { s.endBytes - $0 } }
+        lines.append("| 端到端分析速度 | 全 CMS 内存峰值 | 全 CMS CPU P95 | 全 CMS GPU P95 | Clipto 进程组内存峰值 | Clipto 数据目录 |")
+        lines.append("| :---: | :---: | :---: | :---: | :---: | :---: |")
+        lines.append("| **\(fmtSpeedup(primaryScope.wallSpeedup))** | **\(fmtBytesOpt(hw?.cmsTotalMemoryBytes.max))** | **\(fmtPct1(hw?.cmsTotalCPUPercent.p95))** | **\(fmtPct1(hw?.cmsTotalGPUPercent.p95))** | **\(fmtBytesOpt(hw?.cliptoMemoryBytes.max))** | **\(fmtBytesOpt(storage?.endBytes))** |")
+        lines.append("| 素材 \(fmtDurationShort(analysis.totalMediaDurationMs)) ÷ 端到端 \(fmtDurationShort(primaryScope.wallClockMs)) | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） | Clipto.app 全部进程物理内存合计 | \(storageGrowth.map { "运行期间 \(fmtSignedBytes($0))" } ?? "com.clipto.mac 磁盘占用") |")
         lines.append("")
 
         // Section 1: Throughput overview
@@ -74,12 +76,15 @@ enum MarkdownReportGenerator {
                     lines.append("> ⚠️ 硬件采样覆盖率仅 \(String(format: "%.1f%%", hw.coveragePercent))（运行期间 CliptoPulse 未全程采集），以下硬件数据只代表部分时段。")
                     lines.append("")
                 }
+                lines.append("### 2.1 资源水位汇总")
+                lines.append("")
                 lines.append("| 监控对象与指标 | 平均值 | P95 | 峰值 | 补充信息 |")
                 lines.append("| :--- | :---: | :---: | :---: | :--- |")
                 lines.append("| **全 CMS 物理内存** | \(fmtBytesOpt(hw.cmsTotalMemoryBytes.avg)) | \(fmtBytesOpt(hw.cmsTotalMemoryBytes.p95)) | **\(fmtBytesOpt(hw.cmsTotalMemoryBytes.max))** | `phys_footprint`，\(hw.cmsProcesses.count) 类 cms 进程 |")
                 lines.append("| **全 CMS CPU（单核=100%）** | \(fmtPct1(hw.cmsTotalCPUPercent.avg)) | \(fmtPct1(hw.cmsTotalCPUPercent.p95)) | **\(fmtPct1(hw.cmsTotalCPUPercent.max))** | 名称含 `cms` 的进程合计 |")
                 lines.append("| **全 CMS GPU** | \(fmtPct1(hw.cmsTotalGPUPercent.avg)) | \(fmtPct1(hw.cmsTotalGPUPercent.p95)) | **\(fmtPct1(hw.cmsTotalGPUPercent.max))** | 按进程 GPU 时间统计（不含 ANE） |")
                 lines.append("| **Clipto 进程组 CPU / 内存** | \(fmtPct(hw.cliptoCPUPercent.avg)) / \(fmtBytesOpt(hw.cliptoMemoryBytes.avg)) | \(fmtPct(hw.cliptoCPUPercent.p95)) / \(fmtBytesOpt(hw.cliptoMemoryBytes.p95)) | **\(fmtPct(hw.cliptoCPUPercent.max))** / **\(fmtBytesOpt(hw.cliptoMemoryBytes.max))** | 最多 \(hw.cliptoMaxProcesses) 个子进程 |")
+                lines.append("| **Clipto 非 CMS 进程内存** | \(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.avg)) | \(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.p95)) | **\(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.max))** | 进程组中名称不含 cms 的进程合计（明细见下表） |")
                 lines.append("| **Clipto 进程组 GPU** | \(fmtPct(hw.cliptoGPUPercent.avg)) | \(fmtPct(hw.cliptoGPUPercent.p95)) | **\(fmtPct(hw.cliptoGPUPercent.max))** | 磁盘读峰值 \(fmtRateOpt(hw.cliptoDiskReadBps.max)) / 写峰值 \(fmtRateOpt(hw.cliptoDiskWriteBps.max)) |")
                 lines.append("| **整机 CPU / GPU / ANE** | \(fmtPct(hw.sysCPU.avg)) / \(fmtPct(hw.sysGPU.avg)) / \(fmtPct(hw.aneUsage.avg)) | \(fmtPct(hw.sysCPU.p95)) / \(fmtPct(hw.sysGPU.p95)) / \(fmtPct(hw.aneUsage.p95)) | **\(fmtPct(hw.sysCPU.max))** / **\(fmtPct(hw.sysGPU.max))** / **\(fmtPct(hw.aneUsage.max))** | 系统级利用率 |")
                 lines.append("| **整机内存 / Swap** | \(fmtBytesOpt(hw.sysMemBytes.avg)) | \(fmtBytesOpt(hw.sysMemBytes.p95)) | **\(fmtBytesOpt(hw.sysMemBytes.max))** | Swap 峰值 **\(fmtBytesOpt(hw.swapUsedBytes.max))** |")
@@ -87,15 +92,30 @@ enum MarkdownReportGenerator {
                 lines.append("| **整机功耗** | \(fmtWatts(hw.sysPowerWatts.avg)) | \(fmtWatts(hw.sysPowerWatts.p95)) | **\(fmtWatts(hw.sysPowerWatts.max))** | \(energyText)；最高热状态 **\(thermalLabel(hw.worstThermalState))** |")
                 lines.append("")
 
-                if options.includeCMSProcesses, !hw.cmsProcesses.isEmpty {
-                    lines.append("### CMS 子进程明细")
-                    lines.append("")
-                    lines.append("| CMS 进程名 | 实例数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |")
-                    lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
-                    for proc in hw.cmsProcesses.prefix(12) {
-                        lines.append("| `\(escapeMD(proc.name))` | \(proc.instanceCount) | \(fmtPct1(proc.avgCPUPercent)) | **\(fmtPct1(proc.maxCPUPercent))** | \(fmtBytesOpt(proc.avgMemoryBytes)) | **\(fmtBytesOpt(proc.maxMemoryBytes))** |")
+                if options.includeCMSProcesses {
+                    if !hw.cliptoMembers.isEmpty {
+                        // Every process name in the Clipto group: CMS first, then the rest, each by avg memory.
+                        let cms = hw.cliptoMembers.filter(\.isCMS)
+                        let others = hw.cliptoMembers.filter { !$0.isCMS }
+                        lines.append("### 2.2 Clipto 进程组全进程明细（\(hw.cliptoMembers.count) 个进程名：CMS \(cms.count) · 其他 \(others.count)）")
+                        lines.append("")
+                        lines.append("| 进程名 | 类型 | 最多实例 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |")
+                        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: |")
+                        for m in cms + others {
+                            lines.append("| `\(escapeMD(m.name))` | \(m.isCMS ? "CMS" : "其他") | \(m.maxInstances) | \(fmtBytesOpt(m.avgMemoryBytes)) | **\(fmtBytesOpt(m.maxMemoryBytes))** | \(fmtPct1(m.avgCPUPercent)) | \(fmtPct1(m.maxCPUPercent)) |")
+                        }
+                        lines.append("")
+                    } else if !hw.cmsProcesses.isEmpty {
+                        // History recorded before 2.1 only has the CMS subset.
+                        lines.append("### 2.2 CMS 进程明细（本时段无全进程组记录）")
+                        lines.append("")
+                        lines.append("| CMS 进程名 | 实例数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |")
+                        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
+                        for proc in hw.cmsProcesses {
+                            lines.append("| `\(escapeMD(proc.name))` | \(proc.instanceCount) | \(fmtPct1(proc.avgCPUPercent)) | **\(fmtPct1(proc.maxCPUPercent))** | \(fmtBytesOpt(proc.avgMemoryBytes)) | **\(fmtBytesOpt(proc.maxMemoryBytes))** |")
+                        }
+                        lines.append("")
                     }
-                    lines.append("")
                 }
             } else {
                 lines.append("> 该分析区间内没有 CliptoPulse 硬件采样记录（采集未开启或早于历史保留期）。测试期间请保持菜单栏 CliptoPulse 常驻运行。")
@@ -103,8 +123,38 @@ enum MarkdownReportGenerator {
             }
         }
 
-        // Section 3: Diagnostics & notes
-        lines.append("## 三、异常诊断与开发记录")
+        // Section 3: User storage occupied by Clipto
+        lines.append("## 三、用户存储占用")
+        lines.append("")
+        if let st = hw?.storage ?? analysis.alignedHardware?.storage {
+            let growth = st.startBytes.map { st.endBytes - $0 }
+            lines.append("| 指标项 | 数值结果 | 说明 |")
+            lines.append("| :--- | :--- | :--- |")
+            lines.append("| **Clipto 数据目录\(st.isCurrentFallback ? "（当前）" : "（运行结束）")** | **\(fmtBytes(st.endBytes))** | `\(escapeMD((st.path as NSString).abbreviatingWithTildeInPath))` · \(st.fileCount) 个文件 · 测于 \(st.endText) |")
+            lines.append("| **运行开始前** | \(st.startBytes.map(fmtBytes) ?? "—") | 每 5 分钟测量一次磁盘实际占用 |")
+            lines.append("| **运行期间增长** | **\(growth.map(fmtSignedBytes) ?? "—")** | 峰值 \(fmtBytes(st.peakBytes)) |")
+            lines.append("")
+            if !st.breakdown.isEmpty {
+                lines.append("| 子目录 / 文件 | 占用 |")
+                lines.append("| :--- | :---: |")
+                // Items ≥ 1 MB listed individually; smaller ones merged so the total stays exact.
+                let big = st.breakdown.filter { $0.bytes >= 1_048_576 }
+                let small = st.breakdown.filter { $0.bytes > 0 && $0.bytes < 1_048_576 }
+                for item in big {
+                    lines.append("| `\(escapeMD(item.name))` | \(fmtBytes(item.bytes)) |")
+                }
+                if !small.isEmpty {
+                    lines.append("| 其余 \(small.count) 项（均小于 1 MB） | \(fmtBytes(small.reduce(0) { $0 + $1.bytes })) |")
+                }
+                lines.append("")
+            }
+        } else {
+            lines.append("> 暂无数据目录测量记录（CliptoPulse 启动后每 5 分钟测量一次）。")
+            lines.append("")
+        }
+
+        // Section 4: Diagnostics & notes
+        lines.append("## 四、异常诊断与开发记录")
         lines.append("")
         if !analysis.failedTaskSamples.isEmpty {
             lines.append("| 时间 | 资产 ID | 算法节点 | 状态 | 错误摘要 |")
@@ -238,6 +288,10 @@ enum MarkdownReportGenerator {
         if gb >= 1 { return String(format: "%.2f GB", gb) }
         let mb = bytes / (1_024 * 1_024)
         return String(format: "%.1f MB", mb)
+    }
+
+    private static func fmtSignedBytes(_ bytes: Double) -> String {
+        bytes < 0 ? "−\(fmtBytes(-bytes))" : "+\(fmtBytes(bytes))"
     }
 
     private static func fmtBytesOpt(_ bytes: Double?) -> String {

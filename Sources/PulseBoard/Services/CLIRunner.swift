@@ -218,7 +218,11 @@ enum SelfTestSuite {
                 cliptoGPUPercent: 28.0,
                 swapUsedBytes: 0,
                 swapTotalBytes: 2_147_483_648,
-                cmsGPUPercent: 40.0
+                cmsGPUPercent: 40.0,
+                cliptoMembers: [
+                    CliptoMemberSample(name: "cms_vlm_worker", isCMS: true, count: 1, memoryBytes: 2_147_483_648, cpuPercent: 185),
+                    CliptoMemberSample(name: "Clipto Helper (Renderer)", isCMS: false, count: 3, memoryBytes: 1_073_741_824, cpuPercent: 12)
+                ]
             )
 
             let raw = CMSRawSnapshot(
@@ -246,6 +250,12 @@ enum SelfTestSuite {
             try store.append(system: sample, cms: cmsFrame)
         }
 
+        let gb = 1_073_741_824.0
+        try store.appendStorage(StorageSnapshot(timestamp: sessionStart.addingTimeInterval(-60), path: "/tmp/com.clipto.mac",
+                                                allocatedBytes: 10 * gb, fileCount: 100, breakdown: ["dagsc_data": 6 * gb]))
+        try store.appendStorage(StorageSnapshot(timestamp: sessionStart.addingTimeInterval(70), path: "/tmp/com.clipto.mac",
+                                                allocatedBytes: 12 * gb, fileCount: 120, breakdown: ["dagsc_data": 8 * gb, "cache": 4 * gb]))
+
         let env = SystemEnvironmentService.current(webPort: 8766, historyDBURL: historyURL)
         var analysis = try DAGSCAnalyzer.analyze(
             options: DAGSCQueryOptions(inputPath: tempDir.path, sliceMode: "batch", batchID: "batch-3"),
@@ -263,6 +273,9 @@ enum SelfTestSuite {
         try check(aligned.cliptoMemoryBytes.max == 4_294_967_296, "Expected Clipto max memory 4 GiB")
         try check(aligned.cmsProcesses.count == 2, "Expected 2 CMS process summaries")
         try check((aligned.estimatedEnergyWh ?? 0) > 0.05, "Expected positive estimatedEnergyWh")
+        try check(aligned.cliptoMembers.count == 2 && aligned.cliptoMembers.first?.name == "cms_vlm_worker", "Clipto member breakdown mismatch")
+        try check(aligned.cliptoNonCMSMemoryBytes.max == gb, "Non-CMS memory should be 1 GiB")
+        try check(aligned.storage?.startBytes == 10 * gb && aligned.storage?.endBytes == 12 * gb, "Storage start/end mismatch")
         try check(aligned.cmsTotalGPUPercent.p95 == 40.0, "Expected CMS GPU P95 == 40%, got \(String(describing: aligned.cmsTotalGPUPercent.p95))")
 
         analysis.alignedHardware = aligned
@@ -279,7 +292,8 @@ enum SelfTestSuite {
 
         try check(md.contains("# Clipto Mac ") && md.contains(" 离线分析性能晨报"), "Missing Markdown report H1 header")
         try check(md.contains("## 🎯 头条指标"), "Missing headline KPI section")
-        try check(md.contains("| **6.00x** | **2.50 GB** | **250.0%** | **40.0%** | **4.00 GB** |"), "Headline KPI values mismatch")
+        try check(md.contains("| **6.00x** | **2.50 GB** | **250.0%** | **40.0%** | **4.00 GB** | **12.00 GB** |"), "Headline KPI values mismatch")
+        try check(md.contains("运行期间 +2.00 GB"), "Storage headline caption mismatch")
         try check(!md.contains("算法服务耗时瓶颈") && !md.contains("长尾慢素材"), "Sections 3/4 should be removed")
         try check(md.contains("**评测人**：测试工程师 A"), "Missing reporter field in Markdown")
         try check(md.contains("http://192.168.1.23:8766"), "Missing LAN detail link (normalized host + port)")
@@ -288,6 +302,10 @@ enum SelfTestSuite {
         try check(ReportProfile.pickWorkLANHost(from: ["198.18.0.1"]).isEmpty, "No 192.168.* address -> no auto IP")
         try check(md.contains("优化 VLM 并发与解码管线 \\| 降低峰值内存"), "Unescaped pipe in changeSummary")
         try check(md.contains("## 二、运行期硬件与进程资源水位"), "Missing aligned hardware section")
+        try check(md.contains("`Clipto Helper (Renderer)` | 其他 | 3 |"), "Missing Clipto group breakdown row")
+        try check(md.contains("全进程明细（2 个进程名：CMS 1 · 其他 1）"), "Full process table header mismatch")
+        try check(!md.contains("### CMS 子进程明细"), "Separate CMS table should be merged into the full table")
+        try check(md.contains("## 三、用户存储占用") && md.contains("**+2.00 GB**"), "Missing storage section / growth")
         let csv = ReportCSVGenerator.generate(analysis: analysis)
         let csvRows = csv.dropFirst().split(separator: "\r\n", omittingEmptySubsequences: false).dropLast()
         try check(csvRows.count == ReportCSVGenerator.rowLabels.count, "CSV row count mismatch: \(csvRows.count)")
@@ -295,7 +313,7 @@ enum SelfTestSuite {
         try check(csvRows.dropFirst().first == "6.00", "CSV row 2 must be end-to-end speedup, got \(String(describing: csvRows.dropFirst().first))")
         try check(!csvRows.contains(where: { $0.contains(",") && !$0.hasPrefix("\"") }), "CSV must stay single-column")
         let layout = ReportLayout(blocks: ReportMarkdownParser.parse(md))
-        try check(layout.kpis.count == 5 && layout.kpis[0].value.contains("6.00x"), "Headline KPI strip not detected by image layout")
+        try check(layout.kpis.count == 6 && layout.kpis[0].value.contains("6.00x"), "Headline KPI strip not detected by image layout")
         try check(md.contains("`cms_vlm_worker`"), "Missing CMS worker row in Markdown")
     }
 

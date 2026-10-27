@@ -34,6 +34,8 @@ struct MetricSample: Codable, Identifiable, Hashable, Sendable {
     let swapTotalBytes: Double
     /// Summed GPU busy % of all CMS-named processes (added in 2.1; nil for older history rows).
     var cmsGPUPercent: Double? = nil
+    /// Clipto group grouped by process name (live samples only; not read back by `fetch`).
+    var cliptoMembers: [CliptoMemberSample] = []
 
     var cliptoRunning: Bool { (cliptoProcessCount ?? 0) > 0 }
 
@@ -46,6 +48,14 @@ struct MetricSample: Codable, Identifiable, Hashable, Sendable {
         default: L10n.text("thermal.unknown")
         }
     }
+}
+
+struct CliptoMemberSample: Codable, Hashable, Sendable {
+    let name: String
+    let isCMS: Bool
+    var count: Int
+    var memoryBytes: Double
+    var cpuPercent: Double?
 }
 
 enum HistoryRange: String, CaseIterable, Identifiable {

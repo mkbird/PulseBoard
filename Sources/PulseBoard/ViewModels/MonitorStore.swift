@@ -63,6 +63,9 @@ final class MonitorStore: ObservableObject {
     private var cmsStatistics: CMSProcessSession
     private var cmsSessionID = UUID().uuidString
     private var sleepActivity: NSObjectProtocol?
+    private var storageTask: Task<Void, Never>?
+    /// Clipto data directory is re-measured this often (full tree walk, done off the main actor).
+    static let storageScanInterval: TimeInterval = 300
     private var cmsSequence: Int64 = 0
     private var cmsSegment: Int64 = 0
     private var workspaceSubscriptions = Set<AnyCancellable>()
@@ -119,6 +122,7 @@ final class MonitorStore: ObservableObject {
         let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
         if !isRunningTests {
             applySleepPolicy()
+            startStorageScanning()
         }
         if enableWebServer && !isRunningTests {
             startWebConsoleServer()
@@ -237,6 +241,21 @@ final class MonitorStore: ObservableObject {
                 showMenuFeedback("✓ 已复制晨报图片，可直接粘贴到飞书/微信群")
             } catch {
                 showMenuFeedback("晨报图片生成失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - Clipto storage usage
+
+    private func startStorageScanning() {
+        storageTask?.cancel()
+        let historyRef = history
+        storageTask = Task.detached(priority: .utility) {
+            while !Task.isCancelled {
+                if let snap = StorageScanner.scan() {
+                    try? await historyRef.appendStorage(snap)
+                }
+                try? await Task.sleep(for: .seconds(MonitorStore.storageScanInterval))
             }
         }
     }
@@ -454,6 +473,7 @@ final class MonitorStore: ObservableObject {
 
     func prepareForTermination() async {
         isTerminating = true
+        storageTask?.cancel()
         applySleepPolicy()
         webServer?.stop()
         webServerRunning = false

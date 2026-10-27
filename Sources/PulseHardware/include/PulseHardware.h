@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +38,19 @@ typedef struct {
     double cms_gpu_percent;
     int cms_gpu_valid;
 } PBAppMetrics;
+
+/* One member of the Clipto process group, captured by the last pb_clipto_sample(). */
+typedef struct {
+    pid_t pid;
+    char name[96];
+    double memory_bytes;   /* phys_footprint */
+    double cpu_percent;    /* single core = 100 */
+    int cpu_valid;
+    int is_cms;
+} PBAppProcess;
+
+/* Members of the Clipto group from the most recent pb_clipto_sample(). Valid until the next call. */
+size_t pb_clipto_last_processes(const PBAppProcess **out);
 
 typedef struct {
     int32_t pid;

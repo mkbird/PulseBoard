@@ -89,6 +89,14 @@ typedef struct {
     int is_cms;
 } PBPreviousProcess;
 
+static PBAppProcess *g_last_app_processes = NULL;
+static size_t g_last_app_process_count = 0;
+
+size_t pb_clipto_last_processes(const PBAppProcess **out) {
+    if (out) *out = g_last_app_processes;
+    return g_last_app_process_count;
+}
+
 static PBPreviousProcess *g_previous_clipto_processes = NULL;
 static size_t g_previous_clipto_count = 0;
 static uint64_t g_previous_clipto_time = 0;
@@ -626,6 +634,20 @@ static void collect_clipto_gpu_time(PBPreviousProcess *processes, size_t count) 
     IOObjectRelease(accelerators);
 }
 
+/* Reusable buffer for the per-process breakdown (grows, never shrinks). */
+static size_t g_member_capacity = 0;
+static PBAppProcess *metrics_member_buffer(size_t needed) {
+    g_last_app_process_count = 0;
+    if (needed == 0) return g_last_app_processes;
+    if (needed > g_member_capacity) {
+        PBAppProcess *grown = realloc(g_last_app_processes, needed * sizeof(PBAppProcess));
+        if (!grown) return NULL;
+        g_last_app_processes = grown;
+        g_member_capacity = needed;
+    }
+    return g_last_app_processes;
+}
+
 PBAppMetrics pb_clipto_sample(void) {
     PBAppMetrics metrics = {0};
     int buffer_size = proc_listpids(PROC_ALL_PIDS, 0, NULL, 0);
@@ -696,6 +718,8 @@ PBAppMetrics pb_clipto_sample(void) {
     uint64_t cpu_delta = 0;
     uint64_t read_delta = 0;
     uint64_t write_delta = 0;
+    PBAppProcess *members = metrics_member_buffer(matched_count);
+    size_t member_count = 0;
     uint64_t gpu_delta = 0;
     uint64_t cms_gpu_delta = 0;
     unsigned int cms_count = 0;
@@ -725,8 +749,32 @@ PBAppMetrics pb_clipto_sample(void) {
         if (current && current_count < matched_count) current[current_count++] = snapshot;
 
         if (!is_clipto) continue;
+        PBAppProcess *member = NULL;
+        if (members && member_count < matched_count) {
+            member = &members[member_count++];
+            memset(member, 0, sizeof(*member));
+            member->pid = snapshot.pid;
+            member->memory_bytes = (double)usage.ri_phys_footprint;
+            member->is_cms = is_cms;
+            char path[PROC_PIDPATHINFO_MAXSIZE] = {0};
+            if (proc_pidpath(snapshot.pid, path, sizeof(path)) > 0) {
+                const char *separator = strrchr(path, '/');
+                strlcpy(member->name, separator ? separator + 1 : path, sizeof(member->name));
+            } else {
+                proc_name(snapshot.pid, member->name, sizeof(member->name));
+            }
+        }
         const PBPreviousProcess *previous = previous_clipto_process(snapshot.pid, snapshot.start_time);
         if (!previous) continue;
+        if (member && snapshot.cpu_time >= previous->cpu_time && now > g_previous_clipto_time && g_previous_clipto_time != 0) {
+            if (g_timebase.denom == 0) mach_timebase_info(&g_timebase);
+            double wall = (double)(now - g_previous_clipto_time) * (double)g_timebase.numer / (double)g_timebase.denom / 1e9;
+            double cpu = (double)(snapshot.cpu_time - previous->cpu_time) * (double)g_timebase.numer / (double)g_timebase.denom / 1e9;
+            if (wall >= 0.05) {
+                member->cpu_percent = cpu / wall * 100.0;
+                member->cpu_valid = 1;
+            }
+        }
         if (snapshot.cpu_time >= previous->cpu_time) cpu_delta += snapshot.cpu_time - previous->cpu_time;
         if (snapshot.disk_read >= previous->disk_read) read_delta += snapshot.disk_read - previous->disk_read;
         if (snapshot.disk_write >= previous->disk_write) write_delta += snapshot.disk_write - previous->disk_write;
@@ -766,6 +814,7 @@ PBAppMetrics pb_clipto_sample(void) {
         }
     }
     metrics.running = metrics.process_count > 0;
+    g_last_app_process_count = member_count;
 
     free(g_previous_clipto_processes);
     g_previous_clipto_processes = current;
@@ -783,6 +832,10 @@ void pb_hardware_shutdown(void) {
     free(g_previous_clipto_processes);
     g_previous_clipto_processes = NULL;
     g_previous_clipto_count = 0;
+    free(g_last_app_processes);
+    g_last_app_processes = NULL;
+    g_last_app_process_count = 0;
+    g_member_capacity = 0;
     g_previous_clipto_time = 0;
     g_previous_time = 0;
     memset(&g_cpu_power_window, 0, sizeof(g_cpu_power_window));

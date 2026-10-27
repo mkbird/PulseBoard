@@ -30,6 +30,10 @@ actor HistoryRepository {
         return try connection().fetchCMS(from: from, to: to)
     }
 
+    func appendStorage(_ snapshot: StorageSnapshot) throws {
+        try connection().appendStorage(snapshot)
+    }
+
     func resolvedDatabaseURL() throws -> URL {
         try connection().databaseURL
     }

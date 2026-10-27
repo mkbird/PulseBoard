@@ -230,7 +230,8 @@ private enum Palette {
         Color(red: 0.49, green: 0.23, blue: 0.93),  // memory – violet
         Color(red: 0.92, green: 0.35, blue: 0.05),  // CPU – orange
         Color(red: 0.15, green: 0.39, blue: 0.92),  // GPU – blue
-        Color(red: 0.86, green: 0.15, blue: 0.47)   // Clipto memory – rose
+        Color(red: 0.86, green: 0.15, blue: 0.47),  // Clipto memory – rose
+        Color(red: 0.05, green: 0.55, blue: 0.65)   // storage – teal
     ]
 }
 
@@ -285,9 +286,18 @@ private struct ReportImageView: View {
                 }
             }
             if !layout.kpis.isEmpty {
-                HStack(alignment: .top, spacing: 14) {
-                    ForEach(Array(layout.kpis.enumerated()), id: \.offset) { idx, kpi in
-                        kpiCard(kpi, color: Palette.kpiColors[idx % Palette.kpiColors.count])
+                // 3 cards per row (6 headline KPIs → 2 rows)
+                let perRow = layout.kpis.count > 4 ? 3 : max(1, layout.kpis.count)
+                let rows = stride(from: 0, to: layout.kpis.count, by: perRow).map { Array($0..<min($0 + perRow, layout.kpis.count)) }
+                VStack(spacing: 14) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        HStack(alignment: .top, spacing: 14) {
+                            ForEach(row, id: \.self) { idx in
+                                kpiCard(layout.kpis[idx], color: Palette.kpiColors[idx % Palette.kpiColors.count])
+                            }
+                            ForEach(0..<(perRow - row.count), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity) }
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(.top, 6)
@@ -329,7 +339,7 @@ private struct ReportImageView: View {
                     .foregroundStyle(Palette.muted)
             }
             Text(ReportMarkdownParser.inline(kpi.value.replacingOccurrences(of: "**", with: "")))
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
+                .font(.system(size: 40, weight: .heavy, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(color)
                 .lineLimit(1)

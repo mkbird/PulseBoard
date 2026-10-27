@@ -243,7 +243,7 @@ extension HistoryStore {
         let seriesTo = Date(timeIntervalSince1970: Double(windowEndMs + 2_000) / 1_000.0)
         let series = (try? fetchWebHistory(from: seriesFrom, to: seriesTo, maxPoints: maxSeriesPoints)) ?? []
 
-        return AlignedHardwareReport(
+        var report = AlignedHardwareReport(
             hasData: true,
             sampleCount: sortedSamples.count,
             cmsFrameCount: cmsFrameCount,
@@ -282,6 +282,131 @@ extension HistoryStore {
             cmsTotalMemoryBytes: cmsMemTracker.metric,
             cmsProcesses: cmsProcesses,
             series: series
+        )
+        let breakdown = try fetchCliptoMemberBreakdown(intervalsMs: queryIntervals)
+        report.cliptoMembers = breakdown.members
+        report.cliptoNonCMSMemoryBytes = breakdown.nonCMS
+        report.storage = try? fetchStorageUsage(startMs: windowStartMs, endMs: windowEndMs)
+        return report
+    }
+
+    // MARK: - Clipto group breakdown & storage
+
+    private func fetchCliptoMemberBreakdown(intervalsMs: [(Int64, Int64)]) throws
+        -> (members: [AlignedCliptoMemberItem], nonCMS: AlignedStatMetric) {
+        struct Acc {
+            var isCMS = false
+            var maxInstances = 0
+            var memSum = 0.0, memCnt = 0, memMax: Double?
+            var cpuSum = 0.0, cpuCnt = 0, cpuMax: Double?
+        }
+        var byName: [String: Acc] = [:]
+        var nonCMSPerSample: [Double: Double] = [:]
+        for (sMs, eMs) in intervalsMs {
+            try withStatement("""
+            SELECT timestamp, name, is_cms, process_count, memory_bytes, cpu_percent
+            FROM clipto_member_samples WHERE timestamp BETWEEN ? AND ?;
+            """) { stmt in
+                try check(sqlite3_bind_double(stmt, 1, Double(sMs) / 1_000.0))
+                try check(sqlite3_bind_double(stmt, 2, Double(eMs) / 1_000.0))
+                while try nextRow(stmt) {
+                    let ts = sqlite3_column_double(stmt, 0)
+                    guard let namePtr = sqlite3_column_text(stmt, 1) else { continue }
+                    let name = String(cString: namePtr)
+                    let isCMS = sqlite3_column_int(stmt, 2) != 0
+                    let count = Int(sqlite3_column_int(stmt, 3))
+                    let mem = sqlite3_column_double(stmt, 4)
+                    var acc = byName[name] ?? Acc()
+                    acc.isCMS = isCMS
+                    acc.maxInstances = max(acc.maxInstances, count)
+                    acc.memSum += mem; acc.memCnt += 1; acc.memMax = max(acc.memMax ?? mem, mem)
+                    if let cpu = optionalDouble(stmt, 5), cpu.isFinite {
+                        acc.cpuSum += cpu; acc.cpuCnt += 1; acc.cpuMax = max(acc.cpuMax ?? cpu, cpu)
+                    }
+                    byName[name] = acc
+                    if !isCMS { nonCMSPerSample[ts, default: 0] += mem }
+                }
+            }
+        }
+        // Average over samples where the process existed (same convention as the CMS table).
+        let members = byName.map { name, a in
+            AlignedCliptoMemberItem(
+                name: name, isCMS: a.isCMS, maxInstances: a.maxInstances,
+                avgMemoryBytes: a.memCnt > 0 ? a.memSum / Double(a.memCnt) : nil,
+                maxMemoryBytes: a.memMax,
+                avgCPUPercent: a.cpuCnt > 0 ? a.cpuSum / Double(a.cpuCnt) : nil,
+                maxCPUPercent: a.cpuMax
+            )
+        }
+        .sorted { ($0.avgMemoryBytes ?? 0) > ($1.avgMemoryBytes ?? 0) }
+        var tracker = StatTracker()
+        for v in nonCMSPerSample.values { tracker.add(v) }
+        return (members, tracker.metric)
+    }
+
+    func appendStorage(_ snap: StorageSnapshot) throws {
+        let json = (try? JSONEncoder().encode(snap.breakdown)).flatMap { String(data: $0, encoding: .utf8) }
+        try withStatement("""
+        INSERT OR REPLACE INTO storage_samples(timestamp,path,allocated_bytes,file_count,breakdown_json) VALUES (?,?,?,?,?);
+        """) { stmt in
+            try check(sqlite3_bind_double(stmt, 1, snap.timestamp.timeIntervalSince1970))
+            try check(snap.path.withCString { sqlite3_bind_text(stmt, 2, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) })
+            try check(sqlite3_bind_double(stmt, 3, snap.allocatedBytes))
+            try check(sqlite3_bind_int64(stmt, 4, Int64(snap.fileCount)))
+            if let json {
+                try check(json.withCString { sqlite3_bind_text(stmt, 5, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) })
+            } else {
+                try check(sqlite3_bind_null(stmt, 5))
+            }
+            guard sqlite3_step(stmt) == SQLITE_DONE else { throw StoreError.queryFailed("storage insert failed") }
+        }
+    }
+
+    /// Start = last scan at/before the run start (or first inside it); end = last scan up to 15 min after the run.
+    func fetchStorageUsage(startMs: Int64, endMs: Int64) throws -> StorageUsageReport? {
+        struct Row { let ts: Double; let path: String; let bytes: Double; let files: Int; let json: String? }
+        func rows(_ sql: String, _ binds: [Double]) throws -> [Row] {
+            try withStatement(sql) { stmt in
+                for (i, b) in binds.enumerated() { try check(sqlite3_bind_double(stmt, Int32(i + 1), b)) }
+                var out: [Row] = []
+                while try nextRow(stmt) {
+                    out.append(Row(
+                        ts: sqlite3_column_double(stmt, 0),
+                        path: sqlite3_column_text(stmt, 1).map { String(cString: $0) } ?? "",
+                        bytes: sqlite3_column_double(stmt, 2),
+                        files: Int(sqlite3_column_int64(stmt, 3)),
+                        json: sqlite3_column_text(stmt, 4).map { String(cString: $0) }
+                    ))
+                }
+                return out
+            }
+        }
+        let cols = "timestamp,path,allocated_bytes,file_count,breakdown_json"
+        let s = Double(startMs) / 1_000, e = Double(endMs) / 1_000
+        let before = try rows("SELECT \(cols) FROM storage_samples WHERE timestamp <= ? ORDER BY timestamp DESC LIMIT 1;", [s])
+        let inside = try rows("SELECT \(cols) FROM storage_samples WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp;", [s, e + 900])
+        var fallback = false
+        var endRow = inside.last
+        if endRow == nil {
+            endRow = try rows("SELECT \(cols) FROM storage_samples ORDER BY timestamp DESC LIMIT 1;", []).first
+            fallback = true
+        }
+        guard let endRow else { return nil }
+        let startRow = before.first ?? inside.first
+        let peak = ([endRow.bytes] + inside.map(\.bytes)).max() ?? endRow.bytes
+        let breakdown = (endRow.json?.data(using: .utf8))
+            .flatMap { try? JSONDecoder().decode([String: Double].self, from: $0) }?
+            .map { StorageBreakdownItem(name: $0.key, bytes: $0.value) }
+            .sorted { $0.bytes > $1.bytes } ?? []
+        return StorageUsageReport(
+            path: endRow.path,
+            startBytes: fallback ? nil : startRow?.bytes,
+            endBytes: endRow.bytes,
+            peakBytes: peak,
+            fileCount: endRow.files,
+            endText: DAGSCAnalyzer.formatTimestampMs(Int64(endRow.ts * 1_000)),
+            isCurrentFallback: fallback,
+            breakdown: breakdown
         )
     }
 

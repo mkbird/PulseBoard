@@ -32,6 +32,7 @@ enum ReportCSVGenerator {
     private static func rows(for a: DAGSCAnalysisResponse?) -> [Row] {
         let scope = a?.scopes.assetAnalysis
         let hw = a?.alignedHardware.flatMap { $0.hasData ? $0 : nil }
+        let storage = a?.alignedHardware?.storage
         let gb = 1_024.0 * 1_024.0 * 1_024.0
 
         func num(_ v: Double?, _ digits: Int) -> String {
@@ -81,7 +82,10 @@ enum ReportCSVGenerator {
             Row(label: "分析模板版本", value: a?.templateVersion ?? ""),
             Row(label: "测试机型", value: machine),
             // Appended later — keep new rows at the end so existing tracking sheets stay aligned.
-            Row(label: "评测人", value: a == nil ? "" : ReportProfile.reporter)
+            Row(label: "评测人", value: a == nil ? "" : ReportProfile.reporter),
+            Row(label: "Clipto 非 CMS 进程内存峰值 (GB)", value: bytesGB(hw?.cliptoNonCMSMemoryBytes.max)),
+            Row(label: "Clipto 数据目录大小 (GB)", value: bytesGB(storage?.endBytes)),
+            Row(label: "Clipto 数据目录运行期间增长 (GB)", value: bytesGB(storage.flatMap { s in s.startBytes.map { s.endBytes - $0 } }))
         ]
     }
 
