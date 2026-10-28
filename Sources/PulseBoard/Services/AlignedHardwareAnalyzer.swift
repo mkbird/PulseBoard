@@ -283,7 +283,7 @@ extension HistoryStore {
             cmsProcesses: cmsProcesses,
             series: series
         )
-        let breakdown = try fetchCliptoMemberBreakdown(intervalsMs: queryIntervals)
+        let breakdown = try fetchCliptoMemberBreakdown(intervalsMs: queryIntervals, cmsProcesses: cmsProcesses)
         report.cliptoMembers = breakdown.members
         report.cliptoNonCMSMemoryBytes = breakdown.nonCMS
         report.storage = try? fetchStorageUsage(startMs: windowStartMs, endMs: windowEndMs)
@@ -292,19 +292,23 @@ extension HistoryStore {
 
     // MARK: - Clipto group breakdown & storage
 
-    private func fetchCliptoMemberBreakdown(intervalsMs: [(Int64, Int64)]) throws
-        -> (members: [AlignedCliptoMemberItem], nonCMS: AlignedStatMetric) {
+    private func fetchCliptoMemberBreakdown(
+        intervalsMs: [(Int64, Int64)],
+        cmsProcesses: [AlignedCMSProcessItem] = []
+    ) throws -> (members: [AlignedCliptoMemberItem], nonCMS: AlignedStatMetric) {
         struct Acc {
             var isCMS = false
             var maxInstances = 0
+            var pids: Set<Int32> = []
             var memSum = 0.0, memCnt = 0, memMax: Double?
             var cpuSum = 0.0, cpuCnt = 0, cpuMax: Double?
         }
+        let cmsCountByName = Dictionary(uniqueKeysWithValues: cmsProcesses.map { ($0.name, $0.instanceCount) })
         var byName: [String: Acc] = [:]
         var nonCMSPerSample: [Double: Double] = [:]
         for (sMs, eMs) in intervalsMs {
             try withStatement("""
-            SELECT timestamp, name, is_cms, process_count, memory_bytes, cpu_percent
+            SELECT timestamp, name, is_cms, process_count, memory_bytes, cpu_percent, pids
             FROM clipto_member_samples WHERE timestamp BETWEEN ? AND ?;
             """) { stmt in
                 try check(sqlite3_bind_double(stmt, 1, Double(sMs) / 1_000.0))
@@ -319,6 +323,11 @@ extension HistoryStore {
                     var acc = byName[name] ?? Acc()
                     acc.isCMS = isCMS
                     acc.maxInstances = max(acc.maxInstances, count)
+                    if let pidsPtr = sqlite3_column_text(stmt, 6) {
+                        for token in String(cString: pidsPtr).split(separator: ",") {
+                            if let pid = Int32(token), pid > 0 { acc.pids.insert(pid) }
+                        }
+                    }
                     acc.memSum += mem; acc.memCnt += 1; acc.memMax = max(acc.memMax ?? mem, mem)
                     if let cpu = optionalDouble(stmt, 5), cpu.isFinite {
                         acc.cpuSum += cpu; acc.cpuCnt += 1; acc.cpuMax = max(acc.cpuMax ?? cpu, cpu)
@@ -329,9 +338,12 @@ extension HistoryStore {
             }
         }
         // Average over samples where the process existed (same convention as the CMS table).
+        // `maxInstances` now reports the cumulative distinct PIDs used across the interval
+        // (combining `clipto_member_samples.pids` with `cms_process_samples` identities).
         let members = byName.map { name, a in
-            AlignedCliptoMemberItem(
-                name: name, isCMS: a.isCMS, maxInstances: a.maxInstances,
+            let cumulativePIDs = max(a.pids.count, cmsCountByName[name] ?? 0, a.maxInstances)
+            return AlignedCliptoMemberItem(
+                name: name, isCMS: a.isCMS, maxInstances: cumulativePIDs,
                 avgMemoryBytes: a.memCnt > 0 ? a.memSum / Double(a.memCnt) : nil,
                 maxMemoryBytes: a.memMax,
                 avgCPUPercent: a.cpuCnt > 0 ? a.cpuSum / Double(a.cpuCnt) : nil,

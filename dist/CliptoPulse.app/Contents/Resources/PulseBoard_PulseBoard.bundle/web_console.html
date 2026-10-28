@@ -1279,7 +1279,7 @@
               <input type="checkbox" id="rpt-opt-hw" checked style="accent-color:#2563eb;"> 硬件与进程水位
             </label>
             <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
-              <input type="checkbox" id="rpt-opt-cms" checked style="accent-color:#2563eb;"> CMS 进程明细
+              <input type="checkbox" id="rpt-opt-cms" checked style="accent-color:#2563eb;"> 主要进程明细
             </label>
           </div>
         </div>
@@ -2124,7 +2124,7 @@
                   <tr>
                     <th>进程名</th>
                     <th style="width:90px;">类型</th>
-                    <th class="num">最多实例</th>
+                    <th class="num">累计使用PID数</th>
                     <th class="num">平均物理内存</th>
                     <th class="num">峰值物理内存</th>
                     <th class="num">平均 CPU (单核=100%)</th>
@@ -3287,23 +3287,40 @@
           out.push(`| **整机功耗** | ${watts(hw.sys_power_watts.avg)} | ${watts(hw.sys_power_watts.p95)} | **${watts(hw.sys_power_watts.max)}** | ${whStr}；最高热状态 **${thermalText(hw.worst_thermal_state)}** |`);
           out.push("");
 
+          const majorProcessNames = new Set([
+            "Clipto",
+            "Clipto Helper",
+            "cbs",
+            "cbs-worker",
+            "Clipto Helper (Renderer)",
+            "Clipto Helper (GPU)",
+            "dag-schedule-center",
+            "clipto_ffmpeg",
+            "clipto_ffprobe",
+            "cms_l2",
+            "cms_a10",
+            "cms_r5",
+            "cms_bt11",
+            "cms_vf12"
+          ]);
           const members = hw.clipto_members || [];
-          const cmsM = members.filter(x => x.is_cms);
-          if (incCms && cmsM.length > 0) {
-            out.push(`### 2.2 CMS 进程明细（${cmsM.length} 个进程名）`);
+          const majorM = members.filter(x => majorProcessNames.has(x.name));
+          const fallbackCms = (hw.cms_processes || []).filter(p => majorProcessNames.has(p.name));
+          if (incCms && majorM.length > 0) {
+            out.push(`### 2.2 主要进程明细（${majorM.length} 个进程名）`);
             out.push("");
-            out.push("| CMS 进程名 | 最多实例 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |");
+            out.push("| 进程名 | 累计使用PID数 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |");
             out.push("| :--- | :---: | :---: | :---: | :---: | :---: |");
-            cmsM.forEach(x => {
+            majorM.forEach(x => {
               out.push(`| \`${escMdCell(x.name)}\` | ${x.max_instances} | ${bytes(x.avg_memory_bytes)} | **${bytes(x.max_memory_bytes)}** | ${pct(x.avg_cpu_percent)} | **${pct(x.max_cpu_percent)}** |`);
             });
             out.push("");
-          } else if (incCms && hw.cms_processes && hw.cms_processes.length > 0) {
-            out.push("### 2.2 CMS 进程明细");
+          } else if (incCms && fallbackCms.length > 0) {
+            out.push("### 2.2 主要进程明细");
             out.push("");
-            out.push("| CMS 进程名 | 实例数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |");
+            out.push("| 进程名 | 累计使用PID数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |");
             out.push("| :--- | :---: | :---: | :---: | :---: | :---: |");
-            hw.cms_processes.forEach(p => {
+            fallbackCms.forEach(p => {
               out.push(`| \`${escMdCell(p.name)}\` | ${p.instance_count} | ${pct(p.avg_cpu_percent)} | **${pct(p.max_cpu_percent)}** | ${bytes(p.avg_memory_bytes)} | **${bytes(p.max_memory_bytes)}** |`);
             });
             out.push("");
@@ -3314,21 +3331,23 @@
         }
       }
 
-      out.push("## 三、用户存储占用");
+      out.push("## 三、com.clipto.mac大小");
       out.push("");
       const st = d.aligned_hardware && d.aligned_hardware.storage;
       if (st) {
         const growth = st.start_bytes != null ? st.end_bytes - st.start_bytes : null;
         const signed = v => v == null ? "—" : (v < 0 ? `−${formatBytes(-v)}` : `+${formatBytes(v)}`);
-        const shortPath = (st.path || "").replace(/^\/Users\/[^/]+/, "~");
-        out.push("| 指标项 | 数值结果 | 说明 |");
-        out.push("| :--- | :--- | :--- |");
-        out.push(`| **Clipto 数据目录${st.is_current_fallback ? "（当前）" : "（运行结束）"}** | **${formatBytes(st.end_bytes)}** | \`${escMdCell(shortPath)}\` · ${st.file_count} 个文件 · 测于 ${st.end_text} |`);
-        out.push(`| **运行开始前** | ${st.start_bytes != null ? formatBytes(st.start_bytes) : "—"} | 每 5 分钟测量一次磁盘实际占用 |`);
-        out.push(`| **运行期间增长** | **${signed(growth)}** | 峰值 ${formatBytes(st.peak_bytes)} |`);
+        const startStr = st.start_bytes != null ? `**${formatBytes(st.start_bytes)}**` : "—";
+        const endStr = `**${formatBytes(st.end_bytes)}**`;
+        const growthStr = growth != null ? `**${signed(growth)}**` : "—";
+        const peakStr = `**${formatBytes(st.peak_bytes)}**`;
+        out.push("| 指标项 | 数值结果 | 指标项 | 数值结果 |");
+        out.push("| :--- | :--- | :--- | :--- |");
+        out.push(`| **任务开始前大小** | ${startStr} | **任务结束后大小** | ${endStr} |`);
+        out.push(`| **变化量** | ${growthStr} | **峰值** | ${peakStr} |`);
         out.push("");
       } else {
-        out.push("> 暂无数据目录测量记录（CliptoPulse 启动后每 5 分钟测量一次）。");
+        out.push("> 暂无数据目录测量记录。");
         out.push("");
       }
 

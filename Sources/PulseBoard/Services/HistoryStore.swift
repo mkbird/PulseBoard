@@ -46,6 +46,9 @@ final class HistoryStore {
         try execute("CREATE INDEX IF NOT EXISTS samples_timestamp ON samples(timestamp);")
         try execute(Self.cmsSchema)
         try execute(Self.breakdownSchema)
+        if try !hasColumn("pids", in: "clipto_member_samples") {
+            try execute("ALTER TABLE clipto_member_samples ADD COLUMN pids TEXT;")
+        }
     }
 
     deinit { sqlite3_close(database) }
@@ -123,8 +126,8 @@ final class HistoryStore {
     private func appendMembers(_ sample: MetricSample) throws {
         guard !sample.cliptoMembers.isEmpty else { return }
         try withStatement("""
-        INSERT OR REPLACE INTO clipto_member_samples(timestamp,name,is_cms,process_count,memory_bytes,cpu_percent)
-        VALUES (?,?,?,?,?,?);
+        INSERT OR REPLACE INTO clipto_member_samples(timestamp,name,is_cms,process_count,memory_bytes,cpu_percent,pids)
+        VALUES (?,?,?,?,?,?,?);
         """) { statement in
             for member in sample.cliptoMembers {
                 sqlite3_reset(statement)
@@ -135,6 +138,11 @@ final class HistoryStore {
                 try check(sqlite3_bind_int(statement, 4, Int32(member.count)))
                 try check(sqlite3_bind_double(statement, 5, member.memoryBytes))
                 bind(member.cpuPercent, to: statement, at: 6)
+                if member.pids.isEmpty {
+                    sqlite3_bind_null(statement, 7)
+                } else {
+                    try bindText(member.pids.map(String.init).joined(separator: ","), to: statement, at: 7)
+                }
                 try finish(statement)
             }
         }
@@ -336,6 +344,7 @@ final class HistoryStore {
       process_count INTEGER NOT NULL,
       memory_bytes REAL NOT NULL,
       cpu_percent REAL,
+      pids TEXT,
       PRIMARY KEY (timestamp, name)
     ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS storage_samples (

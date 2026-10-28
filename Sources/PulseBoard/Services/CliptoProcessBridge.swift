@@ -48,6 +48,7 @@ final class CliptoProcessBridge {
             entry.count += 1
             entry.memoryBytes += item.memory_bytes
             if item.cpu_valid != 0 { entry.cpuPercent = (entry.cpuPercent ?? 0) + item.cpu_percent }
+            if item.pid > 0 { entry.pids.append(item.pid) }
             byName[key] = entry
         }
         return byName.values.sorted { $0.memoryBytes > $1.memoryBytes }

@@ -184,10 +184,13 @@ enum SelfTestSuite {
         let batch3StartMs = localTimestampMs(year: 2026, month: 10, day: 24, hour: 11, minute: 0, second: 0)
         let sessionStart = Date(timeIntervalSince1970: Double(batch3StartMs) / 1_000.0)
         let pid1 = CMSProcessID(pid: 1001, startTime: 1_000_001)
+        let pid1Restarted = CMSProcessID(pid: 2001, startTime: 1_000_009)
         let pid2 = CMSProcessID(pid: 1002, startTime: 1_000_002)
 
         for sec in 0...10 {
             let ts = Date(timeIntervalSince1970: Double(batch3StartMs) / 1_000.0 + Double(sec))
+            // Simulate cms_vlm_worker dying and restarting with a new PID at sec >= 6 (still 1 concurrent instance)
+            let vlmID = sec < 6 ? pid1 : pid1Restarted
             let sample = MetricSample(
                 timestamp: ts,
                 cpuUsage: 45,
@@ -220,8 +223,9 @@ enum SelfTestSuite {
                 swapTotalBytes: 2_147_483_648,
                 cmsGPUPercent: 40.0,
                 cliptoMembers: [
-                    CliptoMemberSample(name: "cms_vlm_worker", isCMS: true, count: 1, memoryBytes: 2_147_483_648, cpuPercent: 185),
-                    CliptoMemberSample(name: "Clipto Helper (Renderer)", isCMS: false, count: 3, memoryBytes: 1_073_741_824, cpuPercent: 12)
+                    CliptoMemberSample(name: "cms_l2", isCMS: true, count: 1, memoryBytes: 2_147_483_648, cpuPercent: 185, pids: [vlmID.pid]),
+                    CliptoMemberSample(name: "Clipto Helper (Renderer)", isCMS: false, count: 3, memoryBytes: 1_073_741_824, cpuPercent: 12, pids: [3001, 3002, 3003]),
+                    CliptoMemberSample(name: "aria2c", isCMS: false, count: 1, memoryBytes: 10_485_760, cpuPercent: 1, pids: [4001])
                 ]
             )
 
@@ -229,8 +233,8 @@ enum SelfTestSuite {
                 timestamp: ts,
                 monotonicSeconds: Double(100 + sec),
                 processes: [
-                    CMSProcessReading(id: pid1, name: "cms_vlm_worker", cpuSeconds: Double(sec) * 1.85, memoryBytes: 2_147_483_648),
-                    CMSProcessReading(id: pid2, name: "cms_asr_worker", cpuSeconds: Double(sec) * 0.65, memoryBytes: 536_870_912)
+                    CMSProcessReading(id: vlmID, name: "cms_l2", cpuSeconds: Double(sec) * 1.85, memoryBytes: 2_147_483_648),
+                    CMSProcessReading(id: pid2, name: "cms_a10", cpuSeconds: Double(sec) * 0.65, memoryBytes: 536_870_912)
                 ],
                 enumerationValid: true,
                 unreadableCount: 0
@@ -244,7 +248,7 @@ enum SelfTestSuite {
                 raw: raw,
                 totalCPUPercent: 250.0,
                 totalMemoryBytes: 2_684_354_560,
-                processCPUPercent: [pid1: 185.0, pid2: 65.0],
+                processCPUPercent: [vlmID: 185.0, pid2: 65.0],
                 statisticsVersion: 2
             )
             try store.append(system: sample, cms: cmsFrame)
@@ -273,8 +277,9 @@ enum SelfTestSuite {
         try check(aligned.cliptoMemoryBytes.max == 4_294_967_296, "Expected Clipto max memory 4 GiB")
         try check(aligned.cmsProcesses.count == 2, "Expected 2 CMS process summaries")
         try check((aligned.estimatedEnergyWh ?? 0) > 0.05, "Expected positive estimatedEnergyWh")
-        try check(aligned.cliptoMembers.count == 2 && aligned.cliptoMembers.first?.name == "cms_vlm_worker", "Clipto member breakdown mismatch")
-        try check(aligned.cliptoNonCMSMemoryBytes.max == gb, "Non-CMS memory should be 1 GiB")
+        try check(aligned.cliptoMembers.count == 3 && aligned.cliptoMembers.first?.name == "cms_l2", "Clipto member breakdown mismatch")
+        try check(aligned.cliptoMembers.first?.maxInstances == 2, "Expected cumulative PID count 2 after restart, got \(String(describing: aligned.cliptoMembers.first?.maxInstances))")
+        try check(aligned.cliptoNonCMSMemoryBytes.max == gb + 10_485_760, "Non-CMS memory mismatch")
         try check(aligned.storage?.startBytes == 10 * gb && aligned.storage?.endBytes == 12 * gb, "Storage start/end mismatch")
         try check(aligned.cmsTotalGPUPercent.p95 == 40.0, "Expected CMS GPU P95 == 40%, got \(String(describing: aligned.cmsTotalGPUPercent.p95))")
 
@@ -302,9 +307,12 @@ enum SelfTestSuite {
         try check(ReportProfile.pickWorkLANHost(from: ["198.18.0.1"]).isEmpty, "No 192.168.* address -> no auto IP")
         try check(md.contains("优化 VLM 并发与解码管线 \\| 降低峰值内存"), "Unescaped pipe in changeSummary")
         try check(md.contains("## 二、运行期硬件与进程资源水位"), "Missing aligned hardware section")
-        try check(md.contains("### 2.2 CMS 进程明细（1 个进程名）"), "CMS process table header mismatch")
-        try check(!md.contains("Clipto Helper (Renderer)"), "Non-CMS processes should only appear in web console, not daily report")
-        try check(md.contains("## 三、用户存储占用") && md.contains("**+2.00 GB**"), "Missing storage section / growth")
+        try check(md.contains("### 2.2 主要进程明细（2 个进程名）"), "Major process table header mismatch")
+        try check(md.contains("| 进程名 | 累计使用PID数 |"), "Expected 累计使用PID数 column in Markdown")
+        try check(md.contains("| `cms_l2` | 2 |"), "Expected cms_l2 cumulative PID count 2 in Markdown")
+        try check(md.contains("`Clipto Helper (Renderer)`"), "Watched non-CMS process Clipto Helper (Renderer) should appear in daily report")
+        try check(!md.contains("`aria2c`"), "Unwatched process aria2c should only appear in web console, not daily report")
+        try check(md.contains("## 三、com.clipto.mac大小") && md.contains("**任务开始前大小**") && md.contains("**任务结束后大小**") && md.contains("**变化量**") && md.contains("**+2.00 GB**") && md.contains("**峰值**"), "Missing storage section / growth")
         try check(!md.contains("子目录 / 文件"), "Per-folder storage breakdown should not appear in daily report")
         let csv = ReportCSVGenerator.generate(analysis: analysis)
         let csvRows = csv.dropFirst().split(separator: "\r\n", omittingEmptySubsequences: false).dropLast()
@@ -314,7 +322,7 @@ enum SelfTestSuite {
         try check(!csvRows.contains(where: { $0.contains(",") && !$0.hasPrefix("\"") }), "CSV must stay single-column")
         let layout = ReportLayout(blocks: ReportMarkdownParser.parse(md))
         try check(layout.kpis.count == 6 && layout.kpis[0].value.contains("6.00x"), "Headline KPI strip not detected by image layout")
-        try check(md.contains("`cms_vlm_worker`"), "Missing CMS worker row in Markdown")
+        try check(md.contains("`cms_l2`"), "Missing cms_l2 row in Markdown")
     }
 
     private static func localTimestampMs(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int) -> Int64 {

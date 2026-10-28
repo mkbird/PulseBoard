@@ -14,6 +14,23 @@ struct MarkdownReportOptions: Sendable {
 /// Morning-report generator. Layout contract shared with `ReportImageRenderer` and the web console:
 /// `# title` → `>` meta lines → `## 🎯 头条指标` (one 3-row table: labels / values / captions) → numbered sections.
 enum MarkdownReportGenerator {
+    static let majorProcessNames: Set<String> = [
+        "Clipto",
+        "Clipto Helper",
+        "cbs",
+        "cbs-worker",
+        "Clipto Helper (Renderer)",
+        "Clipto Helper (GPU)",
+        "dag-schedule-center",
+        "clipto_ffmpeg",
+        "clipto_ffprobe",
+        "cms_l2",
+        "cms_a10",
+        "cms_r5",
+        "cms_bt11",
+        "cms_vf12"
+    ]
+
     static func generate(
         analysis: DAGSCAnalysisResponse,
         options: MarkdownReportOptions = MarkdownReportOptions()
@@ -100,26 +117,29 @@ enum MarkdownReportGenerator {
                 lines.append("")
 
                 if options.includeCMSProcesses {
-                    let cms = hw.cliptoMembers.filter(\.isCMS)
-                    if !cms.isEmpty {
-                        lines.append("### 2.2 CMS 进程明细（\(cms.count) 个进程名）")
+                    let major = hw.cliptoMembers.filter { majorProcessNames.contains($0.name) }
+                    if !major.isEmpty {
+                        lines.append("### 2.2 主要进程明细（\(major.count) 个进程名）")
                         lines.append("")
-                        lines.append("| CMS 进程名 | 最多实例 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |")
+                        lines.append("| 进程名 | 累计使用PID数 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |")
                         lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
-                        for m in cms {
+                        for m in major {
                             lines.append("| `\(escapeMD(m.name))` | \(m.maxInstances) | \(fmtBytesOpt(m.avgMemoryBytes)) | **\(fmtBytesOpt(m.maxMemoryBytes))** | \(fmtPct1(m.avgCPUPercent)) | **\(fmtPct1(m.maxCPUPercent))** |")
                         }
                         lines.append("")
-                    } else if !hw.cmsProcesses.isEmpty {
-                        // History recorded before 2.1 only has the CMS subset.
-                        lines.append("### 2.2 CMS 进程明细")
-                        lines.append("")
-                        lines.append("| CMS 进程名 | 实例数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |")
-                        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
-                        for proc in hw.cmsProcesses {
-                            lines.append("| `\(escapeMD(proc.name))` | \(proc.instanceCount) | \(fmtPct1(proc.avgCPUPercent)) | **\(fmtPct1(proc.maxCPUPercent))** | \(fmtBytesOpt(proc.avgMemoryBytes)) | **\(fmtBytesOpt(proc.maxMemoryBytes))** |")
+                    } else {
+                        let fallbackCMS = hw.cmsProcesses.filter { majorProcessNames.contains($0.name) }
+                        if !fallbackCMS.isEmpty {
+                            // History recorded before 2.1 only has the CMS subset.
+                            lines.append("### 2.2 主要进程明细")
+                            lines.append("")
+                            lines.append("| 进程名 | 累计使用PID数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |")
+                            lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
+                            for proc in fallbackCMS {
+                                lines.append("| `\(escapeMD(proc.name))` | \(proc.instanceCount) | \(fmtPct1(proc.avgCPUPercent)) | **\(fmtPct1(proc.maxCPUPercent))** | \(fmtBytesOpt(proc.avgMemoryBytes)) | **\(fmtBytesOpt(proc.maxMemoryBytes))** |")
+                            }
+                            lines.append("")
                         }
-                        lines.append("")
                     }
                 }
             } else {
@@ -129,18 +149,21 @@ enum MarkdownReportGenerator {
         }
 
         // Section 3: User storage occupied by Clipto
-        lines.append("## 三、用户存储占用")
+        lines.append("## 三、com.clipto.mac大小")
         lines.append("")
         if let st = hw?.storage ?? analysis.alignedHardware?.storage {
             let growth = st.startBytes.map { st.endBytes - $0 }
-            lines.append("| 指标项 | 数值结果 | 说明 |")
-            lines.append("| :--- | :--- | :--- |")
-            lines.append("| **Clipto 数据目录\(st.isCurrentFallback ? "（当前）" : "（运行结束）")** | **\(fmtBytes(st.endBytes))** | `\(escapeMD((st.path as NSString).abbreviatingWithTildeInPath))` · \(st.fileCount) 个文件 · 测于 \(st.endText) |")
-            lines.append("| **运行开始前** | \(st.startBytes.map(fmtBytes) ?? "—") | 每 5 分钟测量一次磁盘实际占用 |")
-            lines.append("| **运行期间增长** | **\(growth.map(fmtSignedBytes) ?? "—")** | 峰值 \(fmtBytes(st.peakBytes)) |")
+            let startStr = st.startBytes.map { "**\(fmtBytes($0))**" } ?? "—"
+            let endStr = "**\(fmtBytes(st.endBytes))**"
+            let growthStr = growth.map { "**\(fmtSignedBytes($0))**" } ?? "—"
+            let peakStr = "**\(fmtBytes(st.peakBytes))**"
+            lines.append("| 指标项 | 数值结果 | 指标项 | 数值结果 |")
+            lines.append("| :--- | :--- | :--- | :--- |")
+            lines.append("| **任务开始前大小** | \(startStr) | **任务结束后大小** | \(endStr) |")
+            lines.append("| **变化量** | \(growthStr) | **峰值** | \(peakStr) |")
             lines.append("")
         } else {
-            lines.append("> 暂无数据目录测量记录（CliptoPulse 启动后每 5 分钟测量一次）。")
+            lines.append("> 暂无数据目录测量记录。")
             lines.append("")
         }
 

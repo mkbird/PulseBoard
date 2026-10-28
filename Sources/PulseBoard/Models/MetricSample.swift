@@ -56,6 +56,7 @@ struct CliptoMemberSample: Codable, Hashable, Sendable {
     var count: Int
     var memoryBytes: Double
     var cpuPercent: Double?
+    var pids: [Int32] = []
 }
 
 enum HistoryRange: String, CaseIterable, Identifiable {
