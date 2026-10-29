@@ -394,11 +394,13 @@ enum WebConsoleRouter {
                     fallbackStartMs: result.sliceStartMs,
                     fallbackEndMs: result.sliceEndMs
                 )
+                let mdOpts = parseMarkdownOptions(from: request)
+                let remark = ReportCSVGenerator.composeRemark(changeSummary: mdOpts.changeSummary, notes: mdOpts.notes)
                 if request.query("format") == "column" {
-                    let text = ReportCSVGenerator.columnText(analysis: result)
+                    let text = ReportCSVGenerator.columnText(analysis: result, remark: remark)
                     return HTTPResponse(statusCode: 200, contentType: "text/plain; charset=utf-8", extraHeaders: [], body: Data(text.utf8))
                 }
-                let csv = ReportCSVGenerator.generate(analysis: result, includeLabels: request.query("with_labels") == "1")
+                let csv = ReportCSVGenerator.generate(analysis: result, remark: remark, includeLabels: request.query("with_labels") == "1")
                 if request.query("download") == "1" {
                     return .download(filename: ReportCSVGenerator.fileName(result), contentType: "text/csv; charset=utf-8", data: Data(csv.utf8))
                 }

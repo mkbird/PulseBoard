@@ -14,20 +14,21 @@ struct MarkdownReportOptions: Sendable {
 /// Morning-report generator. Layout contract shared with `ReportImageRenderer` and the web console:
 /// `# title` → `>` meta lines → `## 🎯 头条指标` (one 3-row table: labels / values / captions) → numbered sections.
 enum MarkdownReportGenerator {
-    static let majorProcessNames: Set<String> = [
+    /// Fixed display order: Clipto app & helpers → scheduler & media tools → CMS workers (alphabetical).
+    static let majorProcessOrder: [String] = [
         "Clipto",
         "Clipto Helper",
-        "cbs",
-        "cbs-worker",
         "Clipto Helper (Renderer)",
         "Clipto Helper (GPU)",
         "dag-schedule-center",
+        "cbs",
+        "cbs-worker",
         "clipto_ffmpeg",
         "clipto_ffprobe",
-        "cms_l2",
         "cms_a10",
-        "cms_r5",
         "cms_bt11",
+        "cms_l2",
+        "cms_r5",
         "cms_vf12"
     ]
 
@@ -65,10 +66,10 @@ enum MarkdownReportGenerator {
         lines.append("")
         let storage = analysis.alignedHardware?.storage
         let storageGrowth = storage.flatMap { s in s.startBytes.map { s.endBytes - $0 } }
-        lines.append("| 端到端分析速度 | 全 CMS 内存峰值 | 全 CMS CPU P95 | 全 CMS GPU P95 | Clipto 进程组内存峰值 | Clipto 数据目录 |")
+        lines.append("| 端到端分析速度 | 全 CMS 内存峰值 | Clipto 进程组内存峰值 | Clipto 进程组 CPU P95 | Clipto 进程组 GPU P95 | Clipto 数据目录 |")
         lines.append("| :---: | :---: | :---: | :---: | :---: | :---: |")
-        lines.append("| **\(fmtSpeedup(primaryScope.wallSpeedup))** | **\(fmtBytesOpt(hw?.cmsTotalMemoryBytes.max))** | **\(fmtPct1(hw?.cmsTotalCPUPercent.p95))** | **\(fmtPct1(hw?.cmsTotalGPUPercent.p95))** | **\(fmtBytesOpt(hw?.cliptoMemoryBytes.max))** | **\(fmtBytesOpt(storage?.endBytes))** |")
-        lines.append("| 素材 \(fmtDurationShort(analysis.totalMediaDurationMs)) ÷ 端到端 \(fmtDurationShort(primaryScope.wallClockMs)) | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） | Clipto.app 全部进程物理内存合计 | \(storageGrowth.map { "运行期间 \(fmtSignedBytes($0))" } ?? "com.clipto.mac 磁盘占用") |")
+        lines.append("| **\(fmtSpeedup(primaryScope.wallSpeedup))** | **\(fmtBytesOpt(hw?.cmsTotalMemoryBytes.max))** | **\(fmtBytesOpt(hw?.cliptoMemoryBytes.max))** | **\(fmtPct1(hw?.cliptoCPUPercent.p95))** | **\(fmtPct1(hw?.cliptoGPUPercent.p95))** | **\(fmtBytesOpt(storage?.endBytes))** |")
+        lines.append("| 素材 \(fmtDurationShort(analysis.totalMediaDurationMs)) ÷ 端到端 \(fmtDurationShort(primaryScope.wallClockMs)) | 所有 cms 进程物理内存合计 | Clipto.app 全部进程物理内存合计 | Clipto.app 全部进程合计（单核 = 100%） | Clipto.app 全部进程合计（整颗 GPU = 100%） | \(storageGrowth.map { "运行期间 \(fmtSignedBytes($0))" } ?? "com.clipto.mac 磁盘占用") |")
         lines.append("")
 
         // Section 1: Throughput overview
@@ -117,9 +118,10 @@ enum MarkdownReportGenerator {
                 lines.append("")
 
                 if options.includeCMSProcesses {
-                    let major = hw.cliptoMembers.filter { majorProcessNames.contains($0.name) }
+                    let membersByName = Dictionary(hw.cliptoMembers.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+                    let major = majorProcessOrder.compactMap { membersByName[$0] }
                     if !major.isEmpty {
-                        lines.append("### 2.2 主要进程明细（\(major.count) 个进程名）")
+                        lines.append("### 2.2 主要进程明细")
                         lines.append("")
                         lines.append("| 进程名 | 累计使用PID数 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |")
                         lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
@@ -128,7 +130,8 @@ enum MarkdownReportGenerator {
                         }
                         lines.append("")
                     } else {
-                        let fallbackCMS = hw.cmsProcesses.filter { majorProcessNames.contains($0.name) }
+                        let cmsByName = Dictionary(hw.cmsProcesses.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+                        let fallbackCMS = majorProcessOrder.compactMap { cmsByName[$0] }
                         if !fallbackCMS.isEmpty {
                             // History recorded before 2.1 only has the CMS subset.
                             lines.append("### 2.2 主要进程明细")

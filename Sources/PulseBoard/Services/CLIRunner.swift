@@ -297,7 +297,8 @@ enum SelfTestSuite {
 
         try check(md.contains("# Clipto Mac ") && md.contains(" 离线分析性能晨报"), "Missing Markdown report H1 header")
         try check(md.contains("## 🎯 头条指标"), "Missing headline KPI section")
-        try check(md.contains("| **6.00x** | **2.50 GB** | **250.0%** | **40.0%** | **4.00 GB** | **12.00 GB** |"), "Headline KPI values mismatch")
+        try check(md.contains("| 端到端分析速度 | 全 CMS 内存峰值 | Clipto 进程组内存峰值 | Clipto 进程组 CPU P95 | Clipto 进程组 GPU P95 | Clipto 数据目录 |"), "Headline KPI labels mismatch")
+        try check(md.contains("| **6.00x** | **2.50 GB** | **4.00 GB** | **38.0%** | **28.0%** | **12.00 GB** |"), "Headline KPI values mismatch")
         try check(md.contains("运行期间 +2.00 GB"), "Storage headline caption mismatch")
         try check(!md.contains("算法服务耗时瓶颈") && !md.contains("长尾慢素材"), "Sections 3/4 should be removed")
         try check(md.contains("**评测人**：测试工程师 A"), "Missing reporter field in Markdown")
@@ -307,18 +308,30 @@ enum SelfTestSuite {
         try check(ReportProfile.pickWorkLANHost(from: ["198.18.0.1"]).isEmpty, "No 192.168.* address -> no auto IP")
         try check(md.contains("优化 VLM 并发与解码管线 \\| 降低峰值内存"), "Unescaped pipe in changeSummary")
         try check(md.contains("## 二、运行期硬件与进程资源水位"), "Missing aligned hardware section")
-        try check(md.contains("### 2.2 主要进程明细（2 个进程名）"), "Major process table header mismatch")
+        try check(md.contains("### 2.2 主要进程明细") && !md.contains("个进程名"), "Major process table header mismatch")
+        if let rendererRange = md.range(of: "| `Clipto Helper (Renderer)` |"),
+           let cmsRange = md.range(of: "| `cms_l2` |") {
+            try check(rendererRange.lowerBound < cmsRange.lowerBound, "Major process order should group Clipto before cms_*")
+        }
         try check(md.contains("| 进程名 | 累计使用PID数 |"), "Expected 累计使用PID数 column in Markdown")
         try check(md.contains("| `cms_l2` | 2 |"), "Expected cms_l2 cumulative PID count 2 in Markdown")
         try check(md.contains("`Clipto Helper (Renderer)`"), "Watched non-CMS process Clipto Helper (Renderer) should appear in daily report")
         try check(!md.contains("`aria2c`"), "Unwatched process aria2c should only appear in web console, not daily report")
         try check(md.contains("## 三、com.clipto.mac大小") && md.contains("**任务开始前大小**") && md.contains("**任务结束后大小**") && md.contains("**变化量**") && md.contains("**+2.00 GB**") && md.contains("**峰值**"), "Missing storage section / growth")
         try check(!md.contains("子目录 / 文件"), "Per-folder storage breakdown should not appear in daily report")
-        let csv = ReportCSVGenerator.generate(analysis: analysis)
-        let csvRows = csv.dropFirst().split(separator: "\r\n", omittingEmptySubsequences: false).dropLast()
-        try check(csvRows.count == ReportCSVGenerator.rowLabels.count, "CSV row count mismatch: \(csvRows.count)")
-        try check(csvRows.first == "v1.4.0" || csvRows.first?.isEmpty == false, "CSV row 1 must be the version")
-        try check(csvRows.dropFirst().first == "6.00", "CSV row 2 must be end-to-end speedup, got \(String(describing: csvRows.dropFirst().first))")
+        let csv = ReportCSVGenerator.generate(
+            analysis: analysis,
+            remark: ReportCSVGenerator.composeRemark(changeSummary: "优化 VLM", notes: "- 无 OOM")
+        )
+        let csvRows = Array(csv.dropFirst().split(separator: "\r\n", omittingEmptySubsequences: false).dropLast())
+        try check(csvRows.count == 32 && csvRows.count == ReportCSVGenerator.rowLabels.count, "CSV row count mismatch: \(csvRows.count)")
+        try check(csvRows[0] == "v1.4.0" || !csvRows[0].isEmpty, "CSV row 1 must be the version")
+        try check(csvRows[1] == "6.00", "CSV row 2 must be end-to-end speedup, got \(csvRows[1])")
+        try check(csvRows[2] == "2.50" && csvRows[4] == "4.00", "CSV CMS/Clipto memory peak mismatch")
+        try check(csvRows[5] == "28.0" && csvRows[6] == "38.0", "CSV Clipto GPU/CPU P95 mismatch: \(csvRows[5]), \(csvRows[6])")
+        try check(csvRows[7] == "12.00" && csvRows[8] == "2.00", "CSV storage end/growth mismatch")
+        try check(!csvRows[29].isEmpty && !csvRows[30].isEmpty, "CSV start/end time rows must be non-empty")
+        try check(csvRows[31] == "优化 VLM｜无 OOM", "CSV remark row mismatch: \(csvRows[31])")
         try check(!csvRows.contains(where: { $0.contains(",") && !$0.hasPrefix("\"") }), "CSV must stay single-column")
         let layout = ReportLayout(blocks: ReportMarkdownParser.parse(md))
         try check(layout.kpis.count == 6 && layout.kpis[0].value.contains("6.00x"), "Headline KPI strip not detected by image layout")
@@ -591,7 +604,8 @@ enum CLIRunner {
         if let csvPath, !csvPath.isEmpty {
             let csvURL = URL(fileURLWithPath: (csvPath as NSString).expandingTildeInPath)
             try FileManager.default.createDirectory(at: csvURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try ReportCSVGenerator.generate(analysis: analysis).write(to: csvURL, atomically: true, encoding: .utf8)
+            let remark = ReportCSVGenerator.composeRemark(changeSummary: changeSummary, notes: notes)
+            try ReportCSVGenerator.generate(analysis: analysis, remark: remark).write(to: csvURL, atomically: true, encoding: .utf8)
             print("Saved CSV report to \(csvURL.path)")
         }
 

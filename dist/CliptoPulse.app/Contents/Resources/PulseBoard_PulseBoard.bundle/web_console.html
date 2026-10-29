@@ -3234,10 +3234,10 @@
       const signedBytes = v => v == null ? "—" : (v < 0 ? `−${formatBytes(-v)}` : `+${formatBytes(v)}`);
       const stHead = d.aligned_hardware && d.aligned_hardware.storage;
       const stGrowth = stHead && stHead.start_bytes != null ? stHead.end_bytes - stHead.start_bytes : null;
-      out.push("| 端到端分析速度 | 全 CMS 内存峰值 | 全 CMS CPU P95 | 全 CMS GPU P95 | Clipto 进程组内存峰值 | Clipto 数据目录 |");
+      out.push("| 端到端分析速度 | 全 CMS 内存峰值 | Clipto 进程组内存峰值 | Clipto 进程组 CPU P95 | Clipto 进程组 GPU P95 | Clipto 数据目录 |");
       out.push("| :---: | :---: | :---: | :---: | :---: | :---: |");
-      out.push(`| **${formatSpeedup(primary.wall_speedup)}** | **${bytes(m(hw, "cms_total_memory_bytes").max)}** | **${pct(m(hw, "cms_total_cpu_percent").p95)}** | **${pct(m(hw, "cms_total_gpu_percent").p95)}** | **${bytes(m(hw, "clipto_memory_bytes").max)}** | **${bytes(stHead ? stHead.end_bytes : null)}** |`);
-      out.push(`| 素材 ${formatDurationShort(d.total_media_duration_ms)} ÷ 端到端 ${formatDurationShort(primary.wall_clock_ms)} | 所有 cms 进程物理内存合计 | 所有 cms 进程合计（单核 = 100%） | 所有 cms 进程合计（整颗 GPU = 100%） | Clipto.app 全部进程物理内存合计 | ${stGrowth != null ? `运行期间 ${signedBytes(stGrowth)}` : "com.clipto.mac 磁盘占用"} |`);
+      out.push(`| **${formatSpeedup(primary.wall_speedup)}** | **${bytes(m(hw, "cms_total_memory_bytes").max)}** | **${bytes(m(hw, "clipto_memory_bytes").max)}** | **${pct(m(hw, "clipto_cpu_percent").p95)}** | **${pct(m(hw, "clipto_gpu_percent").p95)}** | **${bytes(stHead ? stHead.end_bytes : null)}** |`);
+      out.push(`| 素材 ${formatDurationShort(d.total_media_duration_ms)} ÷ 端到端 ${formatDurationShort(primary.wall_clock_ms)} | 所有 cms 进程物理内存合计 | Clipto.app 全部进程物理内存合计 | Clipto.app 全部进程合计（单核 = 100%） | Clipto.app 全部进程合计（整颗 GPU = 100%） | ${stGrowth != null ? `运行期间 ${signedBytes(stGrowth)}` : "com.clipto.mac 磁盘占用"} |`);
       out.push("");
 
       const assetsList = d.by_asset || [];
@@ -3287,27 +3287,28 @@
           out.push(`| **整机功耗** | ${watts(hw.sys_power_watts.avg)} | ${watts(hw.sys_power_watts.p95)} | **${watts(hw.sys_power_watts.max)}** | ${whStr}；最高热状态 **${thermalText(hw.worst_thermal_state)}** |`);
           out.push("");
 
-          const majorProcessNames = new Set([
+          const majorProcessOrder = [
             "Clipto",
             "Clipto Helper",
-            "cbs",
-            "cbs-worker",
             "Clipto Helper (Renderer)",
             "Clipto Helper (GPU)",
             "dag-schedule-center",
+            "cbs",
+            "cbs-worker",
             "clipto_ffmpeg",
             "clipto_ffprobe",
-            "cms_l2",
             "cms_a10",
-            "cms_r5",
             "cms_bt11",
+            "cms_l2",
+            "cms_r5",
             "cms_vf12"
-          ]);
-          const members = hw.clipto_members || [];
-          const majorM = members.filter(x => majorProcessNames.has(x.name));
-          const fallbackCms = (hw.cms_processes || []).filter(p => majorProcessNames.has(p.name));
+          ];
+          const membersByName = new Map((hw.clipto_members || []).map(x => [x.name, x]));
+          const majorM = majorProcessOrder.map(n => membersByName.get(n)).filter(Boolean);
+          const cmsByName = new Map((hw.cms_processes || []).map(p => [p.name, p]));
+          const fallbackCms = majorProcessOrder.map(n => cmsByName.get(n)).filter(Boolean);
           if (incCms && majorM.length > 0) {
-            out.push(`### 2.2 主要进程明细（${majorM.length} 个进程名）`);
+            out.push("### 2.2 主要进程明细");
             out.push("");
             out.push("| 进程名 | 累计使用PID数 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |");
             out.push("| :--- | :---: | :---: | :---: | :---: | :---: |");
@@ -3652,6 +3653,10 @@
     async function fetchReportCSV(extra) {
       if (!dagscData) throw new Error("请先加载 DAGSC 分析数据");
       const params = buildSliceParams();
+      const changes = document.getElementById("rpt-changes").value.trim();
+      const notes = document.getElementById("rpt-notes").value.trim();
+      if (changes) params.set("change_summary", changes);
+      if (notes) params.set("notes", notes);
       Object.entries(extra || {}).forEach(([k, v]) => params.set(k, v));
       const resp = await fetch(`/api/report/csv?${params.toString()}`);
       if (!resp.ok) {
