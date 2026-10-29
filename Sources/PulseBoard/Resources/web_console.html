@@ -1253,17 +1253,17 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">📝 Clipto 离线分析晨报生成器（图片 · 直接粘贴到飞书 / 微信群）</h2>
+            <h2 class="card-title">📝 Clipto 离线分析晨报生成器</h2>
             <div style="font-size:0.81rem; color:var(--muted); margin-top:2px;">
               晨报数据自动关联顶部所选的测试批次 / 自定义时间窗，并融合了 DAGSC 吞吐指标与 PulseBoard 硬件及 CMS 水位。请在 Clipto 全部跑完后再生成。
             </div>
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button type="button" class="btn btn-primary" id="copy-img-btn" style="padding:9px 18px; font-size:0.9rem;">
-              🖼️ 复制晨报图片
+            <button type="button" class="btn btn-primary" id="download-img-btn" style="padding:9px 18px; font-size:0.9rem;">
+              ⬇️ 下载日报
             </button>
-            <button type="button" class="btn btn-secondary" id="download-bundle-btn" style="padding:9px 16px; font-size:0.9rem;">
-              ⬇️ 下载晨报 + CSV
+            <button type="button" class="btn btn-secondary" id="download-csv-btn" style="padding:9px 16px; font-size:0.9rem;">
+              ⬇️ 下载 CSV
             </button>
           </div>
         </div>
@@ -3667,39 +3667,24 @@
       return resp;
     }
 
-    document.getElementById("copy-img-btn").addEventListener("click", async () => {
-      const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.md").replace(/\.md$/, ".png");
-      const blobPromise = requestReportImage();
+    document.getElementById("download-img-btn").addEventListener("click", async () => {
+      const pngFn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.png").replace(/\.(md|png)$/, ".png");
       try {
-        if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
-          // Pass the promise directly so Safari keeps the user-gesture permission.
-          await navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
-          showToast("✓ 已复制晨报图片，可直接粘贴到飞书 / 微信群");
-          return;
-        }
-        throw new Error("当前浏览器不支持写入图片到剪贴板（局域网 http 访问时常见）");
+        const blob = await requestReportImage();
+        downloadBlob(blob, pngFn);
+        showToast(`✓ 已下载 ${pngFn}`);
       } catch (err) {
-        try {
-          const blob = await blobPromise;
-          downloadBlob(blob, fn);
-          showToast(`无法直接复制图片，已改为下载 ${fn}`);
-        } catch (e2) {
-          showToast(`✗ ${e2.message || e2}`);
-        }
+        showToast(`✗ ${err.message || err}`);
       }
     });
 
-    document.getElementById("download-bundle-btn").addEventListener("click", async () => {
+    document.getElementById("download-csv-btn").addEventListener("click", async () => {
       const pngFn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.png").replace(/\.(md|png)$/, ".png");
       const csvFn = pngFn.replace(/\.png$/, ".csv");
       try {
-        const [imgBlob, csvBlob] = await Promise.all([
-          requestReportImage(),
-          fetchReportCSV().then(r => r.blob())
-        ]);
-        downloadBlob(imgBlob, pngFn);
-        setTimeout(() => downloadBlob(csvBlob, csvFn), 150);
-        showToast(`✓ 已下载 ${pngFn} 与 ${csvFn}`);
+        const csvBlob = await fetchReportCSV().then(r => r.blob());
+        downloadBlob(csvBlob, csvFn);
+        showToast(`✓ 已下载 ${csvFn}`);
       } catch (err) {
         showToast(`✗ ${err.message || err}`);
       }
