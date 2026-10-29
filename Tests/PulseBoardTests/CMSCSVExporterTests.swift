@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CliptoPulseCore
 @testable import PulseBoard
 
 @Test func cmsCSVPreservesProcessIdentityMissingValuesAndQuotedNames() throws {

@@ -1,6 +1,7 @@
 import Foundation
 import SQLite3
 import Testing
+@testable import CliptoPulseCore
 @testable import PulseBoard
 
 @Test func cmsHistoryRoundTripsAfterReopenWithInstancesNullsAndRenames() throws {

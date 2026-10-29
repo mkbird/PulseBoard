@@ -1,4 +1,5 @@
 import SwiftUI
+import CliptoPulseCore
 
 struct CMSProcessesView: View {
     let session: CMSSessionSnapshot

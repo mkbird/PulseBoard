@@ -1,4 +1,5 @@
 import SwiftUI
+import CliptoPulseCore
 
 struct DashboardView: View {
     @EnvironmentObject private var store: MonitorStore

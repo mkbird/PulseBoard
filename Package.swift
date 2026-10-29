@@ -10,9 +10,12 @@ let package = Package(
         .executable(name: "PulseBoard", targets: ["PulseBoard"])
     ],
     targets: [
+        .target(
+            name: "CliptoPulseCore"
+        ),
         .executableTarget(
             name: "PulseBoard",
-            dependencies: ["PulseHardware"],
+            dependencies: ["CliptoPulseCore", "PulseHardware"],
             resources: [.process("Resources")],
             linkerSettings: [
                 .linkedFramework("IOKit"),
@@ -26,7 +29,7 @@ let package = Package(
         ),
         .testTarget(
             name: "PulseBoardTests",
-            dependencies: ["PulseBoard"]
+            dependencies: ["CliptoPulseCore", "PulseBoard"]
         )
     ]
 )

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import CliptoPulseCore
 
 @main
 enum CliptoPulseEntry {

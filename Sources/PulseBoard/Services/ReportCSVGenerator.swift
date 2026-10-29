@@ -84,8 +84,8 @@ enum ReportCSVGenerator {
             f.dateFormat = "yyyy-MM-dd HH:mm"
             return f.string(from: Date(timeIntervalSince1970: Double(ms) / 1_000))
         }
-
         let speedup = scope.flatMap { $0.wallSpeedup > 0 ? $0.wallSpeedup : nil }
+        let processGPUCapable = a?.environment.metricCapabilities.processGPU == true
         let speedupByNodeType: [String: Double] = Dictionary(
             (scope?.byNodeType ?? []).map { ($0.nodeType, $0.speedup) },
             uniquingKeysWith: { first, _ in first }
@@ -96,12 +96,12 @@ enum ReportCSVGenerator {
         }
 
         var result: [Row] = [
-            Row(label: "Clipto Mac 版本号", value: a?.appVersion ?? ""),
+            Row(label: "Clipto 版本号", value: a?.appVersion ?? ""),
             Row(label: "端到端分析速度", value: num(speedup, 2)),
             Row(label: "全 CMS 内存峰值", value: bytesGB(hw?.cmsTotalMemoryBytes.max)),
             Row(label: "全 CMS 内存平均", value: bytesGB(hw?.cmsTotalMemoryBytes.avg)),
             Row(label: "Clipto 进程组内存峰值", value: bytesGB(hw?.cliptoMemoryBytes.max)),
-            Row(label: "Clipto 进程组gpu占用率p95", value: num(hw?.cliptoGPUPercent.p95, 1)),
+            Row(label: "Clipto 进程组gpu占用率p95", value: processGPUCapable ? num(hw?.cliptoGPUPercent.p95, 1) : ""),
             Row(label: "Clipto 进程组cpu占用率p95", value: num(hw?.cliptoCPUPercent.p95, 1)),
             Row(label: "Clipto 数据目录大小", value: bytesGB(storage?.endBytes)),
             Row(label: "Clipto 数据目录运行期间增长", value: bytesGB(storage.flatMap { s in s.startBytes.map { s.endBytes - $0 } }))

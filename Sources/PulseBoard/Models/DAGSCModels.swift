@@ -1,11 +1,88 @@
 import Foundation
 
+/// Describes which optional telemetry families the current platform can collect.
+/// A `false` value means the metric is unsupported, rather than temporarily missing.
+struct MetricCapabilities: Codable, Sendable {
+    let systemGPU: Bool
+    let ane: Bool
+    let power: Bool
+    let dramBandwidth: Bool
+    let processGPU: Bool
+    let processIO: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case systemGPU = "system_gpu"
+        case ane
+        case power
+        case dramBandwidth = "dram_bandwidth"
+        case processGPU = "process_gpu"
+        case processIO = "process_io"
+    }
+
+    static let macOS = MetricCapabilities(
+        systemGPU: true,
+        ane: true,
+        power: true,
+        dramBandwidth: true,
+        processGPU: true,
+        processIO: true
+    )
+
+    static let generic = MetricCapabilities(
+        systemGPU: false,
+        ane: false,
+        power: false,
+        dramBandwidth: false,
+        processGPU: false,
+        processIO: false
+    )
+}
+
+/// Human-readable definitions for platform-dependent metrics.
+struct MetricSemantics: Codable, Sendable {
+    let systemMemory: String
+    let processMemory: String
+    let processCPU: String
+    let processGPU: String
+    let processIO: String
+    let power: String
+
+    enum CodingKeys: String, CodingKey {
+        case systemMemory = "system_memory"
+        case processMemory = "process_memory"
+        case processCPU = "process_cpu"
+        case processGPU = "process_gpu"
+        case processIO = "process_io"
+        case power
+    }
+
+    static let macOS = MetricSemantics(
+        systemMemory: "统一内存",
+        processMemory: "phys_footprint",
+        processCPU: "单核 = 100%",
+        processGPU: "按进程 GPU 时间统计（不含 ANE）",
+        processIO: "进程累计磁盘 I/O 差分",
+        power: "IOReport / SMC"
+    )
+
+    static let generic = MetricSemantics(
+        systemMemory: "物理内存",
+        processMemory: "平台原生进程内存口径",
+        processCPU: "单核 = 100%",
+        processGPU: "平台原生进程 GPU 口径",
+        processIO: "平台原生进程 I/O 口径",
+        power: "平台原生功耗口径"
+    )
+}
+
 struct SystemEnvironmentInfo: Codable, Sendable {
+    let platform: String
+    let osName: String
+    let osVersion: String
     let chipModel: String
     let physicalMemoryBytes: UInt64
     let physicalMemoryText: String
     let logicalCores: Int
-    let macOSVersion: String
     let hostname: String
     let username: String
     let lanIPs: [String]
@@ -13,13 +90,30 @@ struct SystemEnvironmentInfo: Codable, Sendable {
     let defaultDagscDir: String
     let historyDBPath: String
     let historyDBSizeBytes: Int64
+    let metricCapabilities: MetricCapabilities
+    let metricSemantics: MetricSemantics
+
+    /// Display form used by reports. `macOSVersion` remains as a source-compatible alias.
+    var displayOSVersion: String {
+        let name = osName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let version = osVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return version }
+        guard !version.isEmpty else { return name }
+        if version.lowercased().hasPrefix(name.lowercased()) { return version }
+        return "\(name) \(version)"
+    }
+
+    var macOSVersion: String { displayOSVersion }
 
     enum CodingKeys: String, CodingKey {
+        case platform
+        case osName = "os_name"
+        case osVersion = "os_version"
+        case legacyMacOSVersion = "macos_version"
         case chipModel = "chip_model"
         case physicalMemoryBytes = "physical_memory_bytes"
         case physicalMemoryText = "physical_memory_text"
         case logicalCores = "logical_cores"
-        case macOSVersion = "macos_version"
         case hostname
         case username
         case lanIPs = "lan_ips"
@@ -27,6 +121,103 @@ struct SystemEnvironmentInfo: Codable, Sendable {
         case defaultDagscDir = "default_dagsc_dir"
         case historyDBPath = "history_db_path"
         case historyDBSizeBytes = "history_db_size_bytes"
+        case metricCapabilities = "metric_capabilities"
+        case metricSemantics = "metric_semantics"
+    }
+
+    init(
+        platform: String,
+        osName: String,
+        osVersion: String,
+        chipModel: String,
+        physicalMemoryBytes: UInt64,
+        physicalMemoryText: String,
+        logicalCores: Int,
+        hostname: String,
+        username: String,
+        lanIPs: [String],
+        webPort: Int,
+        defaultDagscDir: String,
+        historyDBPath: String,
+        historyDBSizeBytes: Int64,
+        metricCapabilities: MetricCapabilities,
+        metricSemantics: MetricSemantics
+    ) {
+        self.platform = platform
+        self.osName = osName
+        self.osVersion = osVersion
+        self.chipModel = chipModel
+        self.physicalMemoryBytes = physicalMemoryBytes
+        self.physicalMemoryText = physicalMemoryText
+        self.logicalCores = logicalCores
+        self.hostname = hostname
+        self.username = username
+        self.lanIPs = lanIPs
+        self.webPort = webPort
+        self.defaultDagscDir = defaultDagscDir
+        self.historyDBPath = historyDBPath
+        self.historyDBSizeBytes = historyDBSizeBytes
+        self.metricCapabilities = metricCapabilities
+        self.metricSemantics = metricSemantics
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyVersion = try values.decodeIfPresent(String.self, forKey: .legacyMacOSVersion)
+
+        platform = try values.decodeIfPresent(String.self, forKey: .platform) ?? "macos"
+        osName = try values.decodeIfPresent(String.self, forKey: .osName)
+            ?? (platform.lowercased() == "macos" ? "macOS" : platform)
+
+        if let version = try values.decodeIfPresent(String.self, forKey: .osVersion) {
+            osVersion = version
+        } else {
+            let legacy = legacyVersion ?? ""
+            let prefix = "\(osName) "
+            osVersion = legacy.lowercased().hasPrefix(prefix.lowercased())
+                ? String(legacy.dropFirst(prefix.count))
+                : legacy
+        }
+
+        chipModel = try values.decode(String.self, forKey: .chipModel)
+        physicalMemoryBytes = try values.decode(UInt64.self, forKey: .physicalMemoryBytes)
+        physicalMemoryText = try values.decode(String.self, forKey: .physicalMemoryText)
+        logicalCores = try values.decode(Int.self, forKey: .logicalCores)
+        hostname = try values.decode(String.self, forKey: .hostname)
+        username = try values.decode(String.self, forKey: .username)
+        lanIPs = try values.decode([String].self, forKey: .lanIPs)
+        webPort = try values.decode(Int.self, forKey: .webPort)
+        defaultDagscDir = try values.decode(String.self, forKey: .defaultDagscDir)
+        historyDBPath = try values.decode(String.self, forKey: .historyDBPath)
+        historyDBSizeBytes = try values.decode(Int64.self, forKey: .historyDBSizeBytes)
+
+        let legacyMac = platform.lowercased() == "macos" || legacyVersion != nil
+        metricCapabilities = try values.decodeIfPresent(MetricCapabilities.self, forKey: .metricCapabilities)
+            ?? (legacyMac ? .macOS : .generic)
+        metricSemantics = try values.decodeIfPresent(MetricSemantics.self, forKey: .metricSemantics)
+            ?? (legacyMac ? .macOS : .generic)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(platform, forKey: .platform)
+        try values.encode(osName, forKey: .osName)
+        try values.encode(osVersion, forKey: .osVersion)
+        // Kept during the migration so older dashboards still receive the OS display string.
+        try values.encode(displayOSVersion, forKey: .legacyMacOSVersion)
+        try values.encode(chipModel, forKey: .chipModel)
+        try values.encode(physicalMemoryBytes, forKey: .physicalMemoryBytes)
+        try values.encode(physicalMemoryText, forKey: .physicalMemoryText)
+        try values.encode(logicalCores, forKey: .logicalCores)
+        try values.encode(hostname, forKey: .hostname)
+        try values.encode(username, forKey: .username)
+        try values.encode(lanIPs, forKey: .lanIPs)
+        try values.encode(webPort, forKey: .webPort)
+        try values.encode(defaultDagscDir, forKey: .defaultDagscDir)
+        try values.encode(historyDBPath, forKey: .historyDBPath)
+        try values.encode(historyDBSizeBytes, forKey: .historyDBSizeBytes)
+        try values.encode(metricCapabilities, forKey: .metricCapabilities)
+        try values.encode(metricSemantics, forKey: .metricSemantics)
     }
 }
 
@@ -413,7 +604,7 @@ struct AlignedCliptoMemberItem: Codable, Sendable {
     }
 }
 
-/// Size of `~/Library/Application Support/com.clipto.mac` around the analysed run.
+/// Size of the platform-specific Clipto data directory around the analysed run.
 struct StorageUsageReport: Codable, Sendable {
     let path: String
     let startBytes: Double?

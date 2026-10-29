@@ -1,4 +1,5 @@
 import Foundation
+import CliptoPulseCore
 
 /// A single owner for the SQLite connection. Opening, migration, reads, writes,
 /// and retention all run on this actor, never on the UI's main actor.

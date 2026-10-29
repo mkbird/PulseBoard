@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CliptoPulseCore
 @testable import PulseBoard
 
 private let epoch = Date(timeIntervalSince1970: 1_800_000_000)

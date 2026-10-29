@@ -1,7 +1,11 @@
-import AppKit
 import Foundation
+import CliptoPulseCore
+#if canImport(AppKit)
+import AppKit
+#endif
 
 enum CMSCSVExporter {
+#if canImport(AppKit)
     @MainActor
     static func chooseDestination() -> URL? {
         let panel = NSSavePanel()
@@ -15,6 +19,7 @@ enum CMSCSVExporter {
         guard panel.runModal() == .OK else { return nil }
         return panel.url
     }
+#endif
 
     static func csv(frames: [CMSHistoryFrame], includeHeader: Bool = true) -> String {
         var rows = includeHeader ? [

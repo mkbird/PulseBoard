@@ -4,7 +4,7 @@ import Testing
 @testable import PulseBoard
 
 @Test func dagscAnalyzerSplitsMultiDayBatchesAndCalculatesAccurateSpeedup() throws {
-    try SelfTestSuite.verifyDAGSCBatchAndDaySlicing()
+    try SelfTestSuite.verifyDAGSCBatchSlicing()
 }
 
 @Test func alignedHardwareAndMarkdownReportGeneration() throws {

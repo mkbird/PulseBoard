@@ -1,5 +1,6 @@
 import Foundation
 import SQLite3
+import CliptoPulseCore
 
 private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 

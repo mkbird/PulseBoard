@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, CliptoPulse, CliptoPulse-win]
   pull_request:
-    branches: [master]
+    branches: [master, CliptoPulse, CliptoPulse-win]
 
 permissions:
   contents: read
@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Build and test
+  macos:
+    name: macOS build and test
     runs-on: macos-15
     timeout-minutes: 15
     steps:
@@ -30,3 +30,43 @@ jobs:
 
       - name: Build release binary
         run: swift build -c release
+
+  windows:
+    name: Windows build and test
+    runs-on: windows-2025
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: windows/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run Windows tests
+        run: npm test
+
+      - name: Build portable executable
+        shell: pwsh
+        working-directory: .
+        run: .\Scripts\build-windows.ps1 -SkipInstall
+
+      - name: Verify executable
+        shell: pwsh
+        working-directory: .
+        run: |
+          $exe = Get-Item .\dist\CliptoPulse.exe -ErrorAction Stop
+          if ($exe.Length -lt 1MB) { throw "CliptoPulse.exe is unexpectedly small." }
+          Write-Host "Verified $($exe.FullName) ($([math]::Round($exe.Length / 1MB, 1)) MiB)"

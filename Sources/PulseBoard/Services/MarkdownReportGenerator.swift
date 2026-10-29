@@ -38,14 +38,16 @@ enum MarkdownReportGenerator {
     ) -> String {
         var lines: [String] = []
         let env = analysis.environment
+        let capabilities = env.metricCapabilities
+        let semantics = env.metricSemantics
         let primaryScope = analysis.scopes.assetAnalysis
         let hw = analysis.alignedHardware.flatMap { $0.hasData ? $0 : nil }
 
-        // Title: product + platform + version (we currently ship the Mac build)
+        // Title: product + platform + version.
         lines.append("# \(reportTitle(analysis))")
         lines.append("")
         lines.append("> - **运行时段**：\(titleRange(analysis))（\(escapeMD(sliceSummary(analysis)))）")
-        lines.append("> - **测试平台**：Clipto **macOS 版** · \(env.chipModel) · \(env.physicalMemoryText) 统一内存 · \(env.logicalCores) 核 · \(env.macOSVersion)")
+        lines.append("> - **测试平台**：Clipto **\(escapeMD(env.osName)) 版** · \(escapeMD(env.chipModel)) · \(env.physicalMemoryText) \(escapeMD(semantics.systemMemory)) · \(env.logicalCores) 核 · \(escapeMD(env.displayOSVersion))")
         lines.append("> - **分析模板**：\(analysis.templateVersion.isEmpty ? "—" : analysis.templateVersion) ｜ 生成于 \(analysis.analyzedAtText)")
         let reporter = options.reporter.trimmingCharacters(in: .whitespacesAndNewlines)
         if !reporter.isEmpty {
@@ -66,10 +68,14 @@ enum MarkdownReportGenerator {
         lines.append("")
         let storage = analysis.alignedHardware?.storage
         let storageGrowth = storage.flatMap { s in s.startBytes.map { s.endBytes - $0 } }
+        let cliptoGPUAvailable = capabilities.processGPU && hasMetric(hw?.cliptoGPUPercent)
+        let cliptoGPUCaption = !capabilities.processGPU
+            ? "当前平台不提供进程 GPU 指标"
+            : (cliptoGPUAvailable ? "Clipto 进程组合计（整颗 GPU = 100%）" : "本时段无进程 GPU 采样")
         lines.append("| 端到端分析速度 | 全 CMS 内存峰值 | Clipto 进程组内存峰值 | Clipto 进程组 CPU P95 | Clipto 进程组 GPU P95 | Clipto 数据目录 |")
         lines.append("| :---: | :---: | :---: | :---: | :---: | :---: |")
-        lines.append("| **\(fmtSpeedup(primaryScope.wallSpeedup))** | **\(fmtBytesOpt(hw?.cmsTotalMemoryBytes.max))** | **\(fmtBytesOpt(hw?.cliptoMemoryBytes.max))** | **\(fmtPct1(hw?.cliptoCPUPercent.p95))** | **\(fmtPct1(hw?.cliptoGPUPercent.p95))** | **\(fmtBytesOpt(storage?.endBytes))** |")
-        lines.append("| 素材 \(fmtDurationShort(analysis.totalMediaDurationMs)) ÷ 端到端 \(fmtDurationShort(primaryScope.wallClockMs)) | 所有 cms 进程物理内存合计 | Clipto.app 全部进程物理内存合计 | Clipto.app 全部进程合计（单核 = 100%） | Clipto.app 全部进程合计（整颗 GPU = 100%） | \(storageGrowth.map { "运行期间 \(fmtSignedBytes($0))" } ?? "com.clipto.mac 磁盘占用") |")
+        lines.append("| **\(fmtSpeedup(primaryScope.wallSpeedup))** | **\(fmtBytesOpt(hw?.cmsTotalMemoryBytes.max))** | **\(fmtBytesOpt(hw?.cliptoMemoryBytes.max))** | **\(fmtPct1(hw?.cliptoCPUPercent.p95))** | **\(cliptoGPUAvailable ? fmtPct1(hw?.cliptoGPUPercent.p95) : "—")** | **\(fmtBytesOpt(storage?.endBytes))** |")
+        lines.append("| 素材 \(fmtDurationShort(analysis.totalMediaDurationMs)) ÷ 端到端 \(fmtDurationShort(primaryScope.wallClockMs)) | 所有 cms 进程内存合计（\(escapeMD(semantics.processMemory))） | Clipto 进程组内存合计（\(escapeMD(semantics.processMemory))） | Clipto 进程组合计（\(escapeMD(semantics.processCPU))） | \(cliptoGPUCaption) | \(storageGrowth.map { "运行期间 \(fmtSignedBytes($0))" } ?? "Clipto 数据目录磁盘占用") |")
         lines.append("")
 
         // Section 1: Throughput overview
@@ -105,16 +111,31 @@ enum MarkdownReportGenerator {
                 lines.append("")
                 lines.append("| 监控对象与指标 | 平均值 | P95 | 峰值 | 补充信息 |")
                 lines.append("| :--- | :---: | :---: | :---: | :--- |")
-                lines.append("| **全 CMS 物理内存** | \(fmtBytesOpt(hw.cmsTotalMemoryBytes.avg)) | \(fmtBytesOpt(hw.cmsTotalMemoryBytes.p95)) | **\(fmtBytesOpt(hw.cmsTotalMemoryBytes.max))** | `phys_footprint`，\(hw.cmsProcesses.count) 类 cms 进程 |")
-                lines.append("| **全 CMS CPU（单核=100%）** | \(fmtPct1(hw.cmsTotalCPUPercent.avg)) | \(fmtPct1(hw.cmsTotalCPUPercent.p95)) | **\(fmtPct1(hw.cmsTotalCPUPercent.max))** | 名称含 `cms` 的进程合计 |")
-                lines.append("| **全 CMS GPU** | \(fmtPct1(hw.cmsTotalGPUPercent.avg)) | \(fmtPct1(hw.cmsTotalGPUPercent.p95)) | **\(fmtPct1(hw.cmsTotalGPUPercent.max))** | 按进程 GPU 时间统计（不含 ANE） |")
+                lines.append("| **全 CMS 进程内存** | \(fmtBytesOpt(hw.cmsTotalMemoryBytes.avg)) | \(fmtBytesOpt(hw.cmsTotalMemoryBytes.p95)) | **\(fmtBytesOpt(hw.cmsTotalMemoryBytes.max))** | `\(escapeMD(semantics.processMemory))`，\(hw.cmsProcesses.count) 类 cms 进程 |")
+                lines.append("| **全 CMS CPU（\(escapeMD(semantics.processCPU))）** | \(fmtPct1(hw.cmsTotalCPUPercent.avg)) | \(fmtPct1(hw.cmsTotalCPUPercent.p95)) | **\(fmtPct1(hw.cmsTotalCPUPercent.max))** | 名称含 `cms` 的进程合计 |")
+                if capabilities.processGPU && hasMetric(hw.cmsTotalGPUPercent) {
+                    lines.append("| **全 CMS GPU** | \(fmtPct1(hw.cmsTotalGPUPercent.avg)) | \(fmtPct1(hw.cmsTotalGPUPercent.p95)) | **\(fmtPct1(hw.cmsTotalGPUPercent.max))** | \(escapeMD(semantics.processGPU)) |")
+                }
                 lines.append("| **Clipto 进程组 CPU / 内存** | \(fmtPct(hw.cliptoCPUPercent.avg)) / \(fmtBytesOpt(hw.cliptoMemoryBytes.avg)) | \(fmtPct(hw.cliptoCPUPercent.p95)) / \(fmtBytesOpt(hw.cliptoMemoryBytes.p95)) | **\(fmtPct(hw.cliptoCPUPercent.max))** / **\(fmtBytesOpt(hw.cliptoMemoryBytes.max))** | 最多 \(hw.cliptoMaxProcesses) 个子进程 |")
                 lines.append("| **Clipto 非 CMS 进程内存** | \(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.avg)) | \(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.p95)) | **\(fmtBytesOpt(hw.cliptoNonCMSMemoryBytes.max))** | 进程组中名称不含 cms 的进程合计（全进程明细见网页端） |")
-                lines.append("| **Clipto 进程组 GPU** | \(fmtPct(hw.cliptoGPUPercent.avg)) | \(fmtPct(hw.cliptoGPUPercent.p95)) | **\(fmtPct(hw.cliptoGPUPercent.max))** | 磁盘读峰值 \(fmtRateOpt(hw.cliptoDiskReadBps.max)) / 写峰值 \(fmtRateOpt(hw.cliptoDiskWriteBps.max)) |")
-                lines.append("| **整机 CPU / GPU / ANE** | \(fmtPct(hw.sysCPU.avg)) / \(fmtPct(hw.sysGPU.avg)) / \(fmtPct(hw.aneUsage.avg)) | \(fmtPct(hw.sysCPU.p95)) / \(fmtPct(hw.sysGPU.p95)) / \(fmtPct(hw.aneUsage.p95)) | **\(fmtPct(hw.sysCPU.max))** / **\(fmtPct(hw.sysGPU.max))** / **\(fmtPct(hw.aneUsage.max))** | 系统级利用率 |")
+                if capabilities.processGPU && hasMetric(hw.cliptoGPUPercent) {
+                    lines.append("| **Clipto 进程组 GPU** | \(fmtPct(hw.cliptoGPUPercent.avg)) | \(fmtPct(hw.cliptoGPUPercent.p95)) | **\(fmtPct(hw.cliptoGPUPercent.max))** | \(escapeMD(semantics.processGPU))；读峰值 \(fmtRateOpt(hw.cliptoDiskReadBps.max)) / 写峰值 \(fmtRateOpt(hw.cliptoDiskWriteBps.max)) |")
+                } else if capabilities.processIO && (hasMetric(hw.cliptoDiskReadBps) || hasMetric(hw.cliptoDiskWriteBps)) {
+                    lines.append("| **Clipto 进程组 I/O** | 读 \(fmtRateOpt(hw.cliptoDiskReadBps.avg)) / 写 \(fmtRateOpt(hw.cliptoDiskWriteBps.avg)) | 读 \(fmtRateOpt(hw.cliptoDiskReadBps.p95)) / 写 \(fmtRateOpt(hw.cliptoDiskWriteBps.p95)) | **读 \(fmtRateOpt(hw.cliptoDiskReadBps.max)) / 写 \(fmtRateOpt(hw.cliptoDiskWriteBps.max))** | \(escapeMD(semantics.processIO)) |")
+                }
+                var computeMetrics: [(String, AlignedStatMetric)] = [("CPU", hw.sysCPU)]
+                if capabilities.systemGPU && hasMetric(hw.sysGPU) { computeMetrics.append(("GPU", hw.sysGPU)) }
+                if capabilities.ane && hasMetric(hw.aneUsage) { computeMetrics.append(("ANE", hw.aneUsage)) }
+                let computeLabel = computeMetrics.map { $0.0 }.joined(separator: " / ")
+                let computeAvg = computeMetrics.map { fmtPct($0.1.avg) }.joined(separator: " / ")
+                let computeP95 = computeMetrics.map { fmtPct($0.1.p95) }.joined(separator: " / ")
+                let computeMax = computeMetrics.map { fmtPct($0.1.max) }.joined(separator: " / ")
+                lines.append("| **整机 \(computeLabel)** | \(computeAvg) | \(computeP95) | **\(computeMax)** | 系统级利用率 |")
                 lines.append("| **整机内存 / Swap** | \(fmtBytesOpt(hw.sysMemBytes.avg)) | \(fmtBytesOpt(hw.sysMemBytes.p95)) | **\(fmtBytesOpt(hw.sysMemBytes.max))** | Swap 峰值 **\(fmtBytesOpt(hw.swapUsedBytes.max))** |")
-                let energyText = hw.estimatedEnergyWh.map { String(format: "累计耗电约 **%.2f Wh**", $0) } ?? "—"
-                lines.append("| **整机功耗** | \(fmtWatts(hw.sysPowerWatts.avg)) | \(fmtWatts(hw.sysPowerWatts.p95)) | **\(fmtWatts(hw.sysPowerWatts.max))** | \(energyText)；最高热状态 **\(thermalLabel(hw.worstThermalState))** |")
+                if capabilities.power && hasMetric(hw.sysPowerWatts) {
+                    let energyText = hw.estimatedEnergyWh.map { String(format: "累计耗电约 **%.2f Wh**", $0) } ?? "—"
+                    lines.append("| **整机功耗** | \(fmtWatts(hw.sysPowerWatts.avg)) | \(fmtWatts(hw.sysPowerWatts.p95)) | **\(fmtWatts(hw.sysPowerWatts.max))** | \(energyText)；\(escapeMD(semantics.power))；最高热状态 **\(thermalLabel(hw.worstThermalState))** |")
+                }
                 lines.append("")
 
                 if options.includeCMSProcesses {
@@ -146,13 +167,13 @@ enum MarkdownReportGenerator {
                     }
                 }
             } else {
-                lines.append("> 该分析区间内没有 CliptoPulse 硬件采样记录（采集未开启或早于历史保留期）。测试期间请保持菜单栏 CliptoPulse 常驻运行。")
+                lines.append("> 该分析区间内没有 CliptoPulse 硬件采样记录（采集未开启或早于历史保留期）。测试期间请保持 CliptoPulse 常驻运行。")
                 lines.append("")
             }
         }
 
         // Section 3: User storage occupied by Clipto
-        lines.append("## 三、com.clipto.mac大小")
+        lines.append(env.platform == "windows" ? "## 三、Clipto 数据目录大小" : "## 三、com.clipto.mac大小")
         lines.append("")
         if let st = hw?.storage ?? analysis.alignedHardware?.storage {
             let growth = st.startBytes.map { st.endBytes - $0 }
@@ -211,10 +232,15 @@ enum MarkdownReportGenerator {
         return a.sliceLabel
     }
 
-    /// "Clipto Mac v0.9.288 (0.9-beta) 离线分析性能晨报"
+    /// Product + current OS + optional app version.
     static func reportTitle(_ a: DAGSCAnalysisResponse) -> String {
         let version = a.appVersion == "未知版本" ? "" : " \(a.appVersion)"
-        return "Clipto Mac\(version) 离线分析性能晨报"
+        return "Clipto \(a.environment.osName)\(version) 离线分析性能晨报"
+    }
+
+    private static func hasMetric(_ metric: AlignedStatMetric?) -> Bool {
+        guard let metric else { return false }
+        return metric.count > 0 || metric.avg != nil || metric.p95 != nil || metric.max != nil
     }
 
     /// "7h29m" / "15.4s" — compact duration for KPI captions.

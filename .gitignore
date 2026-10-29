@@ -1,5 +1,7 @@
 .DS_Store
 .build/
+windows/build/
+windows/node_modules/
 *.xcuserstate
 *.sqlite
 *.sqlite-shm

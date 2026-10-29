@@ -196,13 +196,7 @@ enum DAGSCAnalyzer {
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
         let tempDB = tempDir.appendingPathComponent("schedule.db")
-        try FileManager.default.copyItem(at: dbURL, to: tempDB)
-        for suffix in ["-wal", "-shm"] {
-            let sidecar = URL(fileURLWithPath: dbURL.path + suffix)
-            if FileManager.default.fileExists(atPath: sidecar.path) {
-                try? FileManager.default.copyItem(at: sidecar, to: URL(fileURLWithPath: tempDB.path + suffix))
-            }
-        }
+        try SQLiteSnapshot.create(from: dbURL, at: tempDB)
 
         var db: OpaquePointer?
         guard sqlite3_open_v2(tempDB.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK, let db else {

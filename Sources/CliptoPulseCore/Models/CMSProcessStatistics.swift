@@ -1,58 +1,84 @@
 import Foundation
 
-struct CMSProcessID: Hashable, Sendable {
-    let pid: Int32
+package struct CMSProcessID: Hashable, Sendable {
+    package let pid: Int32
     /// BSD process start time, in microseconds since the Unix epoch.
-    let startTime: UInt64
+    package let startTime: UInt64
+
+    package init(pid: Int32, startTime: UInt64) {
+        self.pid = pid
+        self.startTime = startTime
+    }
 }
 
-struct CMSProcessReading: Sendable {
-    let id: CMSProcessID
-    let name: String
-    let cpuSeconds: Double?
-    let memoryBytes: Double?
+package struct CMSProcessReading: Sendable {
+    package let id: CMSProcessID
+    package let name: String
+    package let cpuSeconds: Double?
+    package let memoryBytes: Double?
+
+    package init(id: CMSProcessID, name: String, cpuSeconds: Double?, memoryBytes: Double?) {
+        self.id = id
+        self.name = name
+        self.cpuSeconds = cpuSeconds
+        self.memoryBytes = memoryBytes
+    }
 }
 
-struct CMSRawSnapshot: Sendable {
-    let timestamp: Date
-    let monotonicSeconds: Double
-    let processes: [CMSProcessReading]
-    let enumerationValid: Bool
-    let unreadableCount: Int
+package struct CMSRawSnapshot: Sendable {
+    package let timestamp: Date
+    package let monotonicSeconds: Double
+    package let processes: [CMSProcessReading]
+    package let enumerationValid: Bool
+    package let unreadableCount: Int
+
+    package init(
+        timestamp: Date,
+        monotonicSeconds: Double,
+        processes: [CMSProcessReading],
+        enumerationValid: Bool,
+        unreadableCount: Int
+    ) {
+        self.timestamp = timestamp
+        self.monotonicSeconds = monotonicSeconds
+        self.processes = processes
+        self.enumerationValid = enumerationValid
+        self.unreadableCount = unreadableCount
+    }
 
     var membershipComplete: Bool { enumerationValid && unreadableCount == 0 }
 }
 
-struct CMSMetricStatistics: Sendable {
-    let current: Double?
-    let average: Double?
-    let peak: Double?
-    let validDuration: TimeInterval
+package struct CMSMetricStatistics: Sendable {
+    package let current: Double?
+    package let average: Double?
+    package let peak: Double?
+    package let validDuration: TimeInterval
 }
 
-enum CMSProcessState: Sendable {
+package enum CMSProcessState: Sendable {
     case running, exited, unavailable
 }
 
-struct CMSProcessRow: Identifiable, Sendable {
-    let id: CMSProcessID
-    let name: String
-    let state: CMSProcessState
-    let cpu: CMSMetricStatistics
-    let memory: CMSMetricStatistics
+package struct CMSProcessRow: Identifiable, Sendable {
+    package let id: CMSProcessID
+    package let name: String
+    package let state: CMSProcessState
+    package let cpu: CMSMetricStatistics
+    package let memory: CMSMetricStatistics
 }
 
-struct CMSSessionSnapshot: Sendable {
-    let startedAt: Date
+package struct CMSSessionSnapshot: Sendable {
+    package let startedAt: Date
     /// Version 1 requires complete group membership; version 2 sums the
     /// available readings from the processes observed in each frame.
-    let statisticsVersion: Int
-    let processes: [CMSProcessRow]
-    let runningCount: Int
-    let cpu: CMSMetricStatistics
-    let memory: CMSMetricStatistics
-    let isComplete: Bool
-    let isSuspended: Bool
+    package let statisticsVersion: Int
+    package let processes: [CMSProcessRow]
+    package let runningCount: Int
+    package let cpu: CMSMetricStatistics
+    package let memory: CMSMetricStatistics
+    package let isComplete: Bool
+    package let isSuspended: Bool
 }
 
 private struct CMSMetricAccumulator {
@@ -84,7 +110,7 @@ private func valid(_ value: Double?) -> Double? {
 /// Keeps only counters per process instance, never the full sequence of samples.
 /// CPU represents the interval ending at the current sample; memory uses the
 /// previous observed footprint over the interval (a sample-and-hold estimate).
-struct CMSProcessSession {
+package struct CMSProcessSession {
     private struct Entry {
         let id: CMSProcessID
         var name: String
@@ -97,8 +123,8 @@ struct CMSProcessSession {
         }
     }
 
-    let startedAt: Date
-    let statisticsVersion: Int
+    private let startedAt: Date
+    private let statisticsVersion: Int
     private var entries: [CMSProcessID: Entry] = [:]
     private var previous: CMSRawSnapshot?
     private var totalCPU = CMSMetricAccumulator()
@@ -110,12 +136,12 @@ struct CMSProcessSession {
     private var isComplete = false
     private var isSuspended = false
 
-    init(startedAt: Date = Date(), statisticsVersion: Int = 2) {
+    package init(startedAt: Date = Date(), statisticsVersion: Int = 2) {
         self.startedAt = startedAt
         self.statisticsVersion = statisticsVersion
     }
 
-    var snapshot: CMSSessionSnapshot {
+    package var snapshot: CMSSessionSnapshot {
         CMSSessionSnapshot(
             startedAt: startedAt, statisticsVersion: statisticsVersion,
             processes: entries.values.map(\.row).sorted {
@@ -126,7 +152,7 @@ struct CMSProcessSession {
         )
     }
 
-    mutating func suspend() {
+    package mutating func suspend() {
         previous = nil
         isSuspended = true
         isComplete = false
@@ -138,7 +164,7 @@ struct CMSProcessSession {
         }
     }
 
-    mutating func consume(_ sample: CMSRawSnapshot, maximumGap: TimeInterval = 30) {
+    package mutating func consume(_ sample: CMSRawSnapshot, maximumGap: TimeInterval = 30) {
         let old = previous
         let delta = old.map { sample.monotonicSeconds - $0.monotonicSeconds } ?? 0
         let duration = delta.isFinite && delta > 0 && delta <= maximumGap ? delta : 0

@@ -27,18 +27,22 @@ enum SystemEnvironmentService {
         }()
 
         return SystemEnvironmentInfo(
+            platform: "macos",
+            osName: "macOS",
+            osVersion: macOS,
             chipModel: chip,
             physicalMemoryBytes: memBytes,
             physicalMemoryText: memText,
             logicalCores: cores,
-            macOSVersion: "macOS \(macOS)",
             hostname: hostname,
             username: username,
             lanIPs: lanIPv4Addresses(),
             webPort: webPort,
             defaultDagscDir: defaultDir,
             historyDBPath: historyDBURL.path,
-            historyDBSizeBytes: dbSize
+            historyDBSizeBytes: dbSize,
+            metricCapabilities: .macOS,
+            metricSemantics: .macOS
         )
     }
 

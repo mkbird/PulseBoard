@@ -1,5 +1,6 @@
 import Foundation
 import SQLite3
+import CliptoPulseCore
 
 enum SelfTestError: LocalizedError {
     case assertionFailed(String)
@@ -20,11 +21,29 @@ enum SelfTestSuite {
     }
 
     static func runAll() throws {
-        try verifyURLFormQueryDecoding()
+        try runCore()
+        try runWebIntegration()
+        try runPlatformRendering()
+    }
+
+    /// Platform-neutral analysis, history and report checks. Keep this entry point
+    /// free of AppKit/SwiftUI rendering so it can be reused by the Windows core
+    /// feasibility build.
+    static func runCore() throws {
         try verifyDAGSCBatchSlicing()
         try verifyAlignedHardwareAndMarkdownReport()
-        try verifyReportImageRendering()
         try verifyHistoryWipe()
+    }
+
+    /// HTTP parsing checks that belong to the application host rather than the
+    /// portable analysis core.
+    static func runWebIntegration() throws {
+        try verifyURLFormQueryDecoding()
+    }
+
+    /// Native report rendering checks that require the macOS UI stack.
+    static func runPlatformRendering() throws {
+        try verifyReportImageRendering()
     }
 
     private final class OutcomeBox: @unchecked Sendable {
@@ -295,7 +314,7 @@ enum SelfTestSuite {
             )
         )
 
-        try check(md.contains("# Clipto Mac ") && md.contains(" 离线分析性能晨报"), "Missing Markdown report H1 header")
+        try check(md.contains("# \(MarkdownReportGenerator.reportTitle(analysis))"), "Missing platform-aware Markdown report H1 header")
         try check(md.contains("## 🎯 头条指标"), "Missing headline KPI section")
         try check(md.contains("| 端到端分析速度 | 全 CMS 内存峰值 | Clipto 进程组内存峰值 | Clipto 进程组 CPU P95 | Clipto 进程组 GPU P95 | Clipto 数据目录 |"), "Headline KPI labels mismatch")
         try check(md.contains("| **6.00x** | **2.50 GB** | **4.00 GB** | **38.0%** | **28.0%** | **12.00 GB** |"), "Headline KPI values mismatch")
@@ -496,7 +515,7 @@ enum SelfTestSuite {
 
 @MainActor
 enum CLIRunner {
-    /// Returns true if a CLI-only flag (`--self-test`, `--export-report`, `--help`) was handled and the process should exit.
+    /// Returns true if a CLI-only flag (`--self-test*`, `--export-report`, `--help`) was handled and the process should exit.
     static func handleIfNeeded(arguments: [String] = CommandLine.arguments) -> Bool {
         if arguments.contains("--help") || arguments.contains("-h") {
             printUsage()
@@ -510,6 +529,28 @@ enum CLIRunner {
                 return true
             } catch {
                 fputs("CliptoPulse self-test FAILED: \(error.localizedDescription)\n", stderr)
+                Foundation.exit(1)
+            }
+        }
+
+        if arguments.contains("--self-test-core") {
+            do {
+                try SelfTestSuite.runCore()
+                print("CliptoPulse core self-test passed (DAGSC batch slicing + aligned hardware + GFM Markdown report + history).")
+                return true
+            } catch {
+                fputs("CliptoPulse core self-test FAILED: \(error.localizedDescription)\n", stderr)
+                Foundation.exit(1)
+            }
+        }
+
+        if arguments.contains("--self-test-rendering") {
+            do {
+                try SelfTestSuite.runPlatformRendering()
+                print("CliptoPulse native rendering self-test passed (PNG card).")
+                return true
+            } catch {
+                fputs("CliptoPulse native rendering self-test FAILED: \(error.localizedDescription)\n", stderr)
                 Foundation.exit(1)
             }
         }
@@ -651,7 +692,9 @@ enum CLIRunner {
             --out <文件路径>    保存 Markdown 到文件（省略则输出到标准输出）
             --png <文件路径>    同时把晨报渲染为 PNG 图片
             --csv <文件路径>    同时导出单列 CSV（第 1 行版本号，之后每行一个指标）
-          --self-test           运行内置自检测试套件（验证批次切分、硬件对齐、晨报 Markdown 与图片生成）
+          --self-test           运行全部自检（共享核心 + macOS PNG 渲染）
+          --self-test-core      仅运行共享核心自检（批次、硬件对齐、Markdown、历史）
+          --self-test-rendering 仅运行 macOS PNG 渲染自检
           --help, -h            显示本帮助信息
         """
         print(usage)

@@ -1,4 +1,5 @@
 import Foundation
+import CliptoPulseCore
 
 struct LiveSampleDTO: Codable, Sendable {
     let tsMs: Int64
@@ -184,7 +185,7 @@ struct LiveCMSSessionDTO: Codable, Sendable {
 enum WebConsoleRouter {
     static func handle(
         request: HTTPRequest,
-        monitor: MonitorStore,
+        monitor: any WebConsoleMonitorSource,
         history: HistoryRepository
     ) async -> HTTPResponse {
         let path = request.path
@@ -211,7 +212,7 @@ enum WebConsoleRouter {
         }
 
         let dbURL = (try? await history.resolvedDatabaseURL()) ?? defaultHistoryDBURL()
-        let port = await MainActor.run { monitor.webServerPort }
+        let port = await monitor.webConsolePort
         let env = SystemEnvironmentService.current(webPort: port, historyDBURL: dbURL)
 
         if path == "/api/bootstrap" || path == "/api/default-info" {
@@ -229,15 +230,7 @@ enum WebConsoleRouter {
         }
 
         if path == "/api/monitor/live" {
-            let liveSnapshot = await MainActor.run { () -> (MetricSample?, CMSSessionSnapshot, Double, Int, Bool) in
-                (
-                    monitor.latest,
-                    monitor.cmsSession,
-                    monitor.samplingInterval,
-                    monitor.retentionDays,
-                    monitor.enhancedMetricsAvailable
-                )
-            }
+            let liveSnapshot = await monitor.webConsoleLiveSnapshot()
             struct LivePayload: Encodable {
                 let ok = true
                 let sampling_interval_sec: Double
@@ -248,11 +241,11 @@ enum WebConsoleRouter {
                 let environment: SystemEnvironmentInfo
             }
             return .json(200, LivePayload(
-                sampling_interval_sec: liveSnapshot.2,
-                retention_days: liveSnapshot.3,
-                enhanced_available: liveSnapshot.4,
-                latest: liveSnapshot.0.map(LiveSampleDTO.init),
-                cms: LiveCMSSessionDTO(liveSnapshot.1),
+                sampling_interval_sec: liveSnapshot.samplingInterval,
+                retention_days: liveSnapshot.retentionDays,
+                enhanced_available: liveSnapshot.enhancedMetricsAvailable,
+                latest: liveSnapshot.latest.map(LiveSampleDTO.init),
+                cms: LiveCMSSessionDTO(liveSnapshot.cmsSession),
                 environment: env
             ))
         }
@@ -352,10 +345,7 @@ enum WebConsoleRouter {
                let obj = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any] {
                 let reporter = obj["reporter"] as? String
                 let lanHost = obj["lan_host"] as? String
-                await MainActor.run {
-                    if let reporter { monitor.reporterName = reporter }
-                    if let lanHost { monitor.reportLANHost = lanHost }
-                }
+                await monitor.updateReportProfile(reporter: reporter, lanHost: lanHost)
             }
             struct ProfilePayload: Encodable {
                 let ok = true

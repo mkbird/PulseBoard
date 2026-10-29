@@ -841,7 +841,7 @@
         <div>
           <div class="brand-title">
             <span>CliptoPulse</span>
-            <span id="nav-chip-badge" style="font-size:0.72rem; font-weight:600; padding:2px 8px; border-radius:999px; background:#1e293b; color:#38bdf8; border:1px solid #334155;">Apple Silicon</span>
+            <span id="nav-chip-badge" style="font-size:0.72rem; font-weight:600; padding:2px 8px; border-radius:999px; background:#1e293b; color:#38bdf8; border:1px solid #334155;">系统信息</span>
           </div>
           <div class="brand-sub">硬件与 CMS 常驻监控 × DAGSC 调度分析 × 晨报工作台</div>
           <div class="brand-sub" id="app-version">__CLIPTOPULSE_BUILD_LABEL__</div>
@@ -1033,8 +1033,8 @@
               <span>算法服务并发泳道 × 同轴硬件资源轨迹图</span>
               <span class="badge" style="background:#0f172a; color:#38bdf8;">支持无级缩放与空泡检测</span>
             </h3>
-            <div style="font-size:0.79rem; color:var(--muted); margin-top:2px;">
-              上方展示算法服务并发调度与等待空泡，下方同轴联动展示同一毫秒窗口内的 CPU / ANE / Clipto & CMS 内存 / 整机功耗曲线
+            <div id="nsys-track-description" style="font-size:0.79rem; color:var(--muted); margin-top:2px;">
+              上方展示算法服务并发调度与等待空泡，下方同轴联动展示同一毫秒窗口内的 CPU / GPU / ANE、Clipto 与 CMS 进程内存和功耗曲线
             </div>
           </div>
           <div class="seg-control" id="chart-mode-seg">
@@ -1064,7 +1064,7 @@
             </label>
             <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; color:#38bdf8; font-weight:600;">
               <input type="checkbox" id="nsys-show-hw-tracks" checked style="accent-color:#38bdf8;">
-              <span>叠加同轴硬件与内存轨迹</span>
+              <span id="nsys-show-hw-label">叠加同轴硬件与进程内存轨迹</span>
             </label>
           </div>
 
@@ -1143,37 +1143,37 @@
       <!-- 6 Live Telemetry Cards -->
       <div class="cards-grid-6">
         <div class="stat-card highlight-blue">
-          <div class="stat-label"><span>处理器负载 (CPU / GPU / ANE)</span><span id="mon-thermal-badge" class="badge badge-green">正常</span></div>
+          <div class="stat-label"><span id="mon-compute-label">处理器负载</span><span id="mon-thermal-badge" class="badge badge-green">正常</span></div>
           <div class="stat-value" id="mon-cpu-val">—</div>
-          <div class="stat-sub" id="mon-gpu-ane-sub">GPU — ｜ ANE —</div>
+          <div class="stat-sub" id="mon-gpu-ane-sub">可用指标检测中</div>
         </div>
 
         <div class="stat-card">
-          <div class="stat-label"><span>整机与芯片分项功耗</span><span>IOReport / SMC</span></div>
+          <div class="stat-label"><span id="mon-power-label">整机与芯片分项功耗</span><span id="mon-power-provider">能力检测中</span></div>
           <div class="stat-value" id="mon-power-val">—</div>
           <div class="stat-sub" id="mon-power-sub">CPU — ｜ GPU — ｜ ANE —</div>
         </div>
 
         <div class="stat-card">
-          <div class="stat-label"><span>系统内存与 Swap</span><span id="mon-mem-pct-badge">—</span></div>
+          <div class="stat-label"><span id="mon-system-memory-label">系统统一内存与 Swap</span><span id="mon-mem-pct-badge">—</span></div>
           <div class="stat-value" id="mon-mem-val">—</div>
           <div class="stat-sub" id="mon-swap-sub">Swap: —</div>
         </div>
 
         <div class="stat-card highlight-purple">
-          <div class="stat-label"><span>Clipto 进程组实时占用</span><span id="mon-clipto-state" class="badge badge-amber">检测中</span></div>
+          <div class="stat-label"><span id="mon-clipto-memory-label">Clipto 进程内存 (phys_footprint)</span><span id="mon-clipto-state" class="badge badge-amber">检测中</span></div>
           <div class="stat-value" id="mon-clipto-mem">—</div>
-          <div class="stat-sub" id="mon-clipto-sub">CPU — ｜ GPU — ｜ 进程数 —</div>
+          <div class="stat-sub" id="mon-clipto-sub">指标检测中</div>
         </div>
 
         <div class="stat-card highlight-cyan">
-          <div class="stat-label"><span>CMS 算法进程组总计</span><span id="mon-cms-count-badge">—</span></div>
+          <div class="stat-label"><span id="mon-cms-memory-label">CMS 进程内存合计 (phys_footprint)</span><span id="mon-cms-count-badge">—</span></div>
           <div class="stat-value" id="mon-cms-mem">—</div>
           <div class="stat-sub" id="mon-cms-sub">当前 CPU — ｜ 会话峰值内存 —</div>
         </div>
 
         <div class="stat-card">
-          <div class="stat-label"><span>DRAM / 磁盘 / 网络吞吐</span><span>实时带宽</span></div>
+          <div class="stat-label"><span id="mon-io-label">磁盘 / 网络吞吐</span><span>实时带宽</span></div>
           <div class="stat-value" id="mon-dram-val">—</div>
           <div class="stat-sub" id="mon-io-sub">磁盘 — ｜ 网络 —</div>
         </div>
@@ -1183,24 +1183,24 @@
       <div class="charts-grid-2">
         <div class="monitor-chart-box">
           <div class="monitor-chart-header">
-            <strong>处理器与 AI 引擎利用率 (%)</strong>
-            <span style="color:#94a3b8; font-size:0.75rem;">■ 系统CPU(蓝) ■ GPU(绿) ■ ANE(橙) ■ Clipto CPU(紫)</span>
+            <strong id="chart-compute-title">处理器利用率 (%)</strong>
+            <span id="chart-compute-legend" style="color:#94a3b8; font-size:0.75rem;">可用指标检测中</span>
           </div>
           <canvas class="monitor-canvas" id="chart-cpu"></canvas>
         </div>
 
         <div class="monitor-chart-box">
           <div class="monitor-chart-header">
-            <strong>系统、Clipto 与 CMS 物理内存曲线 (GB)</strong>
-            <span style="color:#94a3b8; font-size:0.75rem;">■ 系统已用(蓝) ■ Clipto内存(紫) ■ CMS总内存(青) ■ Swap(红)</span>
+            <strong id="chart-mem-title">统一内存与进程内存曲线 (GB)</strong>
+            <span id="chart-mem-legend" style="color:#94a3b8; font-size:0.75rem;">■ 统一内存(蓝) ■ Clipto phys_footprint(紫) ■ CMS phys_footprint(青) ■ Swap(红)</span>
           </div>
           <canvas class="monitor-canvas" id="chart-mem"></canvas>
         </div>
 
-        <div class="monitor-chart-box">
+        <div class="monitor-chart-box" id="chart-power-box">
           <div class="monitor-chart-header">
             <strong>整机与分项功耗趋势 (W)</strong>
-            <span style="color:#94a3b8; font-size:0.75rem;">■ 整机(粉红) ■ CPU(蓝) ■ GPU(绿) ■ ANE(橙)</span>
+            <span id="chart-power-legend" style="color:#94a3b8; font-size:0.75rem;">可用指标检测中</span>
           </div>
           <canvas class="monitor-canvas" id="chart-power"></canvas>
         </div>
@@ -1208,7 +1208,7 @@
         <div class="monitor-chart-box">
           <div class="monitor-chart-header">
             <strong>磁盘吞吐 (MB/s) & Clipto 读写速率</strong>
-            <span style="color:#94a3b8; font-size:0.75rem;">■ 磁盘读(青) ■ 磁盘写(橙) ■ Clipto读(紫) ■ DRAM总带宽 GB/s(黄)</span>
+            <span id="chart-io-legend" style="color:#94a3b8; font-size:0.75rem;">可用指标检测中</span>
           </div>
           <canvas class="monitor-canvas" id="chart-io"></canvas>
         </div>
@@ -1236,9 +1236,9 @@
                 <th class="num">当前 CPU (单核=100%)</th>
                 <th class="num">会话平均 CPU</th>
                 <th class="num">采样峰值 CPU</th>
-                <th class="num">当前物理内存</th>
-                <th class="num">会话平均内存</th>
-                <th class="num">采样峰值内存</th>
+                <th class="num" id="cms-mem-col-current">当前内存 (phys_footprint)</th>
+                <th class="num" id="cms-mem-col-average">平均内存 (phys_footprint)</th>
+                <th class="num" id="cms-mem-col-peak">峰值内存 (phys_footprint)</th>
               </tr>
             </thead>
             <tbody id="cms-live-tbody"></tbody>
@@ -1253,7 +1253,7 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">📝 Clipto 离线分析晨报生成器</h2>
+            <h2 class="card-title" id="report-studio-title">📝 Clipto 离线分析晨报生成器</h2>
             <div style="font-size:0.81rem; color:var(--muted); margin-top:2px;">
               晨报数据自动关联顶部所选的测试批次 / 自定义时间窗，并融合了 DAGSC 吞吐指标与 PulseBoard 硬件及 CMS 水位。请在 Clipto 全部跑完后再生成。
             </div>
@@ -1286,7 +1286,7 @@
 
         <!-- Developer Custom Fields -->
         <div class="report-form-grid">
-          <div class="field-group">
+          <div class="field-group" id="rpt-lan-field">
             <label for="rpt-reporter">评测人（手动填写，与菜单栏同步保存）</label>
             <input type="text" id="rpt-reporter" class="text-input" placeholder="例如：yingjia">
           </div>
@@ -1356,6 +1356,82 @@
     let monitorCustomFromMs = 0;
     let monitorCustomToMs = 0;
     let monitorAutoRefresh = true;
+
+    function metricCapabilities(env) {
+      const caps = env && env.metric_capabilities;
+      // Legacy payloads predate the capability contract and exposed all metric families.
+      if (!caps) return { systemGPU: true, ane: true, power: true, dramBandwidth: true, processGPU: true, processIO: true };
+      return {
+        systemGPU: caps.system_gpu === true,
+        ane: caps.ane === true,
+        power: caps.power === true,
+        dramBandwidth: caps.dram_bandwidth === true,
+        processGPU: caps.process_gpu === true,
+        processIO: caps.process_io === true
+      };
+    }
+
+    function metricSemantics(env) {
+      const semantics = (env && env.metric_semantics) || {};
+      return {
+        systemMemory: semantics.system_memory || "物理内存",
+        processMemory: semantics.process_memory || "进程内存",
+        gpuMemory: semantics.gpu_memory || "GPU 显存",
+        processCPU: semantics.process_cpu || "单核 = 100%",
+        processGPU: semantics.process_gpu || "进程 GPU",
+        processIO: semantics.process_io || "进程 I/O",
+        power: semantics.power || "平台功耗接口"
+      };
+    }
+
+    function environmentOSName(env) {
+      if (!env) return "当前平台";
+      const legacyName = env.macos_version ? String(env.macos_version).trim().split(/\s+/)[0] : "";
+      return env.os_name || env.platform || legacyName || "当前平台";
+    }
+
+    function environmentOSVersion(env) {
+      if (!env) return "当前系统";
+      if (env.os_name && env.os_version) return `${env.os_name} ${env.os_version}`;
+      return env.os_name || env.os_version || env.macos_version || env.platform || "当前系统";
+    }
+
+    function environmentHardwareLabel(env) {
+      const gpuNames = Array.isArray(env && env.nvidia_gpus)
+        ? env.nvidia_gpus.map(gpu => String(gpu && gpu.name || "").trim()).filter(Boolean)
+        : [];
+      return [env && env.chip_model, gpuNames.join(" + ")].filter(Boolean).join(" · ") || "—";
+    }
+
+    function applyPlatformUI(env) {
+      const windows = String(env && env.platform || "").toLowerCase() === "windows";
+      document.getElementById("copy-lan-pill").style.display = windows ? "none" : "inline-flex";
+      document.getElementById("rpt-lan-field").style.display = windows ? "none" : "flex";
+      document.getElementById("download-img-btn").style.display = "inline-flex";
+      document.getElementById("nsys-track-description").textContent = windows
+        ? "上方展示算法服务并发调度与等待空泡，下方同轴联动展示 CPU、Clipto 与 CMS Working Set (RAM)、NVIDIA VRAM 和 GPU 板卡功耗曲线"
+        : "上方展示算法服务并发调度与等待空泡，下方同轴联动展示 CPU / GPU / ANE、Clipto 与 CMS 进程内存和整机功耗曲线";
+      document.getElementById("nsys-show-hw-label").textContent = windows ? "叠加同轴硬件、RAM 与 VRAM 轨迹" : "叠加同轴硬件与进程内存轨迹";
+      document.getElementById("mon-system-memory-label").textContent = windows ? "系统物理内存 (RAM) 与 Swap" : "系统统一内存与 Swap";
+      document.getElementById("mon-clipto-memory-label").textContent = windows ? "Clipto 进程 Working Set (RAM)" : "Clipto 进程内存 (phys_footprint)";
+      document.getElementById("mon-cms-memory-label").textContent = windows ? "CMS Working Set 合计 (RAM)" : "CMS 进程内存合计 (phys_footprint)";
+      document.getElementById("chart-mem-title").textContent = windows ? "系统 RAM、进程 Working Set 与 GPU VRAM 曲线 (GB)" : "统一内存与进程内存曲线 (GB)";
+      document.getElementById("chart-mem-legend").textContent = windows
+        ? "■ 系统RAM(蓝) ■ Clipto Working Set(紫) ■ CMS Working Set(青) ■ GPU VRAM(橙) ■ Swap(红)"
+        : "■ 统一内存(蓝) ■ Clipto phys_footprint(紫) ■ CMS phys_footprint(青) ■ Swap(红)";
+      ["current", "average", "peak"].forEach((kind, index) => {
+        const label = ["当前", "平均", "峰值"][index];
+        document.getElementById(`cms-mem-col-${kind}`).textContent = windows ? `${label} Working Set (RAM)` : `${label}内存 (phys_footprint)`;
+      });
+      if (windows) {
+        document.getElementById("rpt-lan-host").value = "";
+        document.getElementById("report-studio-title").textContent = "📝 Clipto 离线分析晨报生成器（图片 / Markdown / CSV）";
+      }
+    }
+
+    function metricHasValue(metric) {
+      return !!metric && [metric.avg, metric.p95, metric.max, metric.min].some(v => v != null && isFinite(v));
+    }
 
     // Nsight Canvas state
     let chartMode = "nsys_timeline";
@@ -1635,8 +1711,10 @@
         liveData = data;
 
         const env = data.environment;
+        const windows = String(env && env.platform || "").toLowerCase() === "windows";
         if (env) {
-          document.getElementById("nav-chip-badge").textContent = `${env.chip_model} · ${env.physical_memory_text}`;
+          applyPlatformUI(env);
+          document.getElementById("nav-chip-badge").textContent = `${environmentOSName(env)} · ${environmentHardwareLabel(env)} · ${env.physical_memory_text || "—"}`;
           reportProfile.web_port = env.web_port || reportProfile.web_port;
           updateLanPill();
           const pathInp = document.getElementById("dagsc-path-input");
@@ -1648,15 +1726,20 @@
         const s = data.latest;
         const cms = data.cms;
         if (s) {
+          const capabilities = metricCapabilities(env);
           document.getElementById("live-cpu-pill").textContent = `CPU ${formatPct(s.cpu_usage, 0)}`;
-          document.getElementById("live-power-pill").textContent = `整机 ${formatWatts(s.system_power_watts)}`;
+          document.getElementById("live-power-pill").textContent = !capabilities.power
+            ? "功耗不支持"
+            : (s.system_power_watts != null
+              ? `整机 ${formatWatts(s.system_power_watts)}`
+              : `GPU ${formatWatts(s.gpu_power_watts)}`);
           document.getElementById("live-clipto-pill").textContent = s.clipto_running
-            ? `Clipto ${formatBytes(s.clipto_memory_bytes)} (${formatPct(s.clipto_cpu_percent, 0)})`
+            ? `Clipto ${windows ? "RAM" : "内存"} ${formatBytes(s.clipto_memory_bytes)} (${formatPct(s.clipto_cpu_percent, 0)})`
             : "Clipto 空闲";
         }
         if (cms) {
           document.getElementById("live-cms-pill").textContent = cms.running_count > 0
-            ? `CMS(${cms.running_count}) ${formatBytes(cms.memory.current)}`
+            ? `CMS ${windows ? "RAM" : "内存"}(${cms.running_count}) ${formatBytes(cms.memory.current)}`
             : "CMS 空闲";
         }
 
@@ -1671,17 +1754,43 @@
       if (!liveData) return;
       const s = liveData.latest;
       const cms = liveData.cms;
+      const env = liveData.environment || {};
+      const capabilities = metricCapabilities(env);
+      const semantics = metricSemantics(env);
+      const windows = String(env.platform || "").toLowerCase() === "windows";
       if (s) {
+        const computeNames = ["CPU"];
+        if (capabilities.systemGPU && s.gpu_usage != null) computeNames.push("GPU");
+        if (capabilities.ane && s.ane_usage != null) computeNames.push("ANE");
+        document.getElementById("mon-compute-label").textContent = `处理器负载 (${computeNames.join(" / ")})`;
         document.getElementById("mon-cpu-val").textContent = `CPU ${formatPct(s.cpu_usage, 1)}`;
-        document.getElementById("mon-gpu-ane-sub").textContent = `GPU ${formatPct(s.gpu_usage, 1)} ｜ ANE ${formatPct(s.ane_usage, 1)}`;
+        const acceleratorParts = [];
+        if (capabilities.systemGPU && s.gpu_usage != null) acceleratorParts.push(`GPU ${formatPct(s.gpu_usage, 1)}`);
+        if (windows && capabilities.systemGPU && s.gpu_memory_used_bytes != null) {
+          acceleratorParts.push(`GPU 显存(VRAM) ${formatBytes(s.gpu_memory_used_bytes)} / ${formatBytes(s.gpu_memory_total_bytes)}`);
+        }
+        if (capabilities.systemGPU && s.gpu_temperature_c != null) acceleratorParts.push(`GPU ${Number(s.gpu_temperature_c).toFixed(0)}°C`);
+        if (capabilities.ane && s.ane_usage != null) acceleratorParts.push(`ANE ${formatPct(s.ane_usage, 1)}`);
+        document.getElementById("mon-gpu-ane-sub").textContent = acceleratorParts.join(" ｜ ") || "当前平台仅提供 CPU 指标";
         const tLabel = thermalText(s.thermal_state);
         const tBadge = document.getElementById("mon-thermal-badge");
-        tBadge.textContent = `热状态: ${tLabel}`;
-        tBadge.className = `badge ${tLabel === "正常" ? "badge-green" : "badge-amber"}`;
+        tBadge.textContent = s.gpu_temperature_c != null ? `GPU 温度: ${Number(s.gpu_temperature_c).toFixed(0)}°C` : `热状态: ${tLabel}`;
+        const temperatureOK = s.gpu_temperature_c != null && Number(s.gpu_temperature_c) < 80;
+        tBadge.className = `badge ${temperatureOK || tLabel === "正常" ? "badge-green" : "badge-amber"}`;
 
-        document.getElementById("mon-power-val").textContent = formatWatts(s.system_power_watts);
-        document.getElementById("mon-power-sub").textContent =
-          `CPU ${formatWatts(s.cpu_power_watts)} ｜ GPU ${formatWatts(s.gpu_power_watts)} ｜ ANE ${formatWatts(s.ane_power_watts)}`;
+        document.getElementById("mon-power-provider").textContent = capabilities.power ? semantics.power : "当前平台不支持";
+        const hasSystemPower = capabilities.power && s.system_power_watts != null;
+        const hasGPUPower = capabilities.power && s.gpu_power_watts != null;
+        document.getElementById("mon-power-label").textContent = hasSystemPower ? "整机与芯片分项功耗" : (hasGPUPower ? (windows ? "NVIDIA GPU 板卡功耗" : "GPU 功耗") : "功耗");
+        document.getElementById("mon-power-val").textContent = !capabilities.power
+          ? "不支持"
+          : formatWatts(hasSystemPower ? s.system_power_watts : s.gpu_power_watts);
+        const powerParts = [];
+        if (capabilities.power && s.cpu_power_watts != null) powerParts.push(`CPU ${formatWatts(s.cpu_power_watts)}`);
+        if (capabilities.power && capabilities.systemGPU && s.gpu_power_watts != null) powerParts.push(`GPU ${formatWatts(s.gpu_power_watts)}`);
+        if (capabilities.power && s.gpu_power_limit_watts != null) powerParts.push(`上限 ${formatWatts(s.gpu_power_limit_watts)}`);
+        if (capabilities.power && capabilities.ane && s.ane_power_watts != null) powerParts.push(`ANE ${formatWatts(s.ane_power_watts)}`);
+        document.getElementById("mon-power-sub").textContent = powerParts.join(" ｜ ") || "当前平台不提供功耗指标";
 
         document.getElementById("mon-mem-val").textContent =
           `${formatBytes(s.memory_used_bytes)} / ${formatBytes(s.memory_total_bytes)}`;
@@ -1694,8 +1803,10 @@
           cState.textContent = `运行中 (${s.clipto_process_count || 1} 进程)`;
           cState.className = "badge badge-green";
           document.getElementById("mon-clipto-mem").textContent = formatBytes(s.clipto_memory_bytes);
-          document.getElementById("mon-clipto-sub").textContent =
-            `CPU ${formatPct(s.clipto_cpu_percent, 1)} ｜ GPU ${formatPct(s.clipto_gpu_percent, 1)} ｜ 读 ${formatRate(s.clipto_disk_read_bps)}`;
+          const cliptoParts = [`CPU ${formatPct(s.clipto_cpu_percent, 1)}`];
+          if (capabilities.processGPU && s.clipto_gpu_percent != null) cliptoParts.push(`GPU ${formatPct(s.clipto_gpu_percent, 1)}`);
+          if (capabilities.processIO && s.clipto_disk_read_bps != null) cliptoParts.push(`读 ${formatRate(s.clipto_disk_read_bps)}`);
+          document.getElementById("mon-clipto-sub").textContent = cliptoParts.join(" ｜ ");
         } else {
           cState.textContent = "未运行";
           cState.className = "badge";
@@ -1703,19 +1814,39 @@
           document.getElementById("mon-clipto-sub").textContent = "等待检测到 Clipto 进程组...";
         }
 
-        const dramTotal = (s.memory_read_gbps != null || s.memory_write_gbps != null)
+        const dramTotal = capabilities.dramBandwidth && (s.memory_read_gbps != null || s.memory_write_gbps != null)
           ? `读 ${(s.memory_read_gbps || 0).toFixed(2)} / 写 ${(s.memory_write_gbps || 0).toFixed(2)} GB/s`
-          : "—";
+          : `磁盘 ${formatRate(s.disk_read_bps)}`;
+        document.getElementById("mon-io-label").textContent = capabilities.dramBandwidth ? "DRAM / 磁盘 / 网络吞吐" : "磁盘 / 网络吞吐";
         document.getElementById("mon-dram-val").textContent = dramTotal;
         document.getElementById("mon-io-sub").textContent =
           `磁盘 读${formatRate(s.disk_read_bps)} 写${formatRate(s.disk_write_bps)} ｜ 网 ↓${formatRate(s.net_down_bps)}`;
+
+        document.getElementById("chart-compute-title").textContent = `${computeNames.join(" / ")} 利用率 (%)`;
+        document.getElementById("chart-compute-legend").textContent = [
+          "■ 系统CPU(蓝)",
+          capabilities.systemGPU ? "■ GPU(绿)" : null,
+          capabilities.ane ? "■ ANE(橙)" : null,
+          "■ Clipto CPU(紫)"
+        ].filter(Boolean).join(" ");
+        document.getElementById("chart-power-box").style.display = capabilities.power ? "block" : "none";
+        document.getElementById("chart-power-legend").textContent = [
+          s.system_power_watts != null ? "■ 整机(粉红)" : null,
+          s.cpu_power_watts != null ? "■ CPU(蓝)" : null,
+          capabilities.systemGPU && s.gpu_power_watts != null ? (windows ? "■ NVIDIA GPU 板卡(绿)" : "■ GPU(绿)") : null,
+          capabilities.ane ? "■ ANE(橙)" : null
+        ].filter(Boolean).join(" ");
+        document.getElementById("chart-io-legend").textContent = [
+          "■ 磁盘读(青)", "■ 磁盘写(橙)", capabilities.processIO ? "■ Clipto读(紫)" : null,
+          capabilities.dramBandwidth ? "■ DRAM总带宽 GB/s(黄)" : null
+        ].filter(Boolean).join(" ");
       }
 
       if (cms) {
         document.getElementById("mon-cms-count-badge").textContent = `活跃 ${cms.running_count} / 累计 ${cms.total_instances}`;
         document.getElementById("mon-cms-mem").textContent = cms.memory.current != null ? formatBytes(cms.memory.current) : "—";
         document.getElementById("mon-cms-sub").textContent =
-          `当前 CPU ${formatPct(cms.cpu.current, 1)} ｜ 峰值内存 ${formatBytes(cms.memory.peak)}`;
+          `当前 CPU ${formatPct(cms.cpu.current, 1)} ｜ 峰值${windows ? " Working Set" : "内存"} ${formatBytes(cms.memory.peak)}`;
         document.getElementById("cms-session-meta").textContent =
           `本次启动：${cms.started_at_text} ｜ 当前活跃 ${cms.running_count} 个，会话累计捕获 ${cms.total_instances} 个实例`;
 
@@ -1898,6 +2029,7 @@
         { color: "#3b82f6", get: p => p.sys_mem_bytes / GB },
         { color: "#a855f7", get: p => p.clipto_mem_bytes != null ? p.clipto_mem_bytes / GB : null, width: 2.0 },
         { color: "#06b6d4", get: p => p.cms_mem_bytes != null ? p.cms_mem_bytes / GB : null, width: 2.0 },
+        { color: "#f59e0b", get: p => p.gpu_memory_used_bytes != null ? p.gpu_memory_used_bytes / GB : null, width: 2.0 },
         { color: "#ef4444", get: p => p.swap_used_bytes / GB }
       ], v => `${v.toFixed(1)}G`);
 
@@ -2084,14 +2216,24 @@
       const membersCard = document.getElementById("clipto-members-card");
       const membersBody = document.getElementById("clipto-members-body");
       const hw = dagscData && dagscData.aligned_hardware;
+      const env = (dagscData && dagscData.environment) || {};
+      const capabilities = metricCapabilities(env);
+      const semantics = metricSemantics(env);
+      const windows = String(env.platform || "").toLowerCase() === "windows";
+      const processMemoryLabel = String(semantics.processMemory || "进程内存");
+      const collectorLocation = String(env.platform || "").toLowerCase() === "windows" ? "Windows 通知区域" : "顶部菜单栏";
 
       if (!hw || !hw.has_data) {
         badge.textContent = "该时段无历史采样";
         badge.className = "badge badge-amber";
         hint.textContent = dagscData ? `对齐窗口: ${dagscData.slice_start_text} ~ ${dagscData.slice_end_text}` : "—";
+        const availableFamilies = ["CPU"];
+        if (capabilities.systemGPU) availableFamilies.push("GPU");
+        if (capabilities.ane) availableFamilies.push("ANE");
+        if (capabilities.power) availableFamilies.push("功耗");
         body.innerHTML = `
           <div style="padding:12px 14px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; color:#92400e; font-size:0.84rem;">
-            该历史测试窗口内未找到对应的本地硬件监控数据（可能当时尚未启动后台采集）。保持顶部菜单栏 <strong>CliptoPulse</strong> 常驻运行后，后续所有测试批次都会自动对齐 CPU / GPU / ANE / 功耗 / Clipto & CMS 内存水位与同轴曲线。
+            该历史测试窗口内未找到对应的本地硬件监控数据（可能当时尚未启动后台采集）。保持${collectorLocation} <strong>CliptoPulse</strong> 常驻运行后，后续测试批次会自动对齐 ${availableFamilies.join(" / ")}、Clipto 与 CMS 资源水位。
           </div>
         `;
         renderCliptoMembersNotice("所选时段没有硬件历史采样，无法提供逐进程明细。保持 CliptoPulse 运行以记录后续数据。");
@@ -2125,8 +2267,8 @@
                     <th>进程名</th>
                     <th style="width:90px;">类型</th>
                     <th class="num">累计使用PID数</th>
-                    <th class="num">平均物理内存</th>
-                    <th class="num">峰值物理内存</th>
+                    <th class="num">平均内存 (${escHtml(processMemoryLabel)})</th>
+                    <th class="num">峰值内存 (${escHtml(processMemoryLabel)})</th>
                     <th class="num">平均 CPU (单核=100%)</th>
                     <th class="num">峰值 CPU</th>
                   </tr>
@@ -2155,20 +2297,62 @@
             : "当前服务未提供逐进程明细字段，请确认服务运行的是支持全进程明细的新版 CliptoPulse。");
         }
       }
+      const cliptoGPUDetail = capabilities.processGPU && metricHasValue(hw.clipto_gpu_percent)
+        ? `<div>GPU：均值 <strong>${formatPct(hw.clipto_gpu_percent.avg)}</strong> / 峰值 <strong>${formatPct(hw.clipto_gpu_percent.max)}</strong></div>`
+        : "";
+      const systemComputeNames = ["CPU"];
+      const systemAcceleratorDetails = [];
+      if (capabilities.systemGPU && metricHasValue(hw.sys_gpu)) {
+        systemComputeNames.push("GPU");
+        systemAcceleratorDetails.push(`GPU 均值/峰值：<strong>${formatPct(hw.sys_gpu.avg)} / ${formatPct(hw.sys_gpu.max)}</strong>`);
+        if (windows && metricHasValue(hw.gpu_memory_used_bytes)) {
+          const vramTotal = metricHasValue(hw.gpu_memory_total_bytes) ? formatBytes(hw.gpu_memory_total_bytes.max) : "—";
+          systemAcceleratorDetails.push(`GPU 显存 (VRAM) 已用均值/P95/峰值：<strong>${formatBytes(hw.gpu_memory_used_bytes.avg)} / ${formatBytes(hw.gpu_memory_used_bytes.p95)} / ${formatBytes(hw.gpu_memory_used_bytes.max)}</strong>；总容量 ${vramTotal}`);
+        }
+      }
+      if (capabilities.ane && metricHasValue(hw.ane_usage)) {
+        systemComputeNames.push("ANE");
+        systemAcceleratorDetails.push(`ANE 峰值：<strong>${formatPct(hw.ane_usage.max)}</strong>`);
+      }
+      const acceleratorDetail = systemAcceleratorDetails.length
+        ? `<div>${systemAcceleratorDetails.join(" ｜ ")}</div>`
+        : "";
+      const dramDetail = capabilities.dramBandwidth && (metricHasValue(hw.dram_read_gbps) || metricHasValue(hw.dram_write_gbps))
+        ? `<div>DRAM 读/写峰值：<strong>${hw.dram_read_gbps.max != null ? hw.dram_read_gbps.max.toFixed(2) : "—"} / ${hw.dram_write_gbps.max != null ? hw.dram_write_gbps.max.toFixed(2) : "—"} GB/s</strong></div>`
+        : "";
+      let powerCardContent;
+      if (capabilities.power && metricHasValue(hw.sys_power_watts)) {
+        powerCardContent = `<div class="stat-value" style="font-size:1.22rem; color:#e11d48;">均值 ${formatWatts(hw.sys_power_watts.avg)}</div>
+           <div class="stat-sub">整机峰值 ${formatWatts(hw.sys_power_watts.max)} ｜ 累计耗电 ${energyStr}</div>
+           <div class="stat-detail"><div>口径：${escHtml(semantics.power)}</div>${dramDetail}</div>`;
+      } else if (capabilities.power && metricHasValue(hw.gpu_power_watts)) {
+        const gpuEnergy = hw.gpu_estimated_energy_wh != null ? `${hw.gpu_estimated_energy_wh.toFixed(2)} Wh` : "—";
+        const gpuTemperature = metricHasValue(hw.gpu_temperature_c) ? ` ｜ 最高 ${hw.gpu_temperature_c.max.toFixed(0)}°C` : "";
+        powerCardContent = `<div class="stat-value" style="font-size:1.22rem; color:#16a34a;">GPU 均值 ${formatWatts(hw.gpu_power_watts.avg)}</div>
+           <div class="stat-sub">${windows ? "板卡" : "GPU"}峰值 ${formatWatts(hw.gpu_power_watts.max)} ｜ GPU 耗电 ${gpuEnergy}${gpuTemperature}</div>
+           <div class="stat-detail"><div>口径：${escHtml(semantics.power)}</div>${dramDetail}</div>`;
+      } else {
+        powerCardContent = `<div class="stat-value" style="font-size:1.22rem; color:#64748b;">当前平台不提供</div>
+           <div class="stat-sub">功耗指标不会以 0 代替缺失值</div>
+           <div class="stat-detail">${dramDetail}</div>`;
+      }
+      const thermalCaption = metricHasValue(hw.gpu_temperature_c)
+        ? `GPU 最高温度: ${hw.gpu_temperature_c.max.toFixed(0)}°C`
+        : `最高热态: ${thermalText(hw.worst_thermal_state)}`;
       body.innerHTML = `
         <div class="cards-grid-4" style="margin-bottom:0;">
           <div class="stat-card" style="box-shadow:none; background:#f8fafc;">
-            <div class="stat-label"><span>Clipto 进程组水位</span><span>最多 ${hw.clipto_max_processes} 进程</span></div>
+            <div class="stat-label"><span>Clipto ${escHtml(processMemoryLabel)}</span><span>最多 ${hw.clipto_max_processes} 进程</span></div>
             <div class="stat-value" style="font-size:1.22rem; color:#6d28d9;">峰值 ${formatBytes(hw.clipto_memory_bytes.max)}</div>
             <div class="stat-sub">内存均值 ${formatBytes(hw.clipto_memory_bytes.avg)} ｜ P95 ${formatBytes(hw.clipto_memory_bytes.p95)}</div>
             <div class="stat-detail">
               <div>CPU：均值 <strong>${formatPct(hw.clipto_cpu_percent.avg)}</strong> / 峰值 <strong>${formatPct(hw.clipto_cpu_percent.max)}</strong></div>
-              <div>GPU：均值 <strong>${formatPct(hw.clipto_gpu_percent.avg)}</strong> / 峰值 <strong>${formatPct(hw.clipto_gpu_percent.max)}</strong></div>
+              ${cliptoGPUDetail}
             </div>
           </div>
 
           <div class="stat-card" style="box-shadow:none; background:#f8fafc;">
-            <div class="stat-label"><span>CMS 进程组水位</span><span>${hw.cms_frame_count} 采样帧</span></div>
+            <div class="stat-label"><span>CMS ${escHtml(processMemoryLabel)} 合计</span><span>${hw.cms_frame_count} 采样帧</span></div>
             <div class="stat-value" style="font-size:1.22rem; color:#0e7490;">峰值 ${formatBytes(hw.cms_total_memory_bytes.max)}</div>
             <div class="stat-sub">内存均值 ${formatBytes(hw.cms_total_memory_bytes.avg)} ｜ P95 ${formatBytes(hw.cms_total_memory_bytes.p95)}</div>
             <div class="stat-detail">
@@ -2178,23 +2362,18 @@
           </div>
 
           <div class="stat-card" style="box-shadow:none; background:#f8fafc;">
-            <div class="stat-label"><span>整机算力与内存</span><span>CPU / GPU / ANE</span></div>
+            <div class="stat-label"><span>整机算力与${windows ? "系统 RAM" : "统一内存"}</span><span>${systemComputeNames.join(" / ")}</span></div>
             <div class="stat-value" style="font-size:1.22rem; color:#1d4ed8;">CPU 均值 ${formatPct(hw.sys_cpu.avg)}</div>
             <div class="stat-sub">CPU P95 ${formatPct(hw.sys_cpu.p95)} ｜ 峰值 ${formatPct(hw.sys_cpu.max)}</div>
             <div class="stat-detail">
-              <div>GPU 均值/峰值：<strong>${formatPct(hw.sys_gpu.avg)} / ${formatPct(hw.sys_gpu.max)}</strong> ｜ ANE 峰值：<strong>${formatPct(hw.ane_usage.max)}</strong></div>
-              <div>整机内存峰值：<strong>${formatBytes(hw.sys_mem_bytes.max)}</strong> ｜ Swap 峰值：<strong>${formatBytes(hw.swap_used_bytes.max)}</strong></div>
+              ${acceleratorDetail}
+              <div>${windows ? "系统物理内存 (RAM)" : "统一内存"}已用峰值：<strong>${formatBytes(hw.sys_mem_bytes.max)}</strong> ｜ Swap 峰值：<strong>${formatBytes(hw.swap_used_bytes.max)}</strong></div>
             </div>
           </div>
 
           <div class="stat-card" style="box-shadow:none; background:#f8fafc;">
-            <div class="stat-label"><span>功耗、能耗与热状态</span><span>最高热态: ${thermalText(hw.worst_thermal_state)}</span></div>
-            <div class="stat-value" style="font-size:1.22rem; color:#e11d48;">均值 ${formatWatts(hw.sys_power_watts.avg)}</div>
-            <div class="stat-sub">整机峰值 ${formatWatts(hw.sys_power_watts.max)} ｜ 累计耗电 ${energyStr}</div>
-            <div class="stat-detail">
-              <div>分项均值：CPU ${formatWatts(hw.cpu_power_watts.avg)} / GPU ${formatWatts(hw.gpu_power_watts.avg)} / ANE ${formatWatts(hw.ane_power_watts.avg)}</div>
-              <div>DRAM 读/写峰值：<strong>${hw.dram_read_gbps.max != null ? hw.dram_read_gbps.max.toFixed(2) : "—"} / ${hw.dram_write_gbps.max != null ? hw.dram_write_gbps.max.toFixed(2) : "—"} GB/s</strong></div>
-            </div>
+            <div class="stat-label"><span>功耗、能耗与热状态</span><span>${thermalCaption}</span></div>
+            ${powerCardContent}
           </div>
         </div>
       `;
@@ -2382,6 +2561,9 @@
       const activeSegs = scopeObj.active_segments || [];
       const multiSeg = activeSegs.length > 1;
       const hw = dagscData.aligned_hardware;
+      const trackEnv = dagscData.environment || {};
+      const trackWindows = String(trackEnv.platform || "").toLowerCase() === "windows";
+      const trackCapabilities = metricCapabilities(trackEnv);
       const hwSeries = (nsysShowHwTracks && hw && hw.has_data && hw.series && hw.series.length >= 2) ? hw.series : [];
       const hasHwTracks = hwSeries.length >= 2;
 
@@ -2657,7 +2839,9 @@
 
         ctx.fillStyle = "#38bdf8";
         ctx.font = "700 11px -apple-system, BlinkMacSystemFont, sans-serif";
-        ctx.fillText("⚡ 同轴对齐硬件与内存曲线 (PulseBoard 历史同步缩放)", 12, hwTopY + 17);
+        ctx.fillText(trackWindows
+          ? "⚡ 同轴对齐 CPU、Working Set、NVIDIA VRAM 与 GPU 功耗曲线"
+          : "⚡ 同轴对齐 CPU、进程内存、ANE 与整机功耗曲线", 12, hwTopY + 17);
 
         const GB = 1024 * 1024 * 1024;
         let maxMemGB = 4;
@@ -2665,9 +2849,12 @@
         hwSeries.forEach(p => {
           const cm = (p.clipto_mem_bytes || 0) / GB;
           const mm = (p.cms_mem_bytes || 0) / GB;
+          const vm = (p.gpu_memory_used_bytes || 0) / GB;
           if (cm > maxMemGB) maxMemGB = cm;
           if (mm > maxMemGB) maxMemGB = mm;
+          if (trackWindows && vm > maxMemGB) maxMemGB = vm;
           if ((p.sys_power || 0) > maxPowerW) maxPowerW = p.sys_power;
+          if ((p.gpu_power || 0) > maxPowerW) maxPowerW = p.gpu_power;
         });
         maxMemGB *= 1.18;
         maxPowerW *= 1.18;
@@ -2675,27 +2862,32 @@
         const cores = Math.max(1, (dagscData && dagscData.environment && dagscData.environment.logical_cores) || (liveData && liveData.environment && liveData.environment.logical_cores) || 10);
         const tracks = [
           {
-            title: "CPU / Clipto / ANE",
-            sub: "蓝:CPU 紫:Clipto(整机比) 橙:ANE",
+            title: trackCapabilities.ane ? "CPU / Clipto / ANE" : "CPU / Clipto",
+            sub: trackCapabilities.ane ? "蓝:CPU 紫:Clipto(整机比) 橙:ANE" : "蓝:CPU 紫:Clipto(整机比)",
             maxY: 100,
             lines: [
               { color: "#3b82f6", get: p => p.sys_cpu },
               { color: "#a855f7", get: p => p.clipto_cpu != null ? Math.min(100, p.clipto_cpu / cores) : null },
-              { color: "#f59e0b", get: p => p.ane_usage }
+              { color: "#f59e0b", get: p => trackCapabilities.ane ? p.ane_usage : null }
             ]
           },
           {
-            title: "Clipto & CMS 内存",
-            sub: `紫:Clipto 青:CMS (Max ${maxMemGB.toFixed(1)}G)`,
+            title: trackWindows ? "进程 Working Set (RAM) / GPU VRAM" : "进程内存 (phys_footprint)",
+            sub: trackWindows
+              ? `紫:Clipto RAM 青:CMS RAM 橙:GPU VRAM (Max ${maxMemGB.toFixed(1)}G)`
+              : `紫:Clipto 青:CMS (Max ${maxMemGB.toFixed(1)}G)`,
             maxY: maxMemGB,
             lines: [
               { color: "#a855f7", get: p => p.clipto_mem_bytes != null ? p.clipto_mem_bytes / GB : null },
-              { color: "#06b6d4", get: p => p.cms_mem_bytes != null ? p.cms_mem_bytes / GB : null }
+              { color: "#06b6d4", get: p => p.cms_mem_bytes != null ? p.cms_mem_bytes / GB : null },
+              { color: "#f59e0b", get: p => trackWindows && p.gpu_memory_used_bytes != null ? p.gpu_memory_used_bytes / GB : null }
             ]
           },
           {
-            title: "整机与芯片功耗 (W)",
-            sub: `红:整机 绿:GPU (Max ${maxPowerW.toFixed(0)}W)`,
+            title: trackWindows ? "NVIDIA GPU 板卡功耗 (W)" : "整机与芯片功耗 (W)",
+            sub: trackWindows
+              ? `绿:GPU 板卡 (Max ${maxPowerW.toFixed(0)}W)`
+              : `红:整机 绿:GPU (Max ${maxPowerW.toFixed(0)}W)`,
             maxY: maxPowerW,
             lines: [
               { color: "#f43f5e", get: p => p.sys_power },
@@ -2943,9 +3135,18 @@
           const cursorRelMs = nsysViewStartMs + ((mx - NSYS_LEFT_PAD) / plotW) * viewSpanMs;
           const cursorWallMs = virtualMsToWallMs(cursorRelMs, scopeObj);
           const hwPt = nsysHwTrackMeta ? findNearestHwPoint(cursorWallMs) : null;
+          const tooltipEnv = (dagscData && dagscData.environment) || {};
+          const tooltipWindows = String(tooltipEnv.platform || "").toLowerCase() === "windows";
+          const tooltipCapabilities = metricCapabilities(tooltipEnv);
+          const tooltipMemoryLabel = tooltipWindows ? "Working Set (RAM)" : "进程内存 (phys_footprint)";
+          const hwVRAMSummary = tooltipWindows && hwPt && hwPt.gpu_memory_used_bytes != null
+            ? ` ｜ NVIDIA VRAM ${formatBytes(hwPt.gpu_memory_used_bytes)}` : "";
+          const hwPowerValue = hwPt && (hwPt.sys_power != null ? hwPt.sys_power : hwPt.gpu_power);
+          const hwPowerLabel = hwPt && hwPt.sys_power != null ? "整机功耗" : (tooltipWindows ? "GPU 板卡功耗" : "GPU 功耗");
+          const hwPowerSummary = hwPowerValue != null ? ` ｜ ${hwPowerLabel} ${formatWatts(hwPowerValue)}` : "";
           const hwHtml = hwPt ? `
             <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #334155; font-size:0.74rem; color:#cbd5e1;">
-              ⚡ <strong>同刻硬件水位</strong>：CPU ${formatPct(hwPt.sys_cpu, 0)} ｜ Clipto ${formatBytes(hwPt.clipto_mem_bytes)} (${formatPct(hwPt.clipto_cpu, 0)}) ｜ CMS ${formatBytes(hwPt.cms_mem_bytes)} ｜ 整机 ${formatWatts(hwPt.sys_power)}
+              ⚡ <strong>同刻硬件水位</strong>：CPU ${formatPct(hwPt.sys_cpu, 0)} ｜ Clipto ${tooltipMemoryLabel} ${formatBytes(hwPt.clipto_mem_bytes)} (${formatPct(hwPt.clipto_cpu, 0)}) ｜ CMS ${tooltipMemoryLabel} ${formatBytes(hwPt.cms_mem_bytes)}${hwVRAMSummary}${hwPowerSummary}
             </div>
           ` : "";
 
@@ -2987,12 +3188,24 @@
           }
 
           if (hwPt && nsysHwTrackMeta && my >= nsysHwTrackMeta.hwTopY) {
+            const computeReading = [
+              `系统 CPU: <strong>${formatPct(hwPt.sys_cpu)}</strong>`,
+              tooltipCapabilities.systemGPU && hwPt.sys_gpu != null ? `GPU: <strong>${formatPct(hwPt.sys_gpu)}</strong>` : null,
+              tooltipCapabilities.ane && hwPt.ane_usage != null ? `ANE: <strong>${formatPct(hwPt.ane_usage)}</strong>` : null
+            ].filter(Boolean).join(" ｜ ");
+            const vramReading = tooltipWindows && hwPt.gpu_memory_used_bytes != null
+              ? `<div>NVIDIA VRAM 已用: <strong style="color:#f59e0b;">${formatBytes(hwPt.gpu_memory_used_bytes)}</strong> / ${formatBytes(hwPt.gpu_memory_total_bytes)}</div>`
+              : "";
+            const powerReading = hwPowerValue != null
+              ? `<div>${hwPowerLabel}: <strong style="color:#fb7185;">${formatWatts(hwPowerValue)}</strong></div>`
+              : "";
             tooltip.innerHTML = `
               <div style="font-weight:700; color:#38bdf8; margin-bottom:3px;">${formatWallClockMs(cursorWallMs, true, false)} 硬件采样读数</div>
-              <div>系统 CPU: <strong>${formatPct(hwPt.sys_cpu)}</strong> ｜ GPU: <strong>${formatPct(hwPt.sys_gpu)}</strong> ｜ ANE: <strong>${formatPct(hwPt.ane_usage)}</strong></div>
-              <div>Clipto 内存: <strong style="color:#c084fc;">${formatBytes(hwPt.clipto_mem_bytes)}</strong> (CPU ${formatPct(hwPt.clipto_cpu)})</div>
-              <div>CMS 总内存: <strong style="color:#22d3ee;">${formatBytes(hwPt.cms_mem_bytes)}</strong> (CPU ${formatPct(hwPt.cms_cpu)})</div>
-              <div>整机功耗: <strong style="color:#fb7185;">${formatWatts(hwPt.sys_power)}</strong></div>
+              <div>${computeReading}</div>
+              <div>Clipto ${tooltipMemoryLabel}: <strong style="color:#c084fc;">${formatBytes(hwPt.clipto_mem_bytes)}</strong> (CPU ${formatPct(hwPt.clipto_cpu)})</div>
+              <div>CMS ${tooltipMemoryLabel}: <strong style="color:#22d3ee;">${formatBytes(hwPt.cms_mem_bytes)}</strong> (CPU ${formatPct(hwPt.cms_cpu)})</div>
+              ${vramReading}
+              ${powerReading}
             `;
             tooltip.style.display = "block";
             tooltip.style.left = `${Math.min(e.clientX + 14, window.innerWidth - 395)}px`;
@@ -3194,6 +3407,8 @@
       if (!dagscData) return "# 暂未加载有效的 Clipto DAGSC 数据\n\n> 请在「🔬 DAGSC 联动分析」页签确认数据库路径有效后点击「加载并分析」。\n";
       const d = dagscData;
       const env = d.environment || {};
+      const capabilities = metricCapabilities(env);
+      const semantics = metricSemantics(env);
       const primary = d.scopes.asset_analysis;
       const hw = d.aligned_hardware && d.aligned_hardware.has_data ? d.aligned_hardware : null;
 
@@ -3218,10 +3433,10 @@
       const version = d.app_version && d.app_version !== "未知版本" ? ` ${d.app_version}` : "";
 
       const out = [];
-      out.push(`# Clipto Mac${version} 离线分析性能晨报`);
+      out.push(`# Clipto ${environmentOSName(env)}${version} 离线分析性能晨报`);
       out.push("");
       out.push(`> - **运行时段**：${reportTitleRange(d)}（${escMdCell(sliceSummary)}）`);
-      out.push(`> - **测试平台**：Clipto **macOS 版** · ${env.chip_model || "Mac"} · ${env.physical_memory_text || "—"} 统一内存 · ${env.logical_cores || "—"} 核 · ${env.macos_version || "macOS"}`);
+      out.push(`> - **测试平台**：Clipto **${escMdCell(environmentOSName(env))} 版** · ${escMdCell(environmentHardwareLabel(env))} · ${env.physical_memory_text || "—"} ${escMdCell(semantics.systemMemory)} · ${env.logical_cores || "—"} 核 · ${escMdCell(environmentOSVersion(env))}`);
       out.push(`> - **分析模板**：${d.template_version || "—"} ｜ 生成于 ${d.analyzed_at_text}`);
       if (reporter) out.push(`> - **评测人**：${escMdCell(reporter)}`);
       if (changes) out.push(`> - **本轮改动**：${escMdCell(changes)}`);
@@ -3234,10 +3449,18 @@
       const signedBytes = v => v == null ? "—" : (v < 0 ? `−${formatBytes(-v)}` : `+${formatBytes(v)}`);
       const stHead = d.aligned_hardware && d.aligned_hardware.storage;
       const stGrowth = stHead && stHead.start_bytes != null ? stHead.end_bytes - stHead.start_bytes : null;
-      out.push("| 端到端分析速度 | 全 CMS 内存峰值 | Clipto 进程组内存峰值 | Clipto 进程组 CPU P95 | Clipto 进程组 GPU P95 | Clipto 数据目录 |");
+      const windowsReport = String(env.platform || "").toLowerCase() === "windows";
+      const cmsMemoryHeadline = windowsReport ? "全 CMS Working Set 峰值 (RAM)" : "全 CMS 内存峰值";
+      const cliptoMemoryHeadline = windowsReport ? "Clipto 进程组 Working Set 峰值 (RAM)" : "Clipto 进程组内存峰值";
+      const processMemoryHeader = windowsReport ? " Working Set (RAM)" : "内存";
+      const cliptoGPUAvailable = capabilities.processGPU && metricHasValue(m(hw, "clipto_gpu_percent"));
+      const cliptoGPUCaption = !capabilities.processGPU
+        ? "当前平台不提供进程 GPU 指标"
+        : (cliptoGPUAvailable ? escMdCell(semantics.processGPU) : "本时段无进程 GPU 采样");
+      out.push(`| 端到端分析速度 | ${cmsMemoryHeadline} | ${cliptoMemoryHeadline} | Clipto 进程组 CPU P95 | Clipto 进程组 GPU P95 | Clipto 数据目录 |`);
       out.push("| :---: | :---: | :---: | :---: | :---: | :---: |");
-      out.push(`| **${formatSpeedup(primary.wall_speedup)}** | **${bytes(m(hw, "cms_total_memory_bytes").max)}** | **${bytes(m(hw, "clipto_memory_bytes").max)}** | **${pct(m(hw, "clipto_cpu_percent").p95)}** | **${pct(m(hw, "clipto_gpu_percent").p95)}** | **${bytes(stHead ? stHead.end_bytes : null)}** |`);
-      out.push(`| 素材 ${formatDurationShort(d.total_media_duration_ms)} ÷ 端到端 ${formatDurationShort(primary.wall_clock_ms)} | 所有 cms 进程物理内存合计 | Clipto.app 全部进程物理内存合计 | Clipto.app 全部进程合计（单核 = 100%） | Clipto.app 全部进程合计（整颗 GPU = 100%） | ${stGrowth != null ? `运行期间 ${signedBytes(stGrowth)}` : "com.clipto.mac 磁盘占用"} |`);
+      out.push(`| **${formatSpeedup(primary.wall_speedup)}** | **${bytes(m(hw, "cms_total_memory_bytes").max)}** | **${bytes(m(hw, "clipto_memory_bytes").max)}** | **${pct(m(hw, "clipto_cpu_percent").p95)}** | **${cliptoGPUAvailable ? pct(m(hw, "clipto_gpu_percent").p95) : "—"}** | **${bytes(stHead ? stHead.end_bytes : null)}** |`);
+      out.push(`| 素材 ${formatDurationShort(d.total_media_duration_ms)} ÷ 端到端 ${formatDurationShort(primary.wall_clock_ms)} | 所有 cms 进程内存合计（${escMdCell(semantics.processMemory)}） | Clipto 进程组内存合计（${escMdCell(semantics.processMemory)}） | Clipto 进程组 CPU（${escMdCell(semantics.processCPU)}） | ${cliptoGPUCaption} | ${stGrowth != null ? `运行期间 ${signedBytes(stGrowth)}` : "Clipto 数据目录磁盘占用"} |`);
       out.push("");
 
       const assetsList = d.by_asset || [];
@@ -3274,17 +3497,36 @@
           out.push("");
           out.push("| 监控对象与指标 | 平均值 | P95 | 峰值 | 补充信息 |");
           out.push("| :--- | :---: | :---: | :---: | :--- |");
-          out.push(`| **全 CMS 物理内存** | ${bytes(hw.cms_total_memory_bytes.avg)} | ${bytes(hw.cms_total_memory_bytes.p95)} | **${bytes(hw.cms_total_memory_bytes.max)}** | \`phys_footprint\`，${(hw.cms_processes || []).length} 类 cms 进程 |`);
-          out.push(`| **全 CMS CPU（单核=100%）** | ${pct(hw.cms_total_cpu_percent.avg)} | ${pct(hw.cms_total_cpu_percent.p95)} | **${pct(hw.cms_total_cpu_percent.max)}** | 名称含 \`cms\` 的进程合计 |`);
-          out.push(`| **全 CMS GPU** | ${pct(cg.avg)} | ${pct(cg.p95)} | **${pct(cg.max)}** | 按进程 GPU 时间统计（不含 ANE） |`);
-          out.push(`| **Clipto 进程组 CPU / 内存** | ${pct(hw.clipto_cpu_percent.avg)} / ${bytes(hw.clipto_memory_bytes.avg)} | ${pct(hw.clipto_cpu_percent.p95)} / ${bytes(hw.clipto_memory_bytes.p95)} | **${pct(hw.clipto_cpu_percent.max)}** / **${bytes(hw.clipto_memory_bytes.max)}** | 最多 ${hw.clipto_max_processes} 个子进程 |`);
+          out.push(`| **${windowsReport ? "全 CMS Working Set (RAM)" : "全 CMS 进程内存"}** | ${bytes(hw.cms_total_memory_bytes.avg)} | ${bytes(hw.cms_total_memory_bytes.p95)} | **${bytes(hw.cms_total_memory_bytes.max)}** | \`${escMdCell(semantics.processMemory)}\`；${(hw.cms_processes || []).length} 类 cms 进程${windowsReport ? "；不含 GPU VRAM" : ""} |`);
+          out.push(`| **全 CMS CPU（${escMdCell(semantics.processCPU)}）** | ${pct(hw.cms_total_cpu_percent.avg)} | ${pct(hw.cms_total_cpu_percent.p95)} | **${pct(hw.cms_total_cpu_percent.max)}** | 名称含 \`cms\` 的进程合计 |`);
+          if (capabilities.processGPU && metricHasValue(cg)) {
+            out.push(`| **全 CMS GPU** | ${pct(cg.avg)} | ${pct(cg.p95)} | **${pct(cg.max)}** | ${escMdCell(semantics.processGPU)} |`);
+          }
+          out.push(`| **${windowsReport ? "Clipto CPU / Working Set (RAM)" : "Clipto 进程组 CPU / 内存"}** | ${pct(hw.clipto_cpu_percent.avg)} / ${bytes(hw.clipto_memory_bytes.avg)} | ${pct(hw.clipto_cpu_percent.p95)} / ${bytes(hw.clipto_memory_bytes.p95)} | **${pct(hw.clipto_cpu_percent.max)}** / **${bytes(hw.clipto_memory_bytes.max)}** | 最多 ${hw.clipto_max_processes} 个子进程${windowsReport ? "；内存不含 GPU VRAM" : ""} |`);
           const nc = m(hw, "clipto_non_cms_memory_bytes");
-          out.push(`| **Clipto 非 CMS 进程内存** | ${bytes(nc.avg)} | ${bytes(nc.p95)} | **${bytes(nc.max)}** | 进程组中名称不含 cms 的进程合计（全进程明细见网页端） |`);
-          out.push(`| **Clipto 进程组 GPU** | ${pct(hw.clipto_gpu_percent.avg)} | ${pct(hw.clipto_gpu_percent.p95)} | **${pct(hw.clipto_gpu_percent.max)}** | 磁盘读峰值 ${formatRate(hw.clipto_disk_read_bps.max)} / 写峰值 ${formatRate(hw.clipto_disk_write_bps.max)} |`);
-          out.push(`| **整机 CPU / GPU / ANE** | ${pct(hw.sys_cpu.avg)} / ${pct(hw.sys_gpu.avg)} / ${pct(hw.ane_usage.avg)} | ${pct(hw.sys_cpu.p95)} / ${pct(hw.sys_gpu.p95)} / ${pct(hw.ane_usage.p95)} | **${pct(hw.sys_cpu.max)}** / **${pct(hw.sys_gpu.max)}** / **${pct(hw.ane_usage.max)}** | 系统级利用率 |`);
-          out.push(`| **整机内存 / Swap** | ${bytes(hw.sys_mem_bytes.avg)} | ${bytes(hw.sys_mem_bytes.p95)} | **${bytes(hw.sys_mem_bytes.max)}** | Swap 峰值 **${bytes(hw.swap_used_bytes.max)}** |`);
-          const whStr = hw.estimated_energy_wh != null ? `累计耗电约 **${hw.estimated_energy_wh.toFixed(2)} Wh**` : "—";
-          out.push(`| **整机功耗** | ${watts(hw.sys_power_watts.avg)} | ${watts(hw.sys_power_watts.p95)} | **${watts(hw.sys_power_watts.max)}** | ${whStr}；最高热状态 **${thermalText(hw.worst_thermal_state)}** |`);
+          out.push(`| **${windowsReport ? "Clipto 非 CMS Working Set (RAM)" : "Clipto 非 CMS 进程内存"}** | ${bytes(nc.avg)} | ${bytes(nc.p95)} | **${bytes(nc.max)}** | 进程组中名称不含 cms 的进程内存合计（${escMdCell(semantics.processMemory)}；全进程明细见网页端） |`);
+          if (capabilities.processGPU && metricHasValue(hw.clipto_gpu_percent)) {
+            out.push(`| **Clipto 进程组 GPU** | ${pct(hw.clipto_gpu_percent.avg)} | ${pct(hw.clipto_gpu_percent.p95)} | **${pct(hw.clipto_gpu_percent.max)}** | ${escMdCell(semantics.processGPU)}；读峰值 ${formatRate(hw.clipto_disk_read_bps.max)} / 写峰值 ${formatRate(hw.clipto_disk_write_bps.max)} |`);
+          } else if (capabilities.processIO && (metricHasValue(hw.clipto_disk_read_bps) || metricHasValue(hw.clipto_disk_write_bps))) {
+            out.push(`| **Clipto 进程组 I/O** | 读 ${formatRate(hw.clipto_disk_read_bps.avg)} / 写 ${formatRate(hw.clipto_disk_write_bps.avg)} | 读 ${formatRate(hw.clipto_disk_read_bps.p95)} / 写 ${formatRate(hw.clipto_disk_write_bps.p95)} | **读 ${formatRate(hw.clipto_disk_read_bps.max)} / 写 ${formatRate(hw.clipto_disk_write_bps.max)}** | ${escMdCell(semantics.processIO)} |`);
+          }
+          const computeMetrics = [["CPU", hw.sys_cpu]];
+          if (capabilities.systemGPU && metricHasValue(hw.sys_gpu)) computeMetrics.push(["GPU", hw.sys_gpu]);
+          if (capabilities.ane && metricHasValue(hw.ane_usage)) computeMetrics.push(["ANE", hw.ane_usage]);
+          out.push(`| **整机 ${computeMetrics.map(x => x[0]).join(" / ")}** | ${computeMetrics.map(x => pct(x[1].avg)).join(" / ")} | ${computeMetrics.map(x => pct(x[1].p95)).join(" / ")} | **${computeMetrics.map(x => pct(x[1].max)).join(" / ")}** | 系统级利用率 |`);
+          if (windowsReport && capabilities.systemGPU && metricHasValue(hw.gpu_memory_used_bytes)) {
+            const vramTotal = metricHasValue(hw.gpu_memory_total_bytes) ? bytes(hw.gpu_memory_total_bytes.max) : "—";
+            out.push(`| **NVIDIA GPU 显存 (VRAM) 已用** | ${bytes(hw.gpu_memory_used_bytes.avg)} | ${bytes(hw.gpu_memory_used_bytes.p95)} | **${bytes(hw.gpu_memory_used_bytes.max)}** | 总容量 **${vramTotal}**；${escMdCell(semantics.gpuMemory)}；与系统 RAM / 进程 Working Set 分开统计 |`);
+          }
+          out.push(`| **${windowsReport ? "系统物理内存 (RAM)" : "整机统一内存"} / Swap** | ${bytes(hw.sys_mem_bytes.avg)} | ${bytes(hw.sys_mem_bytes.p95)} | **${bytes(hw.sys_mem_bytes.max)}** | ${windowsReport ? "系统 RAM" : "统一内存"}已用；Swap 峰值 **${bytes(hw.swap_used_bytes.max)}** |`);
+          if (capabilities.power && metricHasValue(hw.sys_power_watts)) {
+            const whStr = hw.estimated_energy_wh != null ? `累计耗电约 **${hw.estimated_energy_wh.toFixed(2)} Wh**` : "—";
+            out.push(`| **整机功耗** | ${watts(hw.sys_power_watts.avg)} | ${watts(hw.sys_power_watts.p95)} | **${watts(hw.sys_power_watts.max)}** | ${whStr}；${escMdCell(semantics.power)}；最高热状态 **${thermalText(hw.worst_thermal_state)}** |`);
+          } else if (capabilities.power && metricHasValue(hw.gpu_power_watts)) {
+            const gpuWh = hw.gpu_estimated_energy_wh != null ? `GPU 累计耗电约 **${hw.gpu_estimated_energy_wh.toFixed(2)} Wh**` : "GPU 累计耗电 —";
+            const gpuTemp = metricHasValue(hw.gpu_temperature_c) ? `；最高温度 **${hw.gpu_temperature_c.max.toFixed(0)}°C**` : "";
+            out.push(`| **${windowsReport ? "NVIDIA GPU 板卡功耗" : "GPU 功耗"}** | ${watts(hw.gpu_power_watts.avg)} | ${watts(hw.gpu_power_watts.p95)} | **${watts(hw.gpu_power_watts.max)}** | ${gpuWh}；${escMdCell(semantics.power)}${gpuTemp} |`);
+          }
           out.push("");
 
           const majorProcessOrder = [
@@ -3310,7 +3552,7 @@
           if (incCms && majorM.length > 0) {
             out.push("### 2.2 主要进程明细");
             out.push("");
-            out.push("| 进程名 | 累计使用PID数 | 平均内存 | 峰值内存 | 平均 CPU | 峰值 CPU |");
+            out.push(`| 进程名 | 累计使用PID数 | 平均${processMemoryHeader} | 峰值${processMemoryHeader} | 平均 CPU | 峰值 CPU |`);
             out.push("| :--- | :---: | :---: | :---: | :---: | :---: |");
             majorM.forEach(x => {
               out.push(`| \`${escMdCell(x.name)}\` | ${x.max_instances} | ${bytes(x.avg_memory_bytes)} | **${bytes(x.max_memory_bytes)}** | ${pct(x.avg_cpu_percent)} | **${pct(x.max_cpu_percent)}** |`);
@@ -3319,7 +3561,7 @@
           } else if (incCms && fallbackCms.length > 0) {
             out.push("### 2.2 主要进程明细");
             out.push("");
-            out.push("| 进程名 | 累计使用PID数 | 平均 CPU | 峰值 CPU | 平均物理内存 | 峰值物理内存 |");
+            out.push(`| 进程名 | 累计使用PID数 | 平均 CPU | 峰值 CPU | 平均${processMemoryHeader} | 峰值${processMemoryHeader} |`);
             out.push("| :--- | :---: | :---: | :---: | :---: | :---: |");
             fallbackCms.forEach(p => {
               out.push(`| \`${escMdCell(p.name)}\` | ${p.instance_count} | ${pct(p.avg_cpu_percent)} | **${pct(p.max_cpu_percent)}** | ${bytes(p.avg_memory_bytes)} | **${bytes(p.max_memory_bytes)}** |`);
@@ -3332,7 +3574,7 @@
         }
       }
 
-      out.push("## 三、com.clipto.mac大小");
+      out.push(`## 三、${windowsReport ? "Clipto 数据目录大小" : "com.clipto.mac大小"}`);
       out.push("");
       const st = d.aligned_hardware && d.aligned_hardware.storage;
       if (st) {
@@ -3623,10 +3865,76 @@
       showToast("✓ 已复制 Markdown 晨报！可直接粘贴至飞书文档 / Notion");
     }
 
-    // Renders exactly the Markdown shown in the editor into a PNG card on the CliptoPulse server.
+    function usesWindowsSVGExport() {
+      const env = (liveData && liveData.environment) || (dagscData && dagscData.environment) || {};
+      return String(env.platform || "").toLowerCase() === "windows";
+    }
+
+    async function rasterizeReportSVG(svgBlob) {
+      const svgText = await svgBlob.text();
+      const parsed = new DOMParser().parseFromString(svgText, "image/svg+xml");
+      if (parsed.querySelector("parsererror")) throw new Error("SVG 晨报格式无效");
+      const root = parsed.documentElement;
+      const width = Number(root.getAttribute("width"));
+      const height = Number(root.getAttribute("height"));
+      if (!(width > 0 && height > 0)) throw new Error("SVG 晨报尺寸无效");
+
+      const desiredScale = 2;
+      const maxDimension = 32760;
+      const maxPixels = 64_000_000;
+      const scale = Math.min(
+        desiredScale,
+        maxDimension / width,
+        maxDimension / height,
+        Math.sqrt(maxPixels / (width * height))
+      );
+      if (!(scale > 0.25)) throw new Error("晨报内容过长，无法生成清晰的单张 PNG");
+
+      const objectURL = URL.createObjectURL(new Blob([svgText], { type: "image/svg+xml;charset=utf-8" }));
+      try {
+        const image = new Image();
+        image.decoding = "async";
+        const loaded = new Promise((resolve, reject) => {
+          image.onload = resolve;
+          image.onerror = () => reject(new Error("浏览器无法载入 SVG 晨报"));
+        });
+        image.src = objectURL;
+        await loaded;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+        const context = canvas.getContext("2d", { alpha: false });
+        if (!context) throw new Error("浏览器无法创建 PNG 画布");
+        context.fillStyle = "#f1f5f9";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        return await new Promise((resolve, reject) => {
+          canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("PNG 编码失败")), "image/png");
+        });
+      } finally {
+        URL.revokeObjectURL(objectURL);
+      }
+    }
+
+    // Windows follows the draw.io-style SVG → Canvas → PNG path. macOS keeps its native renderer.
     function requestReportImage() {
       const md = document.getElementById("md-raw-output").value;
       const fn = (document.getElementById("rpt-filename-badge").textContent || "Clipto离线分析晨报.md").replace(/\.md$/, ".png");
+      if (usesWindowsSVGExport()) {
+        return fetch("/api/report/svg", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markdown: md, filename: fn })
+        }).then(async resp => {
+          if (!resp.ok || !(resp.headers.get("Content-Type") || "").startsWith("image/svg+xml")) {
+            let msg = `SVG 晨报生成失败 (${resp.status})`;
+            try { const j = await resp.json(); if (j.error) msg = j.error; } catch (_) {}
+            throw new Error(msg);
+          }
+          return rasterizeReportSVG(await resp.blob());
+        });
+      }
       return fetch("/api/report/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
