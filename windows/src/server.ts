@@ -6,7 +6,6 @@ import type { DagscQueryOptions } from "./dagsc/types.js";
 import { WindowsTelemetryService } from "./platform/telemetryService.js";
 import { buildAlignedHardware } from "./report/alignment.js";
 import { generateReportColumn, generateReportCSV, REPORT_CSV_LABELS } from "./report/csv.js";
-import { renderMarkdownReportSVG } from "./report/markdownSvg.js";
 
 type JSONMap = Record<string, any>;
 
@@ -14,6 +13,7 @@ export interface ServerOptions {
   telemetry: WindowsTelemetryService;
   preferredPort?: number;
   html: string;
+  reportExportScript: string;
   getProfile(): JSONMap;
   updateProfile(patch: JSONMap): void;
   requestQuit(): void;
@@ -135,9 +135,19 @@ async function listenOnAvailablePort(server: http.Server, preferredPort: number)
   throw new Error(`端口 ${preferredPort}–${preferredPort + 9} 均被占用`);
 }
 
+export function prepareWindowsHTML(source: string, reportExportScript: string): string {
+  if (!source.includes("</body>") || !source.includes('id="download-img-btn"')) {
+    throw new Error("Web console is missing the Windows report export insertion points.");
+  }
+  return source
+    .replaceAll("__CLIPTOPULSE_BUILD_LABEL__", "CliptoPulse Windows")
+    .replace("（图片 / Markdown / CSV）", "（HTML / Markdown / CSV）")
+    .replace("</body>", `<script>\n${reportExportScript}\n</script>\n</body>`);
+}
+
 export async function startServer(options: ServerOptions): Promise<RunningServer> {
   let activePort = options.preferredPort ?? 8766;
-  const html = options.html.replaceAll("__CLIPTOPULSE_BUILD_LABEL__", "CliptoPulse Windows");
+  const html = prepareWindowsHTML(options.html, options.reportExportScript);
   const server = http.createServer(async (request, response) => {
     const method = request.method ?? "GET";
     const host = request.headers.host ?? `127.0.0.1:${activePort}`;
@@ -228,19 +238,6 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
           "text/csv; charset=utf-8",
           url.searchParams.get("download") === "1" ? filename : undefined
         );
-      }
-
-      if (url.pathname === "/api/report/svg" && method === "POST") {
-        const raw = await requestBody(request);
-        const payload = raw.length ? JSON.parse(raw.toString("utf8")) : {};
-        const markdown = String(payload.markdown ?? "");
-        if (!markdown.trim()) return json(response, 400, { ok: false, error: "晨报 Markdown 为空。" });
-        const rendered = renderMarkdownReportSVG(markdown);
-        return text(response, 200, rendered.svg, "image/svg+xml; charset=utf-8");
-      }
-
-      if (url.pathname === "/api/report/image") {
-        return json(response, 501, { ok: false, error: "Windows 请使用 /api/report/svg，并在浏览器中转换为 PNG。" });
       }
 
       if (url.pathname === "/api/export/system-csv") {

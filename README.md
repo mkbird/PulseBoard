@@ -5,7 +5,7 @@
 1. **硬件与进程后台常驻采集（源自 `PulseBoard`）**
    - macOS 通过原生 C / Mach / IOReport / `libproc` 1Hz 采集整机 CPU、GPU、ANE、内存、Swap、功耗、DRAM 带宽、磁盘/网络吞吐。
    - Windows 通过系统接口与常驻 PowerShell 采集整机 CPU / 系统 RAM 以及 Clipto、CMS 进程资源，并通过 NVIDIA `nvidia-smi` 独立采集 GPU 利用率、显存（VRAM）、板卡功耗、功耗上限与温度；ANE、整机功耗、DRAM 及进程级 GPU 指标会明确显示为不可用。
-   - Windows 的 Clipto / CMS 进程内存口径为 `WorkingSet64`（RAM，不包含 GPU VRAM）；macOS 使用 `phys_footprint`。页面、晨报、PNG 与 CSV 会把系统 RAM、进程 Working Set 和 NVIDIA VRAM 分开标注。
+   - Windows 的 Clipto / CMS 进程内存口径为 `WorkingSet64`（RAM，不包含 GPU VRAM）；macOS 使用 `phys_footprint`。页面、晨报及导出文件会把系统 RAM、进程 Working Set 和 NVIDIA VRAM 分开标注。
    - 100% 兼容并直接复用既有本地历史库：`~/Library/Application Support/PulseBoard/history.sqlite`（无需迁移旧数据）。
 2. **DAGSC 调度吞吐与 Nsight 泳道分析（源自 `clipto运行信息分析工具`，已原生 Swift 重写，无需 Python）**
    - 直接读取 `~/Library/Application Support/com.clipto.mac/dagsc_data/data/schedule.db`（安全拷贝临时快照 + WAL/SHM，绝不阻塞正在运行的 Clipto）。
@@ -25,7 +25,7 @@
 2. 程序会常驻 Windows 通知区域，并自动在默认浏览器打开 `http://127.0.0.1:8766`。
 3. 之后可通过托盘菜单重新打开控制台或退出；重复启动 EXE 只会激活已经运行的实例。
 
-Windows 版本会自动发现 `%LOCALAPPDATA%\Clipto\dagsc_data\data\schedule.db`，并把采样历史写入 `%LOCALAPPDATA%\CliptoPulse\history.sqlite`。当前 Windows 版本假定使用 NVIDIA 显卡；`nvidia-smi` 不可用或某字段返回 `N/A` 时，相应指标显示为未知而不是 0。页面中的 NVIDIA 功耗是 GPU 板卡功耗，并非整机功耗。当前版本仅监听本机回环地址，不提供局域网访问；晨报支持浏览器内 SVG → Canvas 转换后复制或下载 PNG，并保留 Markdown / CSV 导出。
+Windows 版本会自动发现 `%LOCALAPPDATA%\Clipto\dagsc_data\data\schedule.db`，并把采样历史写入 `%LOCALAPPDATA%\CliptoPulse\history.sqlite`。当前 Windows 版本假定使用 NVIDIA 显卡；`nvidia-smi` 不可用或某字段返回 `N/A` 时，相应指标显示为未知而不是 0。页面中的 NVIDIA 功耗是 GPU 板卡功耗，并非整机功耗。当前版本仅监听本机回环地址，不提供局域网访问；晨报可下载为离线 HTML，并保留 Markdown / CSV 导出。
 
 ### Windows：从源码构建
 
@@ -66,7 +66,7 @@ cd "/Users/yingjia/Desktop/agent的工作间/CliptoPulse"
 
 ## 晨报使用流程
 
-以下菜单栏和防睡眠操作目前适用于 macOS；Windows 版本可在网页中复制或下载 PNG，并使用 Markdown / CSV 报告。
+以下菜单栏和防睡眠操作目前适用于 macOS；Windows 版本可在网页中下载 HTML，并使用 Markdown / CSV 报告。
 
 1. **晚上走之前**：确认菜单栏 CliptoPulse 在运行，并且「防止 Mac 睡眠与 App Nap」已打开（默认开启，插电即可整夜 1 Hz 采样，显示器照常熄屏）；如需从干净状态开始，可先点「清空全部记录…」，然后在 Clipto 开始跑分析。
 2. **早上来**：等 Clipto 全部跑完，点菜单栏「复制晨报图片」直接粘贴到群里；或在网页「Clipto 晨报」页签填写备注后「复制晨报图片 / 下载 PNG / 复制 Markdown」。
@@ -90,6 +90,6 @@ cd "/Users/yingjia/Desktop/agent的工作间/CliptoPulse"
   - `GET /api/dagsc/analyze?slice_mode=auto|batch|custom|all` — DAGSC 切片分析 + 自动对齐的硬件水位报告
   - `GET /api/report/csv` — 单列 CSV（第 1 行版本号，之后每行一个指标；`?download=1` 下载，`?with_labels=1` 带行名，`?format=column` 纯文本列）
   - `POST /api/report/image` — macOS 原生把晨报 Markdown 渲染为 PNG 图片
-  - `POST /api/report/svg` — Windows 把晨报 Markdown 排版为 SVG，网页随后通过 Canvas 编码为 PNG
+  - Windows HTML 晨报由网页在本地生成并下载，无需单独的导出 API
   - `GET|POST /api/report/markdown` — 生成或下载标准 Markdown 开发日报
   - `GET /api/export/system-csv` & `GET /api/export/cms-csv` — 原始监控 CSV 流式导出

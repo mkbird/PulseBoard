@@ -58,6 +58,11 @@ function loadHTML(): string {
   return fs.readFileSync(source, "utf8");
 }
 
+function loadReportExportScript(): string {
+  if (isSea()) return getAsset("report_export.js", "utf8") as string;
+  return fs.readFileSync(path.resolve(__dirname, "../report-export.js"), "utf8");
+}
+
 function openBrowser(url: string): void {
   try {
     const child = spawn("rundll32.exe", ["url.dll,FileProtocolHandler", url], {
@@ -125,6 +130,7 @@ async function main(): Promise<void> {
     telemetry,
     preferredPort: 8766,
     html: loadHTML(),
+    reportExportScript: loadReportExportScript(),
     getProfile: () => ({ ...profile }),
     updateProfile,
     requestQuit: () => { void shutdown(0); }

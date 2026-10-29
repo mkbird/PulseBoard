@@ -6,6 +6,7 @@
   "useCodeCache": false,
   "assets": {
     "web_console.html": "Sources/PulseBoard/Resources/web_console.html",
+    "report_export.js": "windows/report-export.js",
     "app_icon.png": "Resources/AppIcon-master.png"
   }
 }
