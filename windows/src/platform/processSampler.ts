@@ -6,6 +6,7 @@ import path from "node:path";
 import readline from "node:readline";
 
 import { NvidiaSmiSampler } from "./nvidiaSmiSampler.js";
+import { aggregateProcessGPU, GPU_INITIALIZE_POWERSHELL, GPU_SAMPLE_POWERSHELL } from "./processGPU.js";
 import type {
   LiveCMSSession,
   LiveCMSProcess,
@@ -34,6 +35,8 @@ interface CMSProcessEntry {
   state: "running" | "exited" | "unavailable";
   cpu: MutableStatistics;
   memory: MutableStatistics;
+  gpu: MutableStatistics;
+  vram: MutableStatistics;
 }
 
 function emptyStatistics(): MutableStatistics {
@@ -102,14 +105,16 @@ function powershellScript(intervalMilliseconds: number): string {
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+${GPU_INITIALIZE_POWERSHELL}
 while ($true) {
   try {
+${GPU_SAMPLE_POWERSHELL}
     $rows = @(
       Get-Process -ErrorAction SilentlyContinue | ForEach-Object {
         $p = $_
         $n = ([string]$p.ProcessName).ToLowerInvariant()
         $wanted = ($n -eq 'clipto') -or ($n -eq 'cbs') -or ($n -eq 'cbs-worker') -or
-          ($n -eq 'dag-schedule-center') -or ($n -eq 'clipto_ffmpeg') -or
+          ($n -eq 'dag-schedule-center') -or ($n -eq 'clipto_ffmpeg') -or ($n -eq 'clipto_ffprobe') -or ($n -eq 'cms') -or
           $n.StartsWith('cms_') -or $n.StartsWith('cms-')
         if ($wanted) {
           $start = $null
@@ -135,6 +140,7 @@ while ($true) {
       ts_ms = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
       ok = $true
       processes = $rows
+      gpu = $gpuFrame
     }
     [Console]::Out.WriteLine(($payload | ConvertTo-Json -Depth 5 -Compress))
     [Console]::Out.Flush()
@@ -157,7 +163,7 @@ function encodePowerShell(script: string): string {
 }
 
 /**
- * Samples Windows and the Clipto process family without WMI or elevation.
+ * Samples Windows processes and NVIDIA WDDM counters in a persistent host.
  * Process CPU is derived from cumulative Get-Process CPU seconds; one core is 100%.
  */
 export class WindowsProcessSampler extends EventEmitter {
@@ -173,6 +179,9 @@ export class WindowsProcessSampler extends EventEmitter {
   private readonly cmsEntries = new Map<string, CMSProcessEntry>();
   private readonly cmsCPU = emptyStatistics();
   private readonly cmsMemory = emptyStatistics();
+  private readonly cmsGPU = emptyStatistics();
+  private readonly cmsVRAM = emptyStatistics();
+  private lastGPUWarning = "";
   private cmsRunningCount = 0;
   private cmsComplete = false;
   private cmsSuspended = false;
@@ -198,6 +207,8 @@ export class WindowsProcessSampler extends EventEmitter {
         state: entry.state,
         cpu: snapshotStatistics(entry.cpu),
         memory: snapshotStatistics(entry.memory),
+        gpu: snapshotStatistics(entry.gpu),
+        vram: snapshotStatistics(entry.vram),
       }));
     return {
       started_at_ms: this.sessionStartedAtMs,
@@ -208,6 +219,8 @@ export class WindowsProcessSampler extends EventEmitter {
       is_suspended: this.cmsSuspended,
       cpu: snapshotStatistics(this.cmsCPU),
       memory: snapshotStatistics(this.cmsMemory),
+      gpu: snapshotStatistics(this.cmsGPU),
+      vram: snapshotStatistics(this.cmsVRAM),
       processes,
     };
   }
@@ -218,6 +231,10 @@ export class WindowsProcessSampler extends EventEmitter {
 
   get nvidiaSnapshot() {
     return this.nvidiaSampler.latest;
+  }
+
+  get processGPUCapabilities() {
+    return { usage: this.previousFrame?.gpu?.engines_ok === true, memory: this.previousFrame?.gpu?.memory_ok === true };
   }
 
   start(): void {
@@ -296,6 +313,10 @@ export class WindowsProcessSampler extends EventEmitter {
       this.emit("warning", frame.error ?? "Windows process enumeration failed.");
       return;
     }
+    if (frame.gpu?.error && frame.gpu.error !== this.lastGPUWarning) {
+      this.emit("warning", `Windows GPU counters: ${frame.gpu.error}`);
+    }
+    this.lastGPUWarning = frame.gpu?.error ?? "";
     frame.processes = (Array.isArray(frame.processes) ? frame.processes : [])
       .filter((reading) => Number.isInteger(reading?.pid) && typeof reading?.name === "string")
       .map((reading) => ({
@@ -327,10 +348,16 @@ export class WindowsProcessSampler extends EventEmitter {
       ) {
         cpuPercent = ((reading.cpu_seconds - previous.cpu_seconds) / validDuration) * 100;
       }
-      return { ...reading, cpu_percent: cpuPercent, is_cms: isCMSProcessName(reading.name) };
+      const gpu = aggregateProcessGPU(frame.gpu, [reading.pid]);
+      return {
+        ...reading, cpu_percent: cpuPercent, is_cms: isCMSProcessName(reading.name),
+        gpu_percent: gpu.gpu_percent, vram_bytes: gpu.dedicated_bytes, gpu_shared_bytes: gpu.shared_bytes,
+      };
     });
 
     const cmsReadings = readings.filter((reading) => reading.is_cms);
+    const cliptoGPU = aggregateProcessGPU(frame.gpu, readings.map(reading => reading.pid));
+    const cmsGPU = aggregateProcessGPU(frame.gpu, cmsReadings.map(reading => reading.pid));
     const sumAvailable = (
       values: Array<number | null>,
       emptyValue: number | null,
@@ -397,14 +424,21 @@ export class WindowsProcessSampler extends EventEmitter {
       clipto_disk_read_bps: null,
       clipto_disk_write_bps: null,
       clipto_process_count: readings.length,
-      clipto_gpu_percent: null,
+      clipto_gpu_percent: cliptoGPU.gpu_percent,
+      clipto_vram_bytes: cliptoGPU.dedicated_bytes,
+      clipto_gpu_shared_bytes: cliptoGPU.shared_bytes,
       cms_cpu_percent: cmsCPU,
       cms_memory_bytes: cmsMemory,
+      cms_gpu_percent: cmsGPU.gpu_percent,
+      cms_vram_bytes: cmsGPU.dedicated_bytes,
+      cms_gpu_shared_bytes: cmsGPU.shared_bytes,
       cms_process_count: cmsReadings.length,
       process_readings: readings,
     };
 
     this.updateCMSSession(cmsReadings, cmsCPU, cmsMemory, validDuration);
+    recordStatistics(this.cmsGPU, cmsGPU.gpu_percent, validDuration);
+    recordStatistics(this.cmsVRAM, cmsGPU.dedicated_bytes, validDuration);
     this.previousFrame = frame;
     this.latestSampleValue = sample;
     this.emit("sample", sample, this.cmsSession);
@@ -422,6 +456,8 @@ export class WindowsProcessSampler extends EventEmitter {
         entry.state = "exited";
         recordStatistics(entry.cpu, 0, duration);
         recordStatistics(entry.memory, 0, duration);
+        recordStatistics(entry.gpu, 0, duration);
+        recordStatistics(entry.vram, 0, duration);
       }
     }
 
@@ -436,6 +472,8 @@ export class WindowsProcessSampler extends EventEmitter {
           state: "running",
           cpu: emptyStatistics(),
           memory: emptyStatistics(),
+          gpu: emptyStatistics(),
+          vram: emptyStatistics(),
         };
         this.cmsEntries.set(key, entry);
       }
@@ -445,6 +483,8 @@ export class WindowsProcessSampler extends EventEmitter {
         : "running";
       recordStatistics(entry.cpu, reading.cpu_percent, duration);
       recordStatistics(entry.memory, reading.working_set_bytes ?? reading.private_memory_bytes, duration);
+      recordStatistics(entry.gpu, reading.gpu_percent, duration);
+      recordStatistics(entry.vram, reading.vram_bytes, duration);
     }
 
     recordStatistics(this.cmsCPU, totalCPU, duration);

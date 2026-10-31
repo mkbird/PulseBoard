@@ -69,6 +69,7 @@ export class WindowsTelemetryService extends EventEmitter {
       this.history.databasePath,
       this.paths,
       this.sampler.nvidiaSnapshot,
+      this.sampler.processGPUCapabilities,
     );
   }
 
@@ -89,6 +90,10 @@ export class WindowsTelemetryService extends EventEmitter {
 
   exportSystemCSV(fromMs: number, toMs: number): string {
     return this.history.exportSystemCSV(fromMs, toMs);
+  }
+
+  queryHeadlineMetrics(fromMs: number, toMs: number, intervals: Array<[number, number]>) {
+    return this.history.queryHeadlineMetrics(fromMs, toMs, intervals);
   }
 
   exportCMSCSV(fromMs: number, toMs: number): string {

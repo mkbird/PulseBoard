@@ -4,7 +4,7 @@
 
 1. **硬件与进程后台常驻采集（源自 `PulseBoard`）**
    - macOS 通过原生 C / Mach / IOReport / `libproc` 1Hz 采集整机 CPU、GPU、ANE、内存、Swap、功耗、DRAM 带宽、磁盘/网络吞吐。
-   - Windows 通过系统接口与常驻 PowerShell 采集整机 CPU / 系统 RAM 以及 Clipto、CMS 进程资源，并通过 NVIDIA `nvidia-smi` 独立采集 GPU 利用率、显存（VRAM）、板卡功耗、功耗上限与温度；ANE、整机功耗、DRAM 及进程级 GPU 指标会明确显示为不可用。
+   - Windows 通过系统接口与常驻 PowerShell 采集整机 CPU / 系统 RAM 以及 Clipto、CMS 进程资源，并通过 NVIDIA `nvidia-smi` 独立采集整卡 GPU 利用率、显存（VRAM）、板卡功耗、功耗上限与温度。进程级 GPU 占用和专用显存通过 Windows WDDM 计数器采集；ANE、整机功耗和 DRAM 带宽暂不可用。
    - Windows 的 Clipto / CMS 进程内存口径为 `WorkingSet64`（RAM，不包含 GPU VRAM）；macOS 使用 `phys_footprint`。页面、晨报及导出文件会把系统 RAM、进程 Working Set 和 NVIDIA VRAM 分开标注。
    - 100% 兼容并直接复用既有本地历史库：`~/Library/Application Support/PulseBoard/history.sqlite`（无需迁移旧数据）。
 2. **DAGSC 调度吞吐与 Nsight 泳道分析（源自 `clipto运行信息分析工具`，已原生 Swift 重写，无需 Python）**
@@ -26,6 +26,8 @@
 3. 之后可通过托盘菜单重新打开控制台或退出；重复启动 EXE 只会激活已经运行的实例。
 
 Windows 版本会自动发现 `%LOCALAPPDATA%\Clipto\dagsc_data\data\schedule.db`，并把采样历史写入 `%LOCALAPPDATA%\CliptoPulse\history.sqlite`。当前 Windows 版本假定使用 NVIDIA 显卡；`nvidia-smi` 不可用或某字段返回 `N/A` 时，相应指标显示为未知而不是 0。页面中的 NVIDIA 功耗是 GPU 板卡功耗，并非整机功耗。当前版本仅监听本机回环地址，不提供局域网访问；晨报可下载为离线 HTML，并保留 Markdown / CSV 导出。
+
+Windows 晨报保留 Clipto 进程组 CPU / GPU P95，头条共八项，以两行四张卡片显示；新增全 CMS 和 Clipto 进程组各自的显存峰值，并与 RAM 峰值并排。Clipto 进程组包含 CMS，两组数值不能相加。进程 GPU 占用率按同一 NVIDIA 引擎汇总后取最忙引擎，100% 表示一个引擎满载。进程显存采用 WDDM 专用 GPU 内存合计，跨进程共享分配可能重复计数；共享 GPU 系统内存单独记录。头条峰值和 P95 使用原始采样计算。旧历史没有新增指标时显示“未采集”；macOS 的六项头条和发布包保持原样。
 
 ### Windows：从源码构建
 

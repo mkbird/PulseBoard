@@ -7,6 +7,7 @@ import test from "node:test";
 
 import { WindowsTelemetryService } from "../../src/platform/telemetryService.js";
 import type { LiveSample } from "../../src/platform/types.js";
+import { WindowsHistoryStore } from "../../src/history/historyStore.js";
 
 test("Windows telemetry samples processes and persists history", { timeout: 15_000 }, async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cliptopulse-windows-test-"));
@@ -57,6 +58,31 @@ test("Windows telemetry samples processes and persists history", { timeout: 15_0
     assert.equal(history.points[0]?.clipto_process_count, sample.clipto_process_count);
     assert.equal(history.points[0]?.sys_gpu, sample.gpu_usage);
     assert.equal(history.points[0]?.gpu_power, sample.gpu_power_watts);
+    assert.equal(history.points[0]?.clipto_vram_bytes, sample.clipto_vram_bytes);
+    assert.equal(history.points[0]?.cms_vram_bytes, sample.cms_vram_bytes);
+    assert.equal(history.points[0]?.clipto_gpu, sample.clipto_gpu_percent);
+
+    const metrics = new WindowsHistoryStore(path.join(directory, "metrics.sqlite"));
+    try {
+      const ts = sample.ts_ms;
+      metrics.append({ ...sample, ts_ms: ts, clipto_vram_bytes: null, cms_vram_bytes: null, clipto_gpu_percent: null });
+      metrics.append({ ...sample, ts_ms: ts + 1_000, clipto_vram_bytes: 900, cms_vram_bytes: 300, clipto_gpu_percent: 50 });
+      metrics.append({ ...sample, ts_ms: ts + 2_000, clipto_vram_bytes: 800, cms_vram_bytes: 500, clipto_gpu_percent: 80 });
+      const bucket = metrics.queryHistory(ts, ts + 3_000, 1);
+      assert.equal(bucket.points[0]?.clipto_vram_bytes, 850);
+      const exact = metrics.queryHeadlineMetrics(ts, ts + 2_000, []) as Record<string, any>;
+      assert.equal(exact.clipto_vram_bytes.max, 900);
+      assert.equal(exact.cms_total_vram_bytes.max, 500);
+      assert.equal(exact.clipto_gpu_percent.p95, 80);
+      assert.equal(exact.clipto_vram_bytes.count, 2);
+      const earlier = metrics.queryHeadlineMetrics(ts, ts + 2_000, [[ts, ts + 1_000]]) as Record<string, any>;
+      assert.equal(earlier.cms_total_vram_bytes.max, 300);
+      const old = metrics.queryHeadlineMetrics(ts, ts, []) as Record<string, any>;
+      assert.equal(old.clipto_vram_bytes.max, null);
+      assert.equal(old.clipto_vram_bytes.count, 0);
+    } finally {
+      metrics.close();
+    }
   } finally {
     await telemetry.stop();
     fs.rmSync(directory, { recursive: true, force: true });

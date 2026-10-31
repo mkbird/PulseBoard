@@ -36,7 +36,12 @@ export const REPORT_CSV_LABELS = [
   "进程 I/O 口径",
   "NVIDIA GPU 显存已用峰值 (VRAM GB)",
   "NVIDIA GPU 显存总容量 (VRAM GB)",
-  "GPU 显存口径"
+  "GPU 显存口径",
+  "全 CMS 显存占用峰值 (VRAM GB)",
+  "Clipto 进程组显存占用峰值 (VRAM GB)",
+  "Clipto 进程组 CPU P95 (%)",
+  "Clipto 进程组 GPU P95 (%)",
+  "进程显存口径"
 ] as const;
 
 type JSONMap = Record<string, any>;
@@ -79,6 +84,7 @@ export function reportCSVValues(analysis: JSONMap, reporter = ""): string[] {
     "CPU", "系统 RAM", "进程 Working Set",
     caps.system_gpu ? "系统 GPU / NVIDIA VRAM" : "",
     caps.process_gpu ? "进程 GPU" : "",
+    caps.process_vram ? "进程 VRAM" : "",
     caps.ane ? "ANE" : "",
     caps.power ? "功耗" : "",
     caps.dram_bandwidth ? "DRAM 带宽" : "",
@@ -132,7 +138,12 @@ export function reportCSVValues(analysis: JSONMap, reporter = ""): string[] {
     caps.process_io ? String(semantics.process_io ?? "") : "",
     caps.system_gpu ? bytesGB(hw?.gpu_memory_used_bytes?.max) : "",
     caps.system_gpu ? bytesGB(hw?.gpu_memory_total_bytes?.max) : "",
-    caps.system_gpu ? String(semantics.gpu_memory ?? "NVIDIA 显存（VRAM）") : ""
+    caps.system_gpu ? String(semantics.gpu_memory ?? "NVIDIA 显存（VRAM）") : "",
+    bytesGB(hw?.cms_total_vram_bytes?.max),
+    bytesGB(hw?.clipto_vram_bytes?.max),
+    finite(hw?.clipto_cpu_percent?.p95, 1),
+    finite(hw?.clipto_gpu_percent?.p95, 1),
+    String(semantics.process_vram ?? "")
   ];
 }
 

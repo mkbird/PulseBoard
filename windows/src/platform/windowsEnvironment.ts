@@ -16,6 +16,7 @@ const WINDOWS_CAPABILITIES: MetricCapabilities = {
   power: false,
   dram_bandwidth: false,
   process_gpu: false,
+  process_vram: false,
   process_io: false,
 };
 
@@ -23,8 +24,9 @@ const WINDOWS_SEMANTICS: MetricSemantics = {
   system_memory: "系统物理内存（RAM）",
   process_memory: "进程 WorkingSet64（RAM，不含 GPU 显存）",
   gpu_memory: "NVIDIA 显存（VRAM，nvidia-smi memory.used / memory.total）",
+  process_vram: "WDDM 专用 GPU 内存按 PID 合计；跨进程共享分配可能重复计数；共享 GPU 系统内存另计",
   process_cpu: "单核 = 100%",
-  process_gpu: "当前 Windows 版本未采集进程 GPU",
+  process_gpu: "WDDM 同一 NVIDIA GPU 引擎内按进程组合计，取最忙引擎（100% = 一个引擎满载）",
   process_io: "当前 Windows 版本未采集进程 I/O",
   power: "NVIDIA GPU 板卡功耗（nvidia-smi），不代表整机功耗",
 };
@@ -73,6 +75,7 @@ export function buildWindowsEnvironment(
   historyPath: string,
   paths: WindowsCliptoPaths = discoverWindowsCliptoPaths(),
   nvidia: NvidiaSmiSnapshot | null = null,
+  processGPU: { usage: boolean; memory: boolean } = { usage: false, memory: false },
 ): SystemEnvironmentInfo {
   const cpus = os.cpus();
   const osVersion = os.release();
@@ -87,6 +90,8 @@ export function buildWindowsEnvironment(
     ...WINDOWS_CAPABILITIES,
     system_gpu: nvidiaAvailable && nvidia.gpu_usage != null,
     power: nvidiaAvailable && nvidia.power_draw_watts != null,
+    process_gpu: processGPU.usage,
+    process_vram: processGPU.memory,
   };
 
   return {

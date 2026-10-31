@@ -47,8 +47,9 @@ export class WindowsHistoryStore {
       INSERT INTO samples (
         ts_ms,sys_cpu,sys_gpu,sys_mem_bytes,sys_mem_pct,disk_free_bytes,disk_total_bytes,
         gpu_power,gpu_power_limit,gpu_memory_used_bytes,gpu_memory_total_bytes,gpu_temperature_c,
-        clipto_cpu,clipto_mem_bytes,clipto_process_count,cms_cpu,cms_mem_bytes,cms_process_count
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        clipto_cpu,clipto_mem_bytes,clipto_process_count,cms_cpu,cms_mem_bytes,cms_process_count,
+        clipto_gpu,clipto_vram_bytes,clipto_gpu_shared_bytes,cms_gpu,cms_vram_bytes,cms_gpu_shared_bytes
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(ts_ms) DO UPDATE SET
         sys_cpu=excluded.sys_cpu,
         sys_gpu=excluded.sys_gpu,
@@ -66,19 +67,24 @@ export class WindowsHistoryStore {
         clipto_process_count=excluded.clipto_process_count,
         cms_cpu=excluded.cms_cpu,
         cms_mem_bytes=excluded.cms_mem_bytes,
-        cms_process_count=excluded.cms_process_count;
+        cms_process_count=excluded.cms_process_count,
+        clipto_gpu=excluded.clipto_gpu,clipto_vram_bytes=excluded.clipto_vram_bytes,
+        clipto_gpu_shared_bytes=excluded.clipto_gpu_shared_bytes,cms_gpu=excluded.cms_gpu,
+        cms_vram_bytes=excluded.cms_vram_bytes,cms_gpu_shared_bytes=excluded.cms_gpu_shared_bytes;
     `);
     this.insertProcess = this.database.prepare(`
       INSERT INTO process_samples (
-        ts_ms,pid,start_time,name,is_cms,cpu_seconds,cpu_percent,working_set_bytes,private_memory_bytes
-      ) VALUES (?,?,?,?,?,?,?,?,?)
+        ts_ms,pid,start_time,name,is_cms,cpu_seconds,cpu_percent,working_set_bytes,private_memory_bytes,
+        gpu_percent,vram_bytes,gpu_shared_bytes
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(ts_ms,pid,start_time) DO UPDATE SET
         name=excluded.name,
         is_cms=excluded.is_cms,
         cpu_seconds=excluded.cpu_seconds,
         cpu_percent=excluded.cpu_percent,
         working_set_bytes=excluded.working_set_bytes,
-        private_memory_bytes=excluded.private_memory_bytes;
+        private_memory_bytes=excluded.private_memory_bytes,
+        gpu_percent=excluded.gpu_percent,vram_bytes=excluded.vram_bytes,gpu_shared_bytes=excluded.gpu_shared_bytes;
     `);
   }
 
@@ -104,6 +110,12 @@ export class WindowsHistoryStore {
         sample.cms_cpu_percent,
         sample.cms_memory_bytes,
         sample.cms_process_count,
+        sample.clipto_gpu_percent,
+        sample.clipto_vram_bytes,
+        sample.clipto_gpu_shared_bytes,
+        sample.cms_gpu_percent,
+        sample.cms_vram_bytes,
+        sample.cms_gpu_shared_bytes,
       );
       for (const reading of sample.process_readings) {
         this.insertProcess.run(
@@ -116,6 +128,9 @@ export class WindowsHistoryStore {
           reading.cpu_percent,
           reading.working_set_bytes,
           reading.private_memory_bytes,
+          reading.gpu_percent,
+          reading.vram_bytes,
+          reading.gpu_shared_bytes,
         );
       }
       this.database.exec("COMMIT;");
@@ -155,9 +170,15 @@ export class WindowsHistoryStore {
         MAX(gpu_temperature_c) AS gpu_temperature_c,
         AVG(clipto_cpu) AS clipto_cpu,
         AVG(clipto_mem_bytes) AS clipto_mem_bytes,
+        AVG(clipto_gpu) AS clipto_gpu,
+        AVG(clipto_vram_bytes) AS clipto_vram_bytes,
+        AVG(clipto_gpu_shared_bytes) AS clipto_gpu_shared_bytes,
         MAX(clipto_process_count) AS clipto_process_count,
         AVG(cms_cpu) AS cms_cpu,
         AVG(cms_mem_bytes) AS cms_mem_bytes,
+        AVG(cms_gpu) AS cms_gpu,
+        AVG(cms_vram_bytes) AS cms_vram_bytes,
+        AVG(cms_gpu_shared_bytes) AS cms_gpu_shared_bytes,
         MAX(cms_process_count) AS cms_process_count
       FROM samples
       WHERE ts_ms BETWEEN ? AND ?
@@ -173,6 +194,30 @@ export class WindowsHistoryStore {
     };
   }
 
+  /** Headline statistics use original simultaneous samples, never chart bucket averages. */
+  queryHeadlineMetrics(fromMs: number, toMs: number, intervals: Array<[number, number]>): Record<string, unknown> {
+    const windows = intervals.length ? intervals : [[fromMs, toMs]];
+    const where = `ts_ms BETWEEN ? AND ? AND (${windows.map(() => "ts_ms BETWEEN ? AND ?").join(" OR ")})`;
+    const args = [fromMs, toMs, ...windows.flat()];
+    const fields: Record<string, string> = {
+      clipto_cpu_percent: "clipto_cpu", clipto_gpu_percent: "clipto_gpu",
+      clipto_memory_bytes: "clipto_mem_bytes", cms_total_memory_bytes: "cms_mem_bytes",
+      clipto_vram_bytes: "clipto_vram_bytes", cms_total_vram_bytes: "cms_vram_bytes",
+      cms_total_gpu_percent: "cms_gpu",
+    };
+    const result: Record<string, unknown> = {};
+    for (const [key, column] of Object.entries(fields)) {
+      const stats = this.database.prepare(`SELECT AVG(${column}) AS avg, MAX(${column}) AS max,
+        MIN(${column}) AS min, COUNT(${column}) AS count FROM samples WHERE ${where}`).get(...args) as SQLiteRow;
+      const count = numeric(stats.count);
+      const percentile = count ? this.database.prepare(`SELECT ${column} AS value FROM samples
+        WHERE ${where} AND ${column} IS NOT NULL ORDER BY ${column} LIMIT 1 OFFSET ?`)
+        .get(...args, Math.max(0, Math.ceil(count * 0.95) - 1)) as SQLiteRow : undefined;
+      result[key] = { avg: stats.avg, max: stats.max, min: stats.min, count, p95: percentile?.value ?? null };
+    }
+    return result;
+  }
+
   exportSystemCSV(fromMs: number, toMs: number): string {
     const rows = this.database.prepare(`
       SELECT * FROM samples WHERE ts_ms BETWEEN ? AND ? ORDER BY ts_ms;
@@ -183,6 +228,8 @@ export class WindowsHistoryStore {
       "gpu_memory_used_bytes", "gpu_memory_total_bytes", "gpu_temperature_c",
       "clipto_cpu_percent", "clipto_memory_bytes",
       "clipto_process_count", "cms_cpu_percent", "cms_memory_bytes", "cms_process_count",
+      "clipto_gpu_percent", "clipto_vram_bytes", "clipto_gpu_shared_bytes",
+      "cms_gpu_percent", "cms_vram_bytes", "cms_gpu_shared_bytes",
     ];
     const output = [header.join(",")];
     for (const row of rows) {
@@ -193,6 +240,8 @@ export class WindowsHistoryStore {
         row.gpu_memory_used_bytes, row.gpu_memory_total_bytes, row.gpu_temperature_c,
         row.clipto_cpu, row.clipto_mem_bytes,
         row.clipto_process_count, row.cms_cpu, row.cms_mem_bytes, row.cms_process_count,
+        row.clipto_gpu, row.clipto_vram_bytes, row.clipto_gpu_shared_bytes,
+        row.cms_gpu, row.cms_vram_bytes, row.cms_gpu_shared_bytes,
       ].map(csvCell).join(","));
     }
     return `\uFEFF${output.join("\r\n")}\r\n`;
@@ -200,7 +249,8 @@ export class WindowsHistoryStore {
 
   exportCMSCSV(fromMs: number, toMs: number): string {
     const rows = this.database.prepare(`
-      SELECT ts_ms,pid,start_time,name,cpu_seconds,cpu_percent,working_set_bytes,private_memory_bytes
+      SELECT ts_ms,pid,start_time,name,cpu_seconds,cpu_percent,working_set_bytes,private_memory_bytes,
+        gpu_percent,vram_bytes,gpu_shared_bytes
       FROM process_samples
       WHERE is_cms=1 AND ts_ms BETWEEN ? AND ?
       ORDER BY ts_ms,name,pid,start_time;
@@ -208,6 +258,7 @@ export class WindowsHistoryStore {
     const header = [
       "timestamp_ms", "timestamp_iso", "pid", "start_time_ms", "name", "cpu_seconds",
       "cpu_percent", "working_set_bytes", "private_memory_bytes",
+      "gpu_percent", "vram_bytes", "gpu_shared_bytes",
     ];
     const output = [header.join(",")];
     for (const row of rows) {
@@ -215,6 +266,7 @@ export class WindowsHistoryStore {
       output.push([
         ts, new Date(ts).toISOString(), row.pid, row.start_time, row.name, row.cpu_seconds,
         row.cpu_percent, row.working_set_bytes, row.private_memory_bytes,
+        row.gpu_percent, row.vram_bytes, row.gpu_shared_bytes,
       ].map(csvCell).join(","));
     }
     return `\uFEFF${output.join("\r\n")}\r\n`;
@@ -235,9 +287,15 @@ export class WindowsHistoryStore {
       gpu_memory_used_bytes: "REAL",
       gpu_memory_total_bytes: "REAL",
       gpu_temperature_c: "REAL",
+      clipto_gpu: "REAL", clipto_vram_bytes: "REAL", clipto_gpu_shared_bytes: "REAL",
+      cms_gpu: "REAL", cms_vram_bytes: "REAL", cms_gpu_shared_bytes: "REAL",
     };
     for (const [name, declaration] of Object.entries(columns)) {
       if (!existing.has(name)) this.database.exec(`ALTER TABLE samples ADD COLUMN ${name} ${declaration};`);
+    }
+    const processColumns = new Set((this.database.prepare("PRAGMA table_info(process_samples)").all() as SQLiteRow[]).map(row => String(row.name)));
+    for (const name of ["gpu_percent", "vram_bytes", "gpu_shared_bytes"]) {
+      if (!processColumns.has(name)) this.database.exec(`ALTER TABLE process_samples ADD COLUMN ${name} REAL;`);
     }
   }
 }
@@ -263,13 +321,17 @@ function historyPoint(row: SQLiteRow): HistoryPoint {
       ? null
       : Math.max(0, cliptoMemory - (cmsMemory ?? 0)),
     clipto_process_count: numeric(row.clipto_process_count),
-    clipto_gpu: null,
+    clipto_gpu: finiteOrNull(row.clipto_gpu),
+    clipto_vram_bytes: finiteOrNull(row.clipto_vram_bytes),
+    clipto_gpu_shared_bytes: finiteOrNull(row.clipto_gpu_shared_bytes),
     clipto_disk_read: null,
     clipto_disk_write: null,
     cms_cpu: finiteOrNull(row.cms_cpu),
     cms_mem_bytes: cmsMemory,
     cms_process_count: numeric(row.cms_process_count),
-    cms_gpu: null,
+    cms_gpu: finiteOrNull(row.cms_gpu),
+    cms_vram_bytes: finiteOrNull(row.cms_vram_bytes),
+    cms_gpu_shared_bytes: finiteOrNull(row.cms_gpu_shared_bytes),
     sys_power: null,
     cpu_power: null,
     gpu_power: finiteOrNull(row.gpu_power),

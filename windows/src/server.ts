@@ -107,6 +107,9 @@ async function analysisWithHistory(
   const toMs = Number(analysis.slice_end_ms ?? Date.now());
   const history = await telemetry.queryHistory(fromMs, toMs, 4_000);
   analysis.aligned_hardware = buildAlignedHardware(historyPoints(history), intervals, fromMs, toMs);
+  if (analysis.aligned_hardware.has_data) {
+    Object.assign(analysis.aligned_hardware, telemetry.queryHeadlineMetrics(fromMs, toMs, intervals));
+  }
   analysis.ok = true;
   return analysis;
 }

@@ -15,12 +15,17 @@ test("report CSV keeps RAM and NVIDIA VRAM as separate rows", () => {
       has_data: true,
       gpu_memory_used_bytes: { max: 8 * 1_073_741_824 },
       gpu_memory_total_bytes: { max: 16 * 1_073_741_824 },
+      cms_total_vram_bytes: { max: 4 * 1_073_741_824 },
+      clipto_vram_bytes: { max: 6 * 1_073_741_824 },
+      clipto_gpu_percent: { p95: 72 },
     },
   });
 
   assert.equal(values.length, REPORT_CSV_LABELS.length);
-  assert.equal(REPORT_CSV_LABELS.at(-3), "NVIDIA GPU 显存已用峰值 (VRAM GB)");
-  assert.equal(values.at(-3), "8.00");
-  assert.equal(values.at(-2), "16.00");
-  assert.match(values.at(-1) ?? "", /VRAM/);
+  const value = (label: string) => values[REPORT_CSV_LABELS.findIndex(row => row === label)];
+  assert.equal(value("NVIDIA GPU 显存已用峰值 (VRAM GB)"), "8.00");
+  assert.equal(value("NVIDIA GPU 显存总容量 (VRAM GB)"), "16.00");
+  assert.equal(value("全 CMS 显存占用峰值 (VRAM GB)"), "4.00");
+  assert.equal(value("Clipto 进程组显存占用峰值 (VRAM GB)"), "6.00");
+  assert.equal(value("Clipto 进程组 GPU P95 (%)"), "72.0");
 });

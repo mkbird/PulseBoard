@@ -4,6 +4,7 @@ export interface MetricCapabilities {
   power: boolean;
   dram_bandwidth: boolean;
   process_gpu: boolean;
+  process_vram: boolean;
   process_io: boolean;
 }
 
@@ -11,6 +12,7 @@ export interface MetricSemantics {
   system_memory: string;
   process_memory: string;
   gpu_memory: string;
+  process_vram: string;
   process_cpu: string;
   process_gpu: string;
   process_io: string;
@@ -70,6 +72,16 @@ export interface ProcessFrame {
   ok: boolean;
   error?: string;
   processes: ProcessReading[];
+  gpu?: ProcessGPUFrame;
+}
+
+export interface ProcessGPUFrame {
+  memory_ok: boolean;
+  engines_ok: boolean;
+  adapter_luids: string[];
+  memory: Array<{ pid: number; dedicated_bytes: number; shared_bytes: number }>;
+  engines: Array<{ pid: number; engine: string; utilization_percent: number }>;
+  error?: string;
 }
 
 export interface NvidiaGPUReading {
@@ -125,9 +137,14 @@ export interface LiveSample {
   clipto_disk_read_bps: null;
   clipto_disk_write_bps: null;
   clipto_process_count: number;
-  clipto_gpu_percent: null;
+  clipto_gpu_percent: number | null;
+  clipto_vram_bytes: number | null;
+  clipto_gpu_shared_bytes: number | null;
   cms_cpu_percent: number | null;
   cms_memory_bytes: number | null;
+  cms_gpu_percent: number | null;
+  cms_vram_bytes: number | null;
+  cms_gpu_shared_bytes: number | null;
   cms_process_count: number;
   process_readings: ProcessReadingWithCPU[];
 }
@@ -135,6 +152,9 @@ export interface LiveSample {
 export interface ProcessReadingWithCPU extends ProcessReading {
   cpu_percent: number | null;
   is_cms: boolean;
+  gpu_percent: number | null;
+  vram_bytes: number | null;
+  gpu_shared_bytes: number | null;
 }
 
 export interface LiveMetricStatistics {
@@ -153,6 +173,8 @@ export interface LiveCMSProcess {
   state: LiveProcessState;
   cpu: LiveMetricStatistics;
   memory: LiveMetricStatistics;
+  gpu: LiveMetricStatistics;
+  vram: LiveMetricStatistics;
 }
 
 export interface LiveCMSSession {
@@ -164,6 +186,8 @@ export interface LiveCMSSession {
   is_suspended: boolean;
   cpu: LiveMetricStatistics;
   memory: LiveMetricStatistics;
+  gpu: LiveMetricStatistics;
+  vram: LiveMetricStatistics;
   processes: LiveCMSProcess[];
 }
 
@@ -183,13 +207,17 @@ export interface HistoryPoint {
   clipto_mem_bytes: number | null;
   clipto_non_cms_mem_bytes: number | null;
   clipto_process_count: number;
-  clipto_gpu: null;
+  clipto_gpu: number | null;
+  clipto_vram_bytes: number | null;
+  clipto_gpu_shared_bytes: number | null;
   clipto_disk_read: null;
   clipto_disk_write: null;
   cms_cpu: number | null;
   cms_mem_bytes: number | null;
   cms_process_count: number;
-  cms_gpu: null;
+  cms_gpu: number | null;
+  cms_vram_bytes: number | null;
+  cms_gpu_shared_bytes: number | null;
   sys_power: null;
   cpu_power: null;
   gpu_power: number | null;
